@@ -245,7 +245,7 @@ function assignmentProgress(r,index,now=new Date()){
  result.detail=phase+' · aktual '+Math.round(actual)+'% / rencana '+Math.round(expected)+'% · counting '+counted+'/'+selected.length+' koli · put away '+finished+'/'+selected.length+' koli'+(nextCheckpoint!==null?' · batas counting '+new Date(nextCheckpoint).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour:'2-digit',minute:'2-digit'}):'')+' · '+result.detail;
  return {...result,actual,expected,counted,finished};
 }
-function renderAssignments(){assignmentList.innerHTML=assignmentRequests.length?'<div class="card"><div class="card-head"><div><h2>Assignment yang dibuat</h2><span class="sub">Counting (nomor koli + pcs) = 60%; Finish / put away = 100%. Rencana mengikuti durasi assignment dari Master Norm; counting ditargetkan pada 2/3 durasi setiap siklus maksimal 3 koli.</span></div><span class="tag green">'+assignmentRequests.length+' aktif</span></div><table><thead><tr><th>Activity / referensi</th><th>Target & koli per operator</th><th>Waktu</th><th>Progress / link</th></tr></thead><tbody>'+assignmentRequests.flatMap(r=>r.operators.map((code,i)=>{const target=Math.floor(r.qty/r.operators.length)+(i<r.qty%r.operators.length?1:0),person=staffMaster[code],koli=r.koliList?.length?formatKoliSet(splitCustomKoli(r.koliList,r.operators.length,i)):distributeKoli(r.koli,i,r.operators.length),progress=assignmentProgress(r,i),href=r.link||publishedGoodReceiptCsv;return '<tr><td><strong>'+htmlEscape(r.activity)+'</strong><br><span class="sub">'+htmlEscape(r.area)+' · '+htmlEscape(r.category)+' · '+htmlEscape(r.reference)+'</span></td><td><strong>'+htmlEscape(person.name)+' ('+code+')</strong><br><span class="sub">Target '+target+' '+htmlEscape(r.uom)+'</span><br><span class="sub">No. koli: '+htmlEscape(koli)+'</span></td><td>'+htmlEscape(r.start)+'–'+htmlEscape(r.finish)+'<br><span class="sub">MP '+r.operators.length+' · '+htmlEscape(r.date)+'</span></td><td><span class="tag '+progress.className+'">'+progress.label+'</span><br><span class="sub">'+htmlEscape(progress.detail)+'</span><br><a href="'+href+'" target="_blank" rel="noopener">Buka form progres</a></td></tr>'})).join('')+'</tbody></table><p class="sub">'+htmlEscape(typeof grSyncNotice==='string'?grSyncNotice:'Menunggu sinkronisasi Form GR…')+'</p><button class="btn soft" onclick="loadGoodReceiptProgress()">Refresh progres</button></div>':''}
+function renderAssignments(){assignmentList.innerHTML=assignmentRequests.length?'<div class="card"><div class="card-head"><div><h2>Assignment yang dibuat</h2><span class="sub">Counting (nomor koli + pcs) = 60%; Finish / put away = 100%. Rencana mengikuti durasi assignment dari Master Norm; counting ditargetkan pada 2/3 durasi setiap siklus maksimal 3 koli.</span></div><span class="tag green">'+assignmentRequests.length+' aktif</span></div><table><thead><tr><th>Activity / referensi</th><th>Target & koli per operator</th><th>Waktu</th><th>Progress / link</th><th>Kelola assignment</th></tr></thead><tbody>'+assignmentRequests.flatMap((r,assignmentIndex)=>r.operators.map((code,i)=>{const target=Math.floor(r.qty/r.operators.length)+(i<r.qty%r.operators.length?1:0),person=staffMaster[code],koli=r.koliList?.length?formatKoliSet(splitCustomKoli(r.koliList,r.operators.length,i)):distributeKoli(r.koli,i,r.operators.length),progress=assignmentProgress(r,i),href=r.link||publishedGoodReceiptCsv;return '<tr><td><strong>'+htmlEscape(r.activity)+'</strong><br><span class="sub">'+htmlEscape(r.area)+' · '+htmlEscape(r.category)+' · '+htmlEscape(r.reference)+'</span></td><td><strong>'+htmlEscape(person.name)+' ('+code+')</strong><br><span class="sub">Target '+target+' '+htmlEscape(r.uom)+'</span><br><span class="sub">No. koli: '+htmlEscape(koli)+'</span></td><td>'+htmlEscape(r.start)+'–'+htmlEscape(r.finish)+'<br><span class="sub">MP '+r.operators.length+' · '+htmlEscape(r.date)+'</span></td><td><span class="tag '+progress.className+'">'+progress.label+'</span><br><span class="sub">'+htmlEscape(progress.detail)+'</span><br><a href="'+href+'" target="_blank" rel="noopener">Buka form progres</a></td>'+ (i===0?'<td rowspan="'+r.operators.length+'"><button class="button secondary" onclick="editAssignment('+assignmentIndex+')">Edit</button> <button class="button secondary" style="color:#b42318" onclick="deleteAssignment('+assignmentIndex+')">Hapus</button><br><span class="sub">Seluruh operator dalam assignment ini</span></td>':'')+'</tr>'})).join('')+'</tbody></table><p class="sub">'+htmlEscape(typeof grSyncNotice==='string'?grSyncNotice:'Menunggu sinkronisasi Form GR…')+'</p><button class="btn soft" onclick="loadGoodReceiptProgress()">Refresh progres</button></div>':''}
 const grProgressBoard=document.createElement('div');grProgressBoard.id='gr-progress-board';grProgressBoard.style.marginTop='14px';document.getElementById('productivity').querySelector('.toolbar').after(grProgressBoard);
 function renderGoodReceiptProgress(source){const finished=goodReceiptBatches.filter(batch=>batch.finish).length,active=goodReceiptBatches.filter(batch=>batch.start&&!batch.finish).length,pendingPurchase=goodReceiptBatches.filter(batch=>!batch.purchase);grProgressBoard.innerHTML='<div class="card"><div class="card-head"><div><h2>Progress Inbound — Good Receipt</h2><span class="sub">Batch berstatus Done bila kolom Finish di Form GR sudah terisi. Estimasi mengacu pada waktu Assignment/Master Norm.</span></div><button class="button secondary" id="refresh-gr-progress">↻ Refresh progres</button></div><div class="grid three"><div class="card" style="text-align:center"><span class="metric-label">Batch selesai</span><div class="metric good">'+finished+'</div><span class="sub">Finish GR + put away terisi</span></div><div class="card" style="text-align:center"><span class="metric-label">Sedang berjalan</span><div class="metric purple">'+active+'</div><span class="sub">Start terisi, finish menunggu</span></div><div class="card" style="text-align:center"><span class="metric-label">Data entry Purchase</span><div class="metric warn">'+pendingPurchase.length+'</div><span class="sub">Tugas Admin Inbound belum selesai</span></div></div><hr class="rule"><h3>Antrean assignment Admin Inbound — Purchase / data entry</h3><table><thead><tr><th>Admin</th><th>PO / batch</th><th>GR / put away</th><th>Purchase</th><th>Keterangan</th></tr></thead><tbody>'+(pendingPurchase.length?pendingPurchase.map((batch,index)=>{const admin=index%2===0?'Rezky Novita (W09)':'Riang indra pratiwi (W14)';return '<tr><td><strong>'+admin+'</strong><br><span class="sub">Assignment otomatis data entry</span></td><td><strong>'+htmlEscape(batch.po||'—')+'</strong><br><span class="sub">Batch '+htmlEscape(batch.batch||'—')+' · koli '+htmlEscape(formatKoliSet(batch.koli)||'—')+'</span></td><td>'+(batch.finish?'<span class="tag green">GR selesai '+htmlEscape(batch.finish)+'</span>':'<span class="tag purple">GR masih berjalan</span>')+'</td><td><span class="tag amber">Menunggu Purchase</span></td><td class="sub">'+htmlEscape(batch.notes||batch.ket||'Belum ada catatan')+'</td></tr>'}).join(''):'<tr><td colspan="5"><span class="tag green">Semua batch sudah Purchase / data entry.</span></td></tr>')+'</tbody></table><p class="sub">'+htmlEscape(source)+'</p></div>';document.getElementById('refresh-gr-progress').onclick=loadGoodReceiptProgress}
 var grSyncNotice;
@@ -295,5 +295,76 @@ const assignmentClock=document.createElement('p');assignmentClock.className='sub
 function refreshAssignmentClock(){assignmentClock.textContent='Waktu sekarang: '+new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar',hour12:false})+' WITA · Format 24 jam: 05:40 pagi / 17:40 sore.';renderAssignments()}
 refreshAssignmentClock();setInterval(refreshAssignmentClock,15000);
 document.getElementById('asg-start').previousElementSibling.textContent='Start (WITA · 24 jam)';
+// Assignment editing uses the original object so other deletions cannot change the edit target.
+let editingAssignment=null;
+const cancelAssignmentEdit=document.createElement('button');
+cancelAssignmentEdit.className='button secondary';
+cancelAssignmentEdit.id='asg-cancel-edit';
+cancelAssignmentEdit.textContent='Batal Edit';
+cancelAssignmentEdit.hidden=true;
+document.getElementById('asg-create').after(cancelAssignmentEdit);
+function resetAssignmentEditor(){
+ editingAssignment=null;
+ for(const id of ['asg-qty','asg-po','asg-koli','asg-operators','asg-link','asg-planned-pcs'])document.getElementById(id).value='';
+ document.getElementById('asg-create').textContent='Buat assignment dan bagi target';
+ assignmentCreator.querySelector('h2').textContent='Buat assignment';
+ cancelAssignmentEdit.hidden=true;
+ previewAssignment();
+}
+cancelAssignmentEdit.onclick=resetAssignmentEditor;
+function editAssignment(index){
+ const r=assignmentRequests[index];if(!r)return;
+ if(editingAssignment&&editingAssignment!==r&&!confirm('Batalkan perubahan yang belum disimpan dan edit assignment lain?'))return;
+ editingAssignment=r;
+ const fields={role:r.role,activity:r.activity,date:r.date,start:r.start,qty:r.qty,po:r.reference,koli:r.koliList?.length?r.koliList.join(', '):r.koli?r.koli.first+'-'+r.koli.last:'',operators:r.operators.join(', '),link:r.link||'','planned-pcs':r.targetPcs??''};
+ for(const [key,value]of Object.entries(fields))document.getElementById('asg-'+key).value=value;
+ syncAssignmentNorm();
+ document.getElementById('asg-create').textContent='Simpan perubahan';
+ assignmentCreator.querySelector('h2').textContent='Edit assignment · '+r.reference;
+ cancelAssignmentEdit.hidden=false;
+ assignmentCreator.scrollIntoView({behavior:'smooth',block:'start'});
+ document.getElementById('asg-koli').focus();
+}
+function deleteAssignment(index){
+ const r=assignmentRequests[index];if(!r)return;
+ if(!confirm('Hapus assignment '+r.reference+' ('+r.date+') untuk '+r.operators.join(', ')+'?\nSeluruh target operator dalam assignment ini dihapus dari web. Data spreadsheet tidak dihapus.'))return;
+ assignmentRequests.splice(index,1);
+ if(editingAssignment===r)resetAssignmentEditor();
+ renderAssignments();
+}
+document.getElementById('asg-create').onclick=()=>{
+ const value=id=>document.getElementById('asg-'+id).value.trim();
+ const role=value('role'),activity=value('activity'),date=value('date'),start=value('start'),reference=value('po'),codes=parseCodes(value('operators')),norm=assignmentNorms[activity];
+ const rawKoli=value('koli');
+ if(rawKoli&&!/^\d+(?:\s*-\s*\d+)?(?:\s*,\s*\d+(?:\s*-\s*\d+)?)*$/.test(rawKoli)){alert('Nomor koli gunakan angka, koma, atau rentang, misalnya 1,2,3,5 atau 1-3,5.');return;}
+ const koliList=parseKoliSelection(rawKoli),qty=norm.uom==='Koli'?koliList.length:Number(value('qty'));
+ if(!Number.isInteger(qty)||qty<=0||!date||!start||!codes.length){alert('Lengkapi tanggal, nomor koli / Qty, waktu mulai, dan kode operator yang valid.');return;}
+ const invalid=codes.filter(code=>!staffMaster[code]);
+ if(invalid.length){alert('Kode operator tidak ditemukan: '+invalid.join(', '));return;}
+ const pcsRaw=value('planned-pcs'),pcs=pcsRaw===''?null:Number(pcsRaw);
+ if(pcs!==null&&(!Number.isInteger(pcs)||pcs<0)){alert('Target pcs harus angka bulat nol atau lebih.');return;}
+ const link=value('link');
+ if(link){try{if(!['https:','http:'].includes(new URL(link).protocol))throw Error();}catch{alert('Link form harus URL http atau https yang valid.');return;}}
+ previewAssignment();
+ const finish=value('finish');
+ if(!finish){alert('Estimasi selesai belum valid. Periksa waktu dan target.');return;}
+ const data={role,activity,area:norm.area,category:norm.category,uom:norm.uom,qty,date,start,finish,reference:reference||'—',operators:codes,koli:null,koliList,link,targetPcs:pcs};
+ const wasEditing=!!editingAssignment;
+ if(wasEditing){
+  if(!assignmentRequests.includes(editingAssignment)){alert('Assignment tidak ditemukan. Silakan batalkan edit.');return;}
+  Object.assign(editingAssignment,data);
+ }else assignmentRequests.unshift(data);
+ resetAssignmentEditor();renderAssignments();
+ alert(wasEditing?'Perubahan assignment berhasil disimpan. Target dan progres telah dihitung ulang.':'Assignment berhasil dibuat.');
+};
+const openAssignmentFromQueue=openSimpleInboundAssignment;
+openSimpleInboundAssignment=function(row){
+ if(editingAssignment&&!confirm('Batalkan edit dan buat assignment baru dari antrean?'))return;
+ resetAssignmentEditor();openAssignmentFromQueue(row);
+};
+assignmentToolbarButton.onclick=()=>{
+ if(editingAssignment&&!confirm('Batalkan edit dan buat assignment baru?'))return;
+ resetAssignmentEditor();assignmentCreator.scrollIntoView({behavior:'smooth',block:'start'});
+};
 </script></body></html>
 
