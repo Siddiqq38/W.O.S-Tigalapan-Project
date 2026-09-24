@@ -167,31 +167,90 @@ const cleanText=value=>String(value??'').replace(/\s+/g,' ').trim();
 const yes=value=>['TRUE','YES','YA','1','✓','✔'].includes(cleanText(value).toUpperCase());
 const numbersFromCells=cells=>cells.flatMap(value=>cleanText(value).split(/[^0-9]+/).filter(Boolean).map(Number)).filter(value=>value>0&&value<1000);
 const normalCode=value=>cleanText(value).toUpperCase().replace(/[^A-Z0-9]/g,'');
-function parseGoodReceiptCsv(text){const rows=parsePublishedCsv(text).filter(row=>row.some(cell=>cleanText(cell)));const headerIndex=rows.findIndex(row=>cleanText(row[0]).toUpperCase()==='BATCH');if(headerIndex<0)return [];const batches=[];let current=null;for(const row of rows.slice(headerIndex+1)){const batch=cleanText(row[0]);if(batch){if(current)batches.push(current);current={batch,date:cleanText(row[1]),start:cleanText(row[2]),finish:cleanText(row[3]),leadTime:cleanText(row[4]),po:cleanText(row[5]),koli:numbersFromCells(row.slice(6,9)),totalPcs:cleanText(row[9]),totalKoli:cleanText(row[10]),pic:cleanText(row[11]),notes:cleanText(row[12]),sku:cleanText(row[13]),purchase:yes(row[14]),ket:cleanText(row[15])};continue}if(!current)continue;if(!current.koli.length){const koli=numbersFromCells(row.slice(6,9));if(koli.length)current.koli=koli}if(!current.finish)current.finish=cleanText(row[3]);if(!current.totalPcs)current.totalPcs=cleanText(row[9]);if(!current.totalKoli)current.totalKoli=cleanText(row[10]);if(!current.pic)current.pic=cleanText(row[11]);if(!current.notes)current.notes=cleanText(row[12]);if(!current.purchase)current.purchase=yes(row[14]);if(!current.ket)current.ket=cleanText(row[15])}if(current)batches.push(current);return batches.filter(batch=>batch.po||batch.batch)}
+function parseGoodReceiptCsv(text){
+ const rows=parsePublishedCsv(text),header=rows.findIndex(r=>cleanText(r[0]).toUpperCase()==='BATCH');
+ if(header<0)throw new Error('Header BATCH tidak ditemukan pada Form GR');
+ const batches=[];let current=null;
+ for(let i=header+1;i<rows.length;i++){
+  const row=rows[i]||[],id=cleanText(row[0]);
+  if(id&&/^\d+$/.test(id)){
+   current={batch:id,date:cleanText(row[1]),start:cleanText(row[2]),finish:cleanText(row[3]),leadTime:cleanText(row[4]),po:cleanText(row[5]),koli:[],items:[],totalPcs:cleanText(row[9]),totalKoli:cleanText(row[10]),pic:cleanText(row[11]),notes:cleanText(row[12]),sku:cleanText(row[13]),purchase:yes(row[14]),ket:cleanText(row[15])};
+   const below=rows[i+1]||[],isPcsRow=!cleanText(below[0]);
+   for(let col=6;col<=8;col++){
+    const number=cleanText(row[col]);
+    if(!/^\d+$/.test(number)||Number(number)<=0)continue;
+    const rawPcs=isPcsRow?cleanText(below[col]):'',pcs=rawPcs===''?null:csvNumber(rawPcs);
+    current.koli.push(Number(number));current.items.push({koli:Number(number),pcs,counted:pcs!==null&&pcs>=0});
+   }
+   batches.push(current);
+  }else if(current&&i>header+1){
+   if(!current.notes)current.notes=cleanText(row[12]);
+   if(!current.ket)current.ket=cleanText(row[15]);
+   if(yes(row[14]))current.purchase=true;
+  }
+ }
+ return batches;
+}
 function dateToIso(value){const match=cleanText(value).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return match?match[3]+'-'+match[2].padStart(2,'0')+'-'+match[1].padStart(2,'0'):''}
 function assignmentKoliFor(r,index){return r.koliList?.length?splitCustomKoli(r.koliList,r.operators.length,index):r.koli?Array.from({length:r.koli.count},(_,i)=>r.koli.first+i).filter((_,i)=>i%r.operators.length===index):[]}
+function assignmentWindow(r){
+ const stamp=value=>Date.parse(r.date+'T'+(value.length===5?value+':00':value)+'+08:00');
+ const start=stamp(r.start),rawEnd=stamp(r.finish),end=rawEnd<start?rawEnd+86400000:rawEnd;
+ return {start,end};
+}
 function assignmentTiming(r,hasProgress,complete,now=new Date()){
- const start=Date.parse(r.date+'T'+r.start+':00+08:00');
- let end=Date.parse(r.date+'T'+r.finish+':00+08:00');
- if(end<start)end+=86400000;
+ const {start,end}=assignmentWindow(r);
  if(complete)return {label:'Done',className:'green',detail:'GR / put away selesai'};
- if(!Number.isFinite(start)||!Number.isFinite(end))return {label:'Periksa waktu',className:'amber',detail:'Tanggal atau jam assignment belum valid'};
- if(now.getTime()<start)return {label:'Belum mulai',className:'amber',detail:'Terjadwal mulai '+r.start+' WITA'};
- if(now.getTime()>=end)return {label:'Delay',className:'red',detail:'Belum selesai · estimasi '+r.finish+' WITA telah lewat'};
- if(now.getTime()>=end-300000&&!hasProgress)return {label:'Delay',className:'red',detail:'Belum ada progres · kurang dari atau sama dengan 5 menit menuju '+r.finish+' WITA'};
- return {label:'On progress',className:'purple',detail:'Jadwal '+r.start+'–'+r.finish+' WITA'+(hasProgress?' · progres tercatat':' · menunggu update Form GR')};
+ if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return {label:'At risk',className:'amber',detail:'Periksa tanggal / jam assignment'};
+ if(now.getTime()<start)return {label:'Belum mulai',className:'purple',detail:'Terjadwal mulai '+r.start+' WITA'};
+ if(now.getTime()>end)return {label:'Delay',className:'red',detail:'Melewati estimasi selesai '+r.finish+' WITA'};
+ return {label:'On track',className:'green',detail:hasProgress?'Sedang berjalan':'Menunggu pencatatan Form GR'};
 }
-function assignmentProgress(r,index){
- const selected=assignmentKoliFor(r,index),reference=normalCode(r.reference);
- const candidates=goodReceiptBatches.filter(b=>dateToIso(b.date)===r.date&&reference&&normalCode(b.po)===reference&&(!selected.length||selected.some(k=>b.koli.includes(k))));
- const complete=selected.length>0&&selected.every(k=>candidates.some(b=>b.koli.includes(k)&&b.finish));
- return assignmentTiming(r,candidates.some(b=>b.start||b.finish),complete);
+function assignmentProgress(r,index,now=new Date()){
+ const selected=[...new Set(assignmentKoliFor(r,index))],all=[...new Set(r.koliList?.length?r.koliList:r.operators.flatMap((_,i)=>assignmentKoliFor(r,i)))];
+ const reference=normalCode(r.reference),code=r.operators[index];
+ if(!selected.length||r.area!=='Inbound')return assignmentTiming(r,false,false,now);
+ const candidates=goodReceiptBatches.filter(b=>dateToIso(b.date)===r.date&&reference&&normalCode(b.po)===reference&&(b.pic.toUpperCase().match(/W\d+/g)||[]).includes(code));
+ const states=new Map(selected.map(k=>{
+  const rows=candidates.filter(b=>b.koli.includes(k));
+  const counted=rows.some(b=>b.items?.some(item=>item.koli===k&&item.counted));
+  const finished=rows.some(b=>/^\d{1,2}:\d{2}(?::\d{2})?$/.test(b.finish)&&b.items?.some(item=>item.koli===k&&item.counted));
+  return [k,{counted,finished}];
+ }));
+ const counted=[...states.values()].filter(s=>s.counted).length,finished=[...states.values()].filter(s=>s.finished).length;
+ const actual=(counted*.6+finished*.4)/selected.length*100;
+ const {start,end}=assignmentWindow(r),duration=end-start,t=now.getTime();
+ let expected=0,late=false,risk=false,nextCheckpoint=null;
+ // Planned cycles contain at most three koli; actual sheet batches may contain one or two.
+ for(let offset=0;offset<all.length;offset+=3){
+  const group=all.slice(offset,offset+3),cycleStart=start+duration*offset/all.length,cycleEnd=start+duration*(offset+group.length)/all.length;
+  const checkpoint=cycleStart+(cycleEnd-cycleStart)*2/3;
+  for(const k of group.filter(k=>states.has(k))){
+   const state=states.get(k),elapsed=t-cycleStart,span=cycleEnd-cycleStart;
+   const planned=elapsed<=0?0:t<=checkpoint?.6*elapsed/(span*2/3):Math.min(1,.6+.4*(t-checkpoint)/(span/3));
+   expected+=planned*100/selected.length;
+   if(!state.counted&&t>=checkpoint){
+    if(t<checkpoint+60000)risk=true;else late=true;
+   }
+   if(!state.finished&&t>cycleEnd)late=true;
+   if(!state.counted&&checkpoint>t&&(nextCheckpoint===null||checkpoint<nextCheckpoint))nextCheckpoint=checkpoint;
+  }
+ }
+ let result=assignmentTiming(r,candidates.length>0,finished===selected.length,now);
+ if(result.label!=='Done'&&result.label!=='Belum mulai'){
+  if(late)result={label:'Delay',className:'red',detail:'Batas counting / put away terlewati'};
+  else if(risk||expected-actual>10)result={label:'At risk',className:'amber',detail:'Progres di bawah rencana counting / put away'};
+ }
+ const phase=finished===selected.length?'Selesai':counted===selected.length?'Ready put away':'Counting';
+ result.detail=phase+' · aktual '+Math.round(actual)+'% / rencana '+Math.round(expected)+'% · counting '+counted+'/'+selected.length+' koli · put away '+finished+'/'+selected.length+' koli'+(nextCheckpoint!==null?' · batas counting '+new Date(nextCheckpoint).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour:'2-digit',minute:'2-digit'}):'')+' · '+result.detail;
+ return {...result,actual,expected,counted,finished};
 }
-function renderAssignments(){assignmentList.innerHTML=assignmentRequests.length?'<div class="card"><div class="card-head"><div><h2>Assignment yang dibuat</h2><span class="sub">Progres dibaca dari Form Good Receipt: finish = GR/put away selesai; Purchase = tugas data entry admin selesai.</span></div><span class="tag green">'+assignmentRequests.length+' aktif</span></div><table><thead><tr><th>Activity / referensi</th><th>Target & koli per operator</th><th>Waktu</th><th>Progress / link</th></tr></thead><tbody>'+assignmentRequests.flatMap(r=>r.operators.map((code,i)=>{const target=Math.floor(r.qty/r.operators.length)+(i<r.qty%r.operators.length?1:0),person=staffMaster[code],koli=r.koliList?.length?formatKoliSet(splitCustomKoli(r.koliList,r.operators.length,i)):distributeKoli(r.koli,i,r.operators.length),progress=assignmentProgress(r,i),href=r.link||publishedGoodReceiptCsv;return '<tr><td><strong>'+htmlEscape(r.activity)+'</strong><br><span class="sub">'+htmlEscape(r.area)+' · '+htmlEscape(r.category)+' · '+htmlEscape(r.reference)+'</span></td><td><strong>'+htmlEscape(person.name)+' ('+code+')</strong><br><span class="sub">Target '+target+' '+htmlEscape(r.uom)+'</span><br><span class="sub">No. koli: '+htmlEscape(koli)+'</span></td><td>'+htmlEscape(r.start)+'–'+htmlEscape(r.finish)+'<br><span class="sub">MP '+r.operators.length+' · '+htmlEscape(r.date)+'</span></td><td><span class="tag '+progress.className+'">'+progress.label+'</span><br><span class="sub">'+htmlEscape(progress.detail)+'</span><br><a href="'+href+'" target="_blank" rel="noopener">Buka form progres</a></td></tr>'})).join('')+'</tbody></table></div>':''}
+function renderAssignments(){assignmentList.innerHTML=assignmentRequests.length?'<div class="card"><div class="card-head"><div><h2>Assignment yang dibuat</h2><span class="sub">Counting (nomor koli + pcs) = 60%; Finish / put away = 100%. Rencana mengikuti durasi assignment dari Master Norm; counting ditargetkan pada 2/3 durasi setiap siklus maksimal 3 koli.</span></div><span class="tag green">'+assignmentRequests.length+' aktif</span></div><table><thead><tr><th>Activity / referensi</th><th>Target & koli per operator</th><th>Waktu</th><th>Progress / link</th></tr></thead><tbody>'+assignmentRequests.flatMap(r=>r.operators.map((code,i)=>{const target=Math.floor(r.qty/r.operators.length)+(i<r.qty%r.operators.length?1:0),person=staffMaster[code],koli=r.koliList?.length?formatKoliSet(splitCustomKoli(r.koliList,r.operators.length,i)):distributeKoli(r.koli,i,r.operators.length),progress=assignmentProgress(r,i),href=r.link||publishedGoodReceiptCsv;return '<tr><td><strong>'+htmlEscape(r.activity)+'</strong><br><span class="sub">'+htmlEscape(r.area)+' · '+htmlEscape(r.category)+' · '+htmlEscape(r.reference)+'</span></td><td><strong>'+htmlEscape(person.name)+' ('+code+')</strong><br><span class="sub">Target '+target+' '+htmlEscape(r.uom)+'</span><br><span class="sub">No. koli: '+htmlEscape(koli)+'</span></td><td>'+htmlEscape(r.start)+'–'+htmlEscape(r.finish)+'<br><span class="sub">MP '+r.operators.length+' · '+htmlEscape(r.date)+'</span></td><td><span class="tag '+progress.className+'">'+progress.label+'</span><br><span class="sub">'+htmlEscape(progress.detail)+'</span><br><a href="'+href+'" target="_blank" rel="noopener">Buka form progres</a></td></tr>'})).join('')+'</tbody></table><p class="sub">'+htmlEscape(typeof grSyncNotice==='string'?grSyncNotice:'Menunggu sinkronisasi Form GR…')+'</p><button class="btn soft" onclick="loadGoodReceiptProgress()">Refresh progres</button></div>':''}
 const grProgressBoard=document.createElement('div');grProgressBoard.id='gr-progress-board';grProgressBoard.style.marginTop='14px';document.getElementById('productivity').querySelector('.toolbar').after(grProgressBoard);
 function renderGoodReceiptProgress(source){const finished=goodReceiptBatches.filter(batch=>batch.finish).length,active=goodReceiptBatches.filter(batch=>batch.start&&!batch.finish).length,pendingPurchase=goodReceiptBatches.filter(batch=>!batch.purchase);grProgressBoard.innerHTML='<div class="card"><div class="card-head"><div><h2>Progress Inbound — Good Receipt</h2><span class="sub">Batch berstatus Done bila kolom Finish di Form GR sudah terisi. Estimasi mengacu pada waktu Assignment/Master Norm.</span></div><button class="button secondary" id="refresh-gr-progress">↻ Refresh progres</button></div><div class="grid three"><div class="card" style="text-align:center"><span class="metric-label">Batch selesai</span><div class="metric good">'+finished+'</div><span class="sub">Finish GR + put away terisi</span></div><div class="card" style="text-align:center"><span class="metric-label">Sedang berjalan</span><div class="metric purple">'+active+'</div><span class="sub">Start terisi, finish menunggu</span></div><div class="card" style="text-align:center"><span class="metric-label">Data entry Purchase</span><div class="metric warn">'+pendingPurchase.length+'</div><span class="sub">Tugas Admin Inbound belum selesai</span></div></div><hr class="rule"><h3>Antrean assignment Admin Inbound — Purchase / data entry</h3><table><thead><tr><th>Admin</th><th>PO / batch</th><th>GR / put away</th><th>Purchase</th><th>Keterangan</th></tr></thead><tbody>'+(pendingPurchase.length?pendingPurchase.map((batch,index)=>{const admin=index%2===0?'Rezky Novita (W09)':'Riang indra pratiwi (W14)';return '<tr><td><strong>'+admin+'</strong><br><span class="sub">Assignment otomatis data entry</span></td><td><strong>'+htmlEscape(batch.po||'—')+'</strong><br><span class="sub">Batch '+htmlEscape(batch.batch||'—')+' · koli '+htmlEscape(formatKoliSet(batch.koli)||'—')+'</span></td><td>'+(batch.finish?'<span class="tag green">GR selesai '+htmlEscape(batch.finish)+'</span>':'<span class="tag purple">GR masih berjalan</span>')+'</td><td><span class="tag amber">Menunggu Purchase</span></td><td class="sub">'+htmlEscape(batch.notes||batch.ket||'Belum ada catatan')+'</td></tr>'}).join(''):'<tr><td colspan="5"><span class="tag green">Semua batch sudah Purchase / data entry.</span></td></tr>')+'</tbody></table><p class="sub">'+htmlEscape(source)+'</p></div>';document.getElementById('refresh-gr-progress').onclick=loadGoodReceiptProgress}
-async function loadGoodReceiptProgress(){try{const response=await fetch(publishedGoodReceiptCsv,{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);goodReceiptBatches=parseGoodReceiptCsv(await response.text());renderGoodReceiptProgress('Terakhir diperbarui '+new Date().toLocaleString('id-ID')+' · sumber: FORM GR WHS 2026.');renderAssignments()}catch(error){goodReceiptBatches=[];renderGoodReceiptProgress('Progres live belum dapat dimuat ('+error.message+'). Tekan Refresh progres untuk mencoba kembali.');renderAssignments()}}
-loadGoodReceiptProgress();setInterval(loadGoodReceiptProgress,300000);
+var grSyncNotice;
+async function loadGoodReceiptProgress(){try{const response=await fetch(publishedGoodReceiptCsv,{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);goodReceiptBatches=parseGoodReceiptCsv(await response.text());grSyncNotice='Terakhir diperbarui '+new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA · sumber: FORM GR WHS 2026 · refresh otomatis 60 detik.';renderGoodReceiptProgress(grSyncNotice);renderAssignments()}catch(error){grSyncNotice='Sinkronisasi gagal; data terakhir dipertahankan. Progres mungkin belum terbaru ('+error.message+').';renderGoodReceiptProgress(grSyncNotice);renderAssignments()}}
+loadGoodReceiptProgress();setInterval(loadGoodReceiptProgress,60000);
 // Perbaikan pembaca INTRANSIT: metadata unloading berada pada baris awal PO dan Ready GR = intransit dikurangi Good Receipt.
 function inboundDateOrder(value){const m=String(value||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?Number(m[3]+String(m[2]).padStart(2,'0')+String(m[1]).padStart(2,'0')):0}
 function collectInboundUnloadMeta(block,row){for(let i=4;i<=33;i++){const date=String(row[i]??'').trim();if(!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(date))continue;let resi='—',area='—';for(let left=i-1;left>=4&&left>=i-6;left--){const value=String(row[left]??'').trim();if(/^(?:D?\d{4,}|[A-Z]{1,4}\s*\d{3,})$/i.test(value)){resi=value;break}}for(let right=i+1;right<=33&&right<=i+6;right++){const value=String(row[right]??'').trim();if(/^(?:STG\s*\d+|DC)$/i.test(value)){area=value.replace(/\s+/g,'');break}}const key=date+'|'+resi+'|'+area;if(!block.unloads.some(item=>item.key===key))block.unloads.push({key,date,resi,area,order:block.unloads.length})}}
