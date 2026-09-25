@@ -808,4 +808,22 @@ if(typeof document!=='undefined')(()=>{
  $('refresh').onclick=load;$('date').onchange=$('source-filter').onchange=render;renderSources();render();load();setInterval(load,60000);
 })();
 // END OUTBOUND MODULE
+// Assignment categories: keep existing nodes and listeners alive while collapsed.
+(()=>{
+ const page=document.getElementById('assignment');
+ const existing=[...page.children];
+ const style=document.createElement('style');
+ style.textContent='.assignment-category{border:1px solid var(--border,#d6e3ef);border-radius:12px;background:var(--card,#fff);margin:0 0 16px;overflow:hidden}.assignment-category>summary{cursor:pointer;padding:22px 24px;font-size:19px;font-weight:700;color:var(--text,#12334b)}.assignment-category>summary:focus-visible{outline:3px solid #1684cc;outline-offset:-4px}.assignment-category[open]>summary{border-bottom:1px solid #d6e3ef}.assignment-category-body{padding:18px}.assignment-category-body>.ob-box:first-child{margin-top:0}@media(max-width:600px){.assignment-category-body{padding:10px}.assignment-category>summary{padding:18px}}';
+ document.head.append(style);
+ const panels=['Inbound','Outbound','Other'].map(label=>{
+  const panel=document.createElement('details');panel.className='assignment-category';panel.id='assignment-category-'+label.toLowerCase();
+  const summary=document.createElement('summary');summary.textContent=label;
+  const body=document.createElement('div');body.className='assignment-category-body';
+  panel.append(summary,body);page.append(panel);return {panel,body};
+ });
+ existing.forEach(node=>{const outbound=node.id==='ob-board'||node.id==='ob-ops';panels[outbound?1:0].body.append(node)});
+ panels[2].body.innerHTML='<p class="sub">Assignment Other belum tersedia. Fitur pekerjaan di luar Inbound dan Outbound akan dikembangkan setelah modul Outbound selesai.</p>';
+ panels.forEach(({panel})=>panel.addEventListener('toggle',()=>{if(panel.open)panels.forEach(other=>{if(other.panel!==panel)other.panel.open=false})}));
+ document.querySelectorAll('.nav[data-page="assignment"]').forEach(button=>button.addEventListener('click',()=>panels.forEach(({panel})=>panel.open=false)));
+})();
 </script></body></html>
