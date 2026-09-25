@@ -374,7 +374,11 @@ function complianceDate(now=new Date()){
 function complianceDue(day){return Date.parse(day+'T18:00:00+08:00');}
 function complianceReportStatus(row,now=new Date()){
  if(row.exempt)return 'Dikecualikan';
- if(row.report)return row.report.at<complianceDue(row.day)?'Done':'Done · terlambat';
+ if(row.report){
+  if(row.report.approval==='approved')return row.report.at<complianceDue(row.day)?'Done · disetujui SPV':'Done · disetujui, terlambat';
+  if(row.report.approval==='rejected')return 'Ditolak · perlu perbaikan';
+  return 'Menunggu approval SPV';
+ }
  return now.getTime()>=complianceDue(row.day)?'Belum lapor · lewat batas':'Menunggu laporan';
 }
 function reconcileCompliance(state,now=new Date()){
@@ -400,11 +404,22 @@ function complianceMonthly(state,month){
   const days=state.days.filter(r=>r.code===code&&r.day.startsWith(month)&&!r.exempt);
   const events=state.events.filter(e=>e.code===code&&e.day.startsWith(month));
   return {code,scheduled:days.length,briefing:days.filter(r=>r.drm==='yes').length,device:days.filter(r=>r.device==='yes').length,
-   reports:days.filter(r=>r.report&&r.report.at<complianceDue(r.day)).length,
+   reports:days.filter(r=>r.report?.approval==='approved').length,
+   waitingReports:days.filter(r=>r.report&&!['approved','rejected'].includes(r.report.approval)).length,
+   rejectedReports:days.filter(r=>r.report?.approval==='rejected').length,
    pending:events.filter(e=>e.status==='pending').length,valid:events.filter(e=>e.status==='valid').length,
    sop:events.filter(e=>e.status==='valid'&&e.type==='SOP').length,complaints:events.filter(e=>e.status==='valid'&&e.type.startsWith('Komplain')).length,
    fiveR:events.filter(e=>e.status==='valid'&&e.type==='5R').length};
  });
+}
+function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
+ if(!row||row.exempt||!row.report||row.report.fileId!==fileId)throw Error('Laporan berubah. Buka kembali bukti terbaru.');
+ if(!['approved','rejected'].includes(decision))throw Error('Keputusan tidak valid.');
+ if(decision==='approved'&&(checks.length!==5||checks.some(v=>v!==true)))throw Error('Kelima checklist 5R harus memenuhi standar sebelum ACC.');
+ if(decision==='rejected'&&!note.trim())throw Error('Catatan temuan wajib untuk penolakan.');
+ row.report.reviewHistory=row.report.reviewHistory||[];
+ row.report.reviewHistory.push({decision,checks:[...checks],note,reviewer,at:now});
+ Object.assign(row.report,{approval:decision,checks:[...checks],reviewNote:note,reviewer,reviewedAt:now});
 }
 // Browser application. Local storage deliberately labelled; no server-upload claims.
 (async function initCompliance(){
@@ -415,7 +430,7 @@ function complianceMonthly(state,month){
  const actorOptions=Object.entries(staffMaster).map(([code,p])=>'<option value="'+code+'">'+code+' · '+esc(p.name)+'</option>').join('');
  const today=complianceDate();
  let db,state={days:[],events:[],audit:[]},busy=false,stream=null,recorder=null,recordTimer=null;
- let draft=null,draftUrl=null,recordBinding=null,cameraGeneration=0,elapsedTimer=null,viewUrl=null,pendingReview=null;
+ let draft=null,draftUrl=null,recordBinding=null,cameraGeneration=0,elapsedTimer=null,viewUrl=null,pendingReview=null,fiveRReview=null;
  names.compliance=['Compliance','DRM, device, SOP, komplain, dan laporan 5R'];
  const style=document.createElement('style');
  style.textContent='#compliance .cp-table{overflow:auto}#compliance table{min-width:700px}#compliance th,#compliance td{display:table-cell!important}#compliance .cp-stack{display:grid;gap:16px}#compliance video,#compliance img{width:100%;max-height:300px;object-fit:contain;background:#102131;border-radius:8px}#compliance button:disabled{opacity:.5;cursor:not-allowed}#compliance [hidden]{display:none!important}#compliance .cp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}#compliance .cp-admin{border-left:3px solid #1675bd}';
@@ -431,7 +446,7 @@ function complianceMonthly(state,month){
  '<section class="card"><div class="card-head"><div><h2>Checklist harian & 5R</h2><span class="sub">Belum diperiksa ≠ pelanggaran. Ketidakhadiran DRM dan device dicatat Admin/SPV. 5R wajib sebelum 18.00 WITA.</span></div></div><div id="cp-daily" class="cp-table"></div></section>'+
  '<section class="card cp-admin" id="cp-check-panel"><h2>Periksa DRM / device / pengecualian</h2><div class="form-grid"><div class="field"><label for="cp-check-person">Petugas tanggal terpilih</label><select id="cp-check-person"></select></div><div class="field"><label for="cp-check-drm">Briefing / Daily Review Meeting</label><select id="cp-check-drm"><option value="unknown">Belum diperiksa</option><option value="yes">Hadir</option><option value="no">Tidak hadir tanpa izin</option></select></div><div class="field"><label for="cp-check-device">Pengumpulan HP / device</label><select id="cp-check-device"><option value="unknown">Belum diperiksa</option><option value="yes">Sudah dikumpulkan</option><option value="no">Tidak mengumpulkan</option></select></div></div>'+
  '<div class="form-grid" style="margin-top:12px"><div class="field"><label for="cp-check-exempt">Kewajiban hari ini</label><select id="cp-check-exempt"><option value="no">Bekerja · wajib laporan</option><option value="yes">Dikecualikan (off / cuti / izin)</option></select></div><div class="field"><label for="cp-check-reason">Alasan / catatan pemeriksaan</label><textarea id="cp-check-reason" maxlength="1000" placeholder="Wajib untuk pelanggaran atau pengecualian"></textarea></div></div><button id="cp-check-save" class="button">Simpan pemeriksaan</button></section>'+
- '<section class="card"><h2>Laporan 5R — kamera langsung</h2><p class="sub">Video disarankan (maksimal 60 detik / 20 MB, tanpa audio); foto juga tersedia. Tidak ada akses galeri. Laporan untuk hari ini saja. Done dicatat setelah bukti berhasil tersimpan lokal, bukan saat tombol kamera ditekan.</p>'+
+ '<section class="card"><h2>Laporan 5R — kamera langsung</h2><p class="sub">Video disarankan (maksimal 60 detik / 20 MB, tanpa audio); foto juga tersedia. Tidak ada akses galeri. Setelah kirim: Menunggu approval SPV. Hanya laporan yang di-ACC dihitung Done. Jika ditolak, perbaiki area dan kirim bukti baru pada hari yang sama; laporan lama tetap tersimpan.</p>'+
  '<div class="form-grid"><div class="field"><label for="cp-report-person">Petugas hari ini</label><select id="cp-report-person"></select></div><div class="field"><label for="cp-report-area">Area</label><input id="cp-report-area" readonly></div></div>'+
  '<p id="cp-camera-status" class="sub" role="status">Pilih petugas, lalu buka kamera.</p><video id="cp-live" autoplay playsinline muted hidden></video><video id="cp-preview-video" controls playsinline hidden></video><img id="cp-preview-photo" alt="Pratinjau foto 5R" hidden>'+
  '<div class="cp-actions"><button id="cp-camera-open" class="button secondary">Buka kamera</button><button id="cp-video-start" class="button secondary" disabled>Mulai video</button><button id="cp-video-stop" class="button secondary" disabled>Selesai rekam</button><button id="cp-photo" class="button secondary" disabled>Ambil foto</button><button id="cp-camera-close" class="button secondary">Batal / tutup kamera</button><button id="cp-report-send" class="button" disabled>Kirim laporan (simpan lokal)</button></div></section>'+
@@ -441,7 +456,7 @@ function complianceMonthly(state,month){
  '<section class="card"><h2>Register kejadian</h2><p class="sub">SPV/Manager memverifikasi atau membatalkan laporan dengan alasan. Selesai ditindaklanjuti tidak menghapus kejadian dari rekap. 5R lewat batas dibuat otomatis hanya bagi petugas wajib laporan.</p><div id="cp-events" class="cp-table"></div><div id="cp-review-panel" hidden><p id="cp-review-title"></p><div class="field"><label for="cp-review-reason">Alasan / klarifikasi / tindak lanjut (wajib)</label><textarea id="cp-review-reason" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-review-save" class="button">Simpan hasil verifikasi</button><button id="cp-review-cancel" class="button secondary">Batal</button></div></div></section>'+
  '<section class="card"><div class="card-head"><h2>Rekap Compliance bulanan</h2><div class="field"><label for="cp-month">Bulan</label><input id="cp-month" type="month" value="'+today.slice(0,7)+'"></div></div><div id="cp-monthly" class="cp-table"></div><button id="cp-export" class="button secondary">Unduh rekap CSV</button><p class="sub">Belum ada peringkat gabungan. Attendance, jumlah assignment, volume pcs/koli, dan Compliance harus dinilai terpisah sebelum bobot disepakati. Jumlah assignment bukan pengganti volume; pcs tidak disamakan dengan koli. Rekap ini hanya mencakup data lokal.</p></section>'+
  '<details class="card"><summary>Riwayat perubahan lokal</summary><div id="cp-audit"></div></details>'+
- '<section id="cp-viewer" class="card" hidden><h2>Bukti tersimpan lokal</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
+ '<section id="cp-viewer" class="card" hidden><h2 id="cp-view-title">Bukti tersimpan lokal</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><div id="cp-5r-review" hidden><h3>Checklist SPV — pemeriksaan 5R</h3><p class="sub">Checklist awal simulasi; sesuaikan standar rinci bersama SPV. Tinjau video/foto sebelum memberi keputusan. Semua butir wajib memenuhi standar untuk ACC.</p><div class="cp-stack">'+['Ringkas — barang tidak diperlukan telah disingkirkan','Rapi — barang dan alat tersusun di tempatnya','Resik — area, lantai, dan alat bersih','Rawat — label, penandaan, serta kondisi area terjaga','Rajin — standar area dipelihara dan tidak ada temuan terbuka'].map((t,i)=>'<label><input type="checkbox" id="cp-5r-check-'+i+'"> '+t+'</label>').join('')+'</div><div class="field" style="margin-top:12px"><label for="cp-5r-note">Catatan SPV / temuan (wajib jika ditolak)</label><textarea id="cp-5r-note" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-5r-approve" class="button">ACC 5R</button><button id="cp-5r-reject" class="button secondary">Tolak / minta perbaikan</button></div></div><div id="cp-5r-history"></div><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
  $('actor').value='W999';
  const notice=(text,error=false)=>{$('message').textContent=text;$('message').style.color=error?'#b42318':'';};
  const actor=()=>staffMaster[$('actor').value]?.name||'Pengguna';
@@ -469,15 +484,15 @@ function complianceMonthly(state,month){
  function render(){
   const rows=state.days.filter(r=>r.day===$('date').value),working=rows.filter(r=>!r.exempt);
   const card=(name,n,sub)=>'<div class="card"><span class="sub">'+name+'</span><div class="metric">'+n+'</div><span class="sub">'+sub+'</span></div>';
-  $('totals').innerHTML=card('DRM hadir',working.filter(r=>r.drm==='yes').length+'/'+working.length,'Berdasarkan checklist, bukan attendance')+card('5R tepat waktu',working.filter(r=>r.report&&r.report.at<complianceDue(r.day)).length+'/'+working.length,'Sebelum 18.00 WITA')+card('Kejadian terverifikasi',state.events.filter(e=>e.day===$('date').value&&e.status==='valid').length,'Termasuk 5R lewat batas; bukan skor akhir');
-  $('daily').innerHTML=rows.length?'<table><thead><tr><th>Staff / tim</th><th>Area</th><th>DRM / Device</th><th>Status 5R</th><th>Bukti</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(label(r.code))+'<br><span class="sub">'+esc(r.team)+'</span></td><td>'+esc(r.area)+'</td><td>'+esc(({yes:'Hadir',no:'Tidak hadir',unknown:'Belum diperiksa'})[r.drm])+' / '+esc(({yes:'Dikumpulkan',no:'Tidak dikumpulkan',unknown:'Belum diperiksa'})[r.device])+'</td><td>'+tag(complianceReportStatus(r),r.exempt?'purple':r.report&&r.report.at<complianceDue(r.day)?'green':Date.now()>=complianceDue(r.day)?'red':'amber')+(r.exempt?'<br>'+esc(r.reason):'')+'</td><td>'+(r.report?'<button class="button secondary" data-view="'+esc(r.id)+'">Lihat '+esc(r.report.kind)+'</button><br><span class="sub">'+clock(r.report.at)+'</span>':'—')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada petugas untuk tanggal ini. Tetapkan area dan petugas terlebih dahulu; tidak ada pelanggaran otomatis bagi staf yang belum dijadwalkan.</p>';
+  $('totals').innerHTML=card('DRM hadir',working.filter(r=>r.drm==='yes').length+'/'+working.length,'Berdasarkan checklist, bukan attendance')+card('5R disetujui SPV',working.filter(r=>r.report?.approval==='approved').length+'/'+working.length,'Upload saja belum dihitung selesai')+card('Kejadian terverifikasi',state.events.filter(e=>e.day===$('date').value&&e.status==='valid').length,'Termasuk 5R lewat batas; bukan skor akhir');
+  $('daily').innerHTML=rows.length?'<table><thead><tr><th>Staff / tim</th><th>Area</th><th>DRM / Device</th><th>Status 5R</th><th>Bukti</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(label(r.code))+'<br><span class="sub">'+esc(r.team)+'</span></td><td>'+esc(r.area)+'</td><td>'+esc(({yes:'Hadir',no:'Tidak hadir',unknown:'Belum diperiksa'})[r.drm])+' / '+esc(({yes:'Dikumpulkan',no:'Tidak dikumpulkan',unknown:'Belum diperiksa'})[r.device])+'</td><td>'+tag(complianceReportStatus(r),r.exempt?'purple':r.report?.approval==='approved'?'green':r.report?.approval==='rejected'?'red':r.report?'amber':Date.now()>=complianceDue(r.day)?'red':'amber')+(r.exempt?'<br>'+esc(r.reason):'')+(r.report?.reviewNote?'<br><span class="sub">Catatan SPV: '+esc(r.report.reviewNote)+'</span>':'')+'</td><td>'+(r.report?'<button class="button secondary" data-view="'+esc(r.id)+'">Lihat '+esc(r.report.kind)+'</button><br><span class="sub">'+clock(r.report.at)+'</span>':'—')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada petugas untuk tanggal ini. Tetapkan area dan petugas terlebih dahulu; tidak ada pelanggaran otomatis bagi staf yang belum dijadwalkan.</p>';
   selectRows('check-person',rows);selectRows('report-person',state.days.filter(r=>r.day===complianceDate()&&!r.exempt));reportArea();
   $('duty-panel').hidden=!isAdmin();$('check-panel').hidden=!isAdmin();
-  if(!isReviewer()){$('review-panel').hidden=true;pendingReview=null;}
+  if(!isReviewer()){$('review-panel').hidden=true;pendingReview=null;$('5r-review').hidden=true;fiveRReview=null;}
   const events=state.events.filter(e=>e.day===$('date').value);
   $('events').innerHTML=events.length?'<table><thead><tr><th>Staff / kategori</th><th>Fakta / sumber</th><th>Status</th><th>Tindak lanjut</th></tr></thead><tbody>'+events.map(e=>'<tr><td>'+esc(label(e.code))+'<br>'+esc(e.type)+'</td><td>'+esc(e.detail)+'<br><span class="sub">'+esc(e.source)+' · '+esc(e.actor)+'</span></td><td>'+tag(({pending:'Menunggu verifikasi',valid:'Terverifikasi',batal:'Dibatalkan'})[e.status],e.status==='valid'?'red':'amber')+'<br>'+esc(e.review||'')+'</td><td>'+ (e.resolved?'Selesai · '+esc(e.resolution||''):isReviewer()?'<button class="button secondary" data-review="'+esc(e.id)+'" data-status="valid">Verifikasi</button> <button class="button secondary" data-review="'+esc(e.id)+'" data-status="batal">Batalkan</button> '+(e.status==='valid'?'<button class="button secondary" data-resolve="'+esc(e.id)+'">Selesai ditindaklanjuti</button>':''):'Menunggu SPV / Manager')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada kejadian tercatat pada tanggal ini.</p>';
   const monthly=complianceMonthly(state,$('month').value);
-  $('monthly').innerHTML=monthly.length?'<table><thead><tr><th>Staff</th><th>Hari wajib</th><th>DRM hadir / device</th><th>5R tepat waktu</th><th>5R lewat batas</th><th>SOP / komplain valid</th><th>Semua valid / menunggu</th></tr></thead><tbody>'+monthly.map(r=>'<tr><td>'+esc(label(r.code))+'</td><td>'+r.scheduled+'</td><td>'+r.briefing+' / '+r.device+'</td><td>'+r.reports+'</td><td>'+r.fiveR+'</td><td>'+r.sop+' / '+r.complaints+'</td><td>'+r.valid+' / '+r.pending+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada data bulan ini. Tidak dianggap skor sempurna.</p>';
+  $('monthly').innerHTML=monthly.length?'<table><thead><tr><th>Staff</th><th>Hari wajib</th><th>DRM hadir / device</th><th>5R ACC / menunggu / ditolak</th><th>5R lewat batas</th><th>SOP / komplain valid</th><th>Semua valid / menunggu</th></tr></thead><tbody>'+monthly.map(r=>'<tr><td>'+esc(label(r.code))+'</td><td>'+r.scheduled+'</td><td>'+r.briefing+' / '+r.device+'</td><td>'+r.reports+' / '+r.waitingReports+' / '+r.rejectedReports+'</td><td>'+r.fiveR+'</td><td>'+r.sop+' / '+r.complaints+'</td><td>'+r.valid+' / '+r.pending+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada data bulan ini. Tidak dianggap skor sempurna.</p>';
   $('audit').innerHTML=state.audit.slice(-50).reverse().map(a=>'<p class="sub">'+esc(clock(a.at)+' · '+a.actor+' · '+a.text)+'</p>').join('')||'<p class="sub">Belum ada perubahan.</p>';
  }
  async function mutate(fn,file){
@@ -624,12 +639,13 @@ function complianceMonthly(state,month){
  $('report-send').onclick=async()=>{
   try{
    const row=captureRow(),capture=draft;if(!capture||capture.id!==row.id||capture.area!==row.area)throw Error('Bukti harus diambil untuk petugas dan area yang dipilih.');
-   if(row.report)throw Error('Laporan hari ini sudah tersimpan. Bukti pertama dipertahankan.');
+   if(row.report&&row.report.approval!=='rejected')throw Error('Laporan sedang menunggu approval atau sudah disetujui. Kirim ulang hanya setelah ditolak.');
    $('report-send').disabled=true;
    const at=Date.now(),fileId=crypto.randomUUID();
-   if(await mutate(s=>{const current=s.days.find(r=>r.id===capture.id);if(!current||current.exempt||current.report||current.area!==capture.area)throw Error('Penugasan berubah atau laporan sudah ada. Muat ulang data.');
-    current.report={at,kind:capture.kind,fileId,capturedAt:capture.capturedAt,size:capture.blob.size};audit(s,'Laporan 5R '+current.id+' tersimpan ('+capture.kind+')');
-   },{id:fileId,blob:capture.blob})){stopCamera();$('camera-status').textContent=label(row.code)+' — '+(at<complianceDue(row.day)?'Done':'Done · terlambat')+' (tersimpan lokal).';notice('Bukti tersimpan di browser ini. Belum diunggah ke server atau perangkat SPV.');}
+   if(await mutate(s=>{const current=s.days.find(r=>r.id===capture.id);if(!current||current.exempt||(current.report&&current.report.approval!=='rejected')||current.area!==capture.area)throw Error('Penugasan berubah atau laporan sudah ada. Muat ulang data.');
+    if(current.report){current.reportHistory=current.reportHistory||[];current.reportHistory.push(current.report);}
+    current.report={at,kind:capture.kind,fileId,capturedAt:capture.capturedAt,size:capture.blob.size,approval:'pending'};audit(s,'Laporan 5R '+current.id+' tersimpan ('+capture.kind+'), menunggu approval SPV');
+   },{id:fileId,blob:capture.blob})){stopCamera();$('camera-status').textContent=label(row.code)+' — Menunggu approval SPV (tersimpan lokal).';notice('Bukti tersimpan, belum dihitung Done. Gunakan simulasi SPV untuk melihat bukti dan mengisi checklist approval.');}
    else $('report-send').disabled=false;
   }catch(e){$('camera-status').textContent=e.message;}
  };
@@ -642,13 +658,56 @@ function complianceMonthly(state,month){
    if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=URL.createObjectURL(blob);
    $('view-video').hidden=row.report.kind!=='video';$('view-photo').hidden=row.report.kind==='video';
    (row.report.kind==='video'?$('view-video'):$('view-photo')).src=viewUrl;$('viewer').hidden=false;$('viewer').scrollIntoView({behavior:'smooth'});
+   fiveRReview={id:row.id,fileId:row.report.fileId};
+   $('view-title').textContent='Bukti 5R — '+label(row.code)+' · '+row.area+' · '+row.day;
+   $('5r-review').hidden=!isReviewer()||row.exempt;
+   for(let i=0;i<5;i++)$('5r-check-'+i).checked=!!row.report.checks?.[i];
+   $('5r-note').value=row.report.reviewNote||'';
+   $('5r-history').innerHTML='<p class="sub">'+esc(complianceReportStatus(row))+'</p>'+
+    (row.report.reviewHistory||[]).map(h=>'<p class="sub">'+esc(clock(h.at)+' · '+h.reviewer+' · '+h.decision+' · '+h.note)+'</p>').join('')+
+    (row.reportHistory||[]).map((h,i)=>'<p class="sub">Versi sebelumnya '+(i+1)+': '+esc(clock(h.at)+' · '+(h.reviewNote||''))+' <button class="button secondary" data-old-proof="'+i+'">Lihat bukti lama</button></p>').join('');
   }catch(e){notice(e.message,true);}
  };
- $('view-close').onclick=()=>{$('view-video').pause();$('view-video').removeAttribute('src');$('view-photo').removeAttribute('src');if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=null;$('viewer').hidden=true;};
+ $('5r-history').onclick=async ev=>{
+  const button=ev.target.closest('[data-old-proof]');if(!button||!fiveRReview)return;
+  const row=state.days.find(r=>r.id===fiveRReview.id),report=row?.reportHistory?.[Number(button.dataset.oldProof)];
+  if(!report)return;
+  const req=db.transaction('files').objectStore('files').get(report.fileId);
+  req.onsuccess=()=>{
+   if(!req.result)return notice('Bukti lama tidak tersedia.',true);
+   $('view-video').pause();if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=URL.createObjectURL(req.result);
+   $('view-video').hidden=report.kind!=='video';$('view-photo').hidden=report.kind==='video';
+   (report.kind==='video'?$('view-video'):$('view-photo')).src=viewUrl;
+   $('view-title').textContent='Bukti lama — '+label(row.code)+' · '+clock(report.at)+'. Tutup dan buka bukti terbaru untuk approval.';
+   fiveRReview=null;$('5r-review').hidden=true;
+  };
+  req.onerror=()=>notice('Bukti lama gagal dibaca.',true);
+ };
+ async function decideFiveR(decision){
+  if(!isReviewer()||!fiveRReview)return notice('Buka bukti terbaru sebagai SPV / Manager terlebih dahulu.',true);
+  const target={...fiveRReview},checks=Array.from({length:5},(_,i)=>$('5r-check-'+i).checked),note=$('5r-note').value.trim();
+  if(decision==='approved'&&!checks.every(Boolean))return notice('ACC belum dapat dilakukan: semua checklist 5R harus memenuhi standar.',true);
+  if(decision==='rejected'&&!note)return notice('Isi temuan / alasan penolakan terlebih dahulu.',true);
+  if(await mutate(s=>{
+   const row=s.days.find(r=>r.id===target.id);
+   reviewFiveR(row,target.fileId,decision,checks,note,actor());
+   const eventId='5r-quality:'+target.id+':'+target.fileId,existing=s.events.find(e=>e.id===eventId);
+   if(decision==='rejected'){
+    if(existing){existing.detail=note;existing.status='valid';}
+    else s.events.push({id:eventId,day:row.day,code:row.code,type:'Temuan 5R',detail:note,status:'valid',source:'Checklist approval SPV',createdAt:Date.now(),actor:actor(),resolved:false});
+   }else if(existing){existing.status='batal';existing.review='Keputusan laporan yang sama dikoreksi menjadi ACC: '+note;}
+   audit(s,'Approval 5R '+target.id+' · '+decision+' · '+note);
+  })){
+   $('view-close').click();notice(decision==='approved'?'5R di-ACC. Sekarang dihitung Done pada rekap.':'5R ditolak dan belum dihitung selesai. Temuan dicatat; petugas dapat mengirim bukti perbaikan hari ini.');
+  }
+ }
+ $('5r-approve').onclick=()=>decideFiveR('approved');
+ $('5r-reject').onclick=()=>decideFiveR('rejected');
+ $('view-close').onclick=()=>{$('view-video').pause();$('view-video').removeAttribute('src');$('view-photo').removeAttribute('src');if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=null;fiveRReview=null;$('viewer').hidden=true;};
  $('export').onclick=()=>{
-  const rows=complianceMonthly(state,$('month').value),head=['Kode','Nama','Hari wajib','DRM hadir','Device dikumpulkan','5R tepat waktu','5R lewat batas','SOP valid','Komplain valid','Semua valid','Menunggu verifikasi'];
+  const rows=complianceMonthly(state,$('month').value),head=['Kode','Nama','Hari wajib','DRM hadir','Device dikumpulkan','5R disetujui','5R menunggu APV','5R ditolak','5R lewat batas','SOP valid','Komplain valid','Semua valid','Menunggu verifikasi'];
   const cell=v=>'"'+String(v).replace(/^[=+\-@]/,"'$&").replace(/"/g,'""')+'"';
-  const csv=[head,...rows.map(r=>[r.code,staffMaster[r.code]?.name||r.code,r.scheduled,r.briefing,r.device,r.reports,r.fiveR,r.sop,r.complaints,r.valid,r.pending])].map(r=>r.map(cell).join(',')).join('\r\n');
+  const csv=[head,...rows.map(r=>[r.code,staffMaster[r.code]?.name||r.code,r.scheduled,r.briefing,r.device,r.reports,r.waitingReports,r.rejectedReports,r.fiveR,r.sop,r.complaints,r.valid,r.pending])].map(r=>r.map(cell).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='compliance-'+$('month').value+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
  setInterval(async()=>{
