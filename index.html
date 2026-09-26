@@ -764,6 +764,17 @@ if(typeof document!=='undefined') (()=>{
 // BEGIN OUTBOUND MODULE
 // Outbound SOQ: read-only sources; local demo schedules and logistics, never writes to MOKA.
 const OutboundCore = (() => {
+ const publication='https://docs.google.com/spreadsheets/d/e/2PACX-1vTd_EVO3ifmR8jFJszDjDIJMhQxq7eToRnu81MVEf-ttBNE_dgraExxxyHAT7rK6YB8dNDjBhcUfE3D/pub';
+ // Verified against the published workbook tab directory, 26 September 2026.
+ const outletTabs=[['UPG-01','942272558'],['PLW-01','518826330'],['MDC-01','1451721702'],['SRI-01','1377281334'],['UPG-02','762595012'],['UPG-03','470625100'],['LLO-01','1109739973'],['KDI-01','2032168307'],['MJU-01','1112487223'],['WTP-01','1534185134'],['SGO-01','61249926'],['TRT-01','712960983']];
+ const csvUrl=gid=>publication+'?gid='+gid+'&single=true&output=csv';
+ function migrateSources(state){
+  const previous=state.sources||[],old=previous.filter(s=>s.url===csvUrl('1306039700'));
+  state.retiredSources=[...(state.retiredSources||[]),...old.filter(s=>!(state.retiredSources||[]).some(x=>x.id===s.id))];
+  const official=outletTabs.map(([code,gid])=>({...previous.find(s=>s.url===csvUrl(gid)),id:previous.find(s=>s.url===csvUrl(gid))?.id||'soq-'+gid,name:code,code,url:csvUrl(gid)}));
+  state.sources=[...official,...previous.filter(s=>!old.includes(s)&&!official.some(x=>x.url===s.url))];return state;
+ }
+ function parseDirectory(csv,parseCsv){const rows=parseCsv(csv),hi=rows.findIndex(r=>r.some(c=>header(c)==='SHIPPINGCODE'));if(hi<0)throw Error('Header Shipping Code tidak ditemukan');const h=rows[hi].map(header),get=(r,k)=>text(r[h.indexOf(k)]),seen=new Set();return rows.slice(hi+1).flatMap(r=>{const code=get(r,'SHIPPINGCODE').toUpperCase();if(!code)return [];if(!/^[A-Z]{3}-\d{2}$/.test(code)||seen.has(code))throw Error('Kode outlet tidak valid / duplikat: '+code);seen.add(code);return [{code,name:get(r,'NAMAOUTLET'),days:['SENIN','SELASA','RABU','KAMIS','JUMAT','SABTU'].filter(k=>get(r,k).toUpperCase()==='TRUE'),suggest:get(r,'COTSUGGESTSTORE'),cutoff:get(r,'COTLISTSOQ'),packing:get(r,'PACKINGSOQ'),shipping:get(r,'SHP'),expeditions:['ESKPEDISI1','ESKPEDISI2','ESKPEDISI3'].map(k=>get(r,k)).filter(v=>v&&v!=='-'),eta:get(r,'ETASTORE'),contact:get(r,'KONTAK'),address:get(r,'ALAMAT')}];});}
  const text=v=>String(v??'').trim(), header=v=>text(v).toUpperCase().replace(/[^A-Z0-9]/g,''), num=v=>/^\d+$/.test(text(v))?Number(v):null;
  const key=parts=>JSON.stringify(parts);
  function date(v){const m=text(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);const s=m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:text(v),d=new Date(s+'T00:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s?s:''}
@@ -805,7 +816,7 @@ const OutboundCore = (() => {
  function sortGroups(groups,seen){return groups.slice().sort((a,b)=>(seen[key([a.source,a.date,a.batch])]||Infinity)-(seen[key([b.source,b.date,b.batch])]||Infinity)||a.source.localeCompare(b.source)||a.rows[0].line-b.rows[0].line);}
  // Replace each observed date, not append: refresh never adds the same volume twice.
  function merge(previous,incoming){const dates=new Set(incoming.map(r=>r.date));return [...previous.filter(r=>!dates.has(r.date)),...incoming];}
- return {parse,groups,totals,status,merge,date,key,markSeen,sortGroups};
+ return {parse,groups,totals,status,merge,date,key,markSeen,sortGroups,outletTabs,csvUrl,parseDirectory,migrateSources};
 })();
 if(typeof module!=='undefined'&&module.exports)module.exports=OutboundCore;
 if(typeof document!=='undefined')(()=>{
@@ -814,6 +825,8 @@ if(typeof document!=='undefined')(()=>{
  let state={sources:[{id:'soq-1306039700',name:'Simulasi UPG-01',url:initial}],archive:{},schedules:{},operations:{},audit:[]},busy=false,selected=null;
  try{const saved=JSON.parse(localStorage.getItem('wos-outbound-v1'));if(saved&&Array.isArray(saved.sources))state=saved}catch(e){}
  state.firstSeen=state.firstSeen||{};
+ C.migrateSources(state);
+ state.directory=state.directory||[];
  // Picking durations are resolved from Master Norm, never from a fixed coefficient.
  state.sources.forEach(s=>{if(s.url===initial&&s.name==='Outlet belum dikonfirmasi')s.name='Simulasi UPG-01'});
  const alerts={},live={},save=()=>{try{localStorage.setItem('wos-outbound-v1',JSON.stringify(state));return true}catch(e){$('message').textContent='Penyimpanan lokal penuh / tidak tersedia. Ekspor rekap sekarang; perubahan hanya tersimpan di sesi ini.';return false}};
@@ -833,10 +846,20 @@ if(typeof document!=='undefined')(()=>{
  const tag=(label,color)=>'<span class="tag '+color+'">'+E(label)+'</span>',metrics=t=>[['Target teralokasi',n(t.allocated)+' pcs'],['ACT Picking',n(t.actual)+' pcs'],['VP terverifikasi',n(t.verified)+' pcs'],['Koli selesai VP',t.doneKoli+' / '+t.koli],['Picker ditugaskan',t.pickers+' orang'],['SOO terkonfirmasi',n(t.shortage)+' pcs']].map(([l,v])=>'<div class="card"><span class="sub">'+l+'</span><div class="metric">'+v+'</div></div>').join('');
  const details=g=>'<details><summary>'+g.rows.length+' baris SKU</summary>'+table(['SKU','SOQ','ACT','Bin','SOO','VP'],g.rows.map(r=>[E(r.sku),n(r.soq),r.actual===null?'Belum diisi':n(r.actual),E(r.location||'—'),r.shortage?n(r.shortage):'—',tag(r.verified?'Terverifikasi':r.issue||'Menunggu',r.verified?'green':'amber')]))+'</details>';
  const steps=[['packing','Packing'],['staging','Staging out'],['loading','Loading'],['transfer','Transfer MOKA'],['document','Surat jalan / STTB'],['delivery','Pengiriman'],['received','GR toko']];
- let editPackage=null;
+ let editPackage=null,directoryStatus='Jadwal SOQ belum disinkronkan sesi ini.';
+ const directoryPanel=card('directory','Master outlet & Jadwal SOQ','master');directoryPanel.insertAdjacentHTML('beforeend','<p id="ob-directory-status" class="sub"></p><div id="ob-directory-table" class="ob-table"></div>');
+ $('message').insertAdjacentHTML('afterend','<details><summary>Status sinkron per outlet & jadwal toko</summary><p id="ob-outlet-note" class="sub"></p><div id="ob-source-health" class="ob-table"></div></details>');
+ function renderDirectory(){
+  $('directory-status').textContent=directoryStatus;
+  $('directory-table').innerHTML=table(['Kode / toko','Hari jadwal','COT suggest / list','Packing / SHP / ETA','Ekspedisi','Kontak / alamat'],state.directory.map(r=>[E(r.code)+'<br>'+E(r.name),E(r.days.join(', ')||'Belum diatur'),E(r.suggest||'—')+'<br>'+E(r.cutoff||'—'),E(r.packing||'—')+' / '+E(r.shipping||'—')+' / '+E(r.eta||'—'),E(r.expeditions.join(' · ')||'—'),E(r.contact||'—')+'<br>'+E(r.address||'—')]));
+  $('outlet-note').textContent=directoryStatus+' · Hari jadwal hanya referensi; semua SOQ pada tanggal pilihan tetap ditampilkan. Arsip sumber simulasi lama dipertahankan, tidak digabung ke outlet aktif.';
+  $('source-health').innerHTML=table(['Outlet','Nama toko / jadwal','Sumber / status tanggal pilihan'],state.sources.map(s=>{const d=state.directory.find(r=>r.code===s.code),count=(state.archive[s.id]||[]).filter(r=>r.date===$('date').value).length;return [E(s.name),E(d?.name||'Belum ada di Jadwal SOQ')+'<br>'+E(d?.days.join(', ')||'Jadwal belum diatur'),E(alerts[s.id]||(!live[s.id]?'Menunggu sinkronisasi':count?count+' baris SOQ':'SOQ belum tersedia pada tanggal pilihan'))];}));
+ }
  function render(){
+  renderDirectory();
   const rows=chosen(),groups=C.sortGroups(C.groups(rows),state.firstSeen),t=C.totals(rows);$('summary').innerHTML=metrics(t);$('dashboard-data').innerHTML='<strong>'+E($('date').value)+'</strong><div class="grid three">'+metrics(t)+'</div>';
-  $('message').textContent=(busy?'Memperbarui… ':'')+state.sources.map(s=>s.name+': '+(alerts[s.id]||(!live[s.id]?'snapshot lokal; belum diverifikasi sesi ini':'terakhir dibaca '+new Date(live[s.id]).toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA'))).join(' | ');
+  const selectedSources=state.sources.filter(s=>!$('source-filter').value||s.id===$('source-filter').value),ok=selectedSources.filter(s=>live[s.id]&&!alerts[s.id]).length,failed=selectedSources.filter(s=>alerts[s.id]).length;
+  $('message').textContent=(busy?'Memperbarui… ':'')+ok+'/'+selectedSources.length+' sumber berhasil dibaca'+(failed?' · '+failed+' gagal sinkron; data tersimpan mungkin usang':'')+'. '+(ok?'Terakhir: '+new Date(Math.max(...selectedSources.map(s=>live[s.id]||0))).toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA. ':'')+'Rincian tersedia pada Status sinkron per outlet.';
   const syncNote='<p class="sub">'+E($('message').textContent)+'</p>';
   $('dashboard-data').insertAdjacentHTML('beforeend',syncNote);
   if(!rows.length){const sources=state.sources.filter(s=>!$('source-filter').value||s.id===$('source-filter').value),fresh=sources.length&&sources.every(s=>live[s.id]&&!alerts[s.id]);$('summary').innerHTML='<p class="sub">'+(fresh?'SOQ belum tersedia untuk tanggal '+E($('date').value)+' pada outlet terpilih. Belum muncul pada data yang dipublikasikan Admin.':'Data SOQ belum dapat dipastikan. Tunggu sinkronisasi atau tekan Refresh SOQ; bukan berarti SOQ belum diupload.')+'</p>';$('dashboard-data').innerHTML=$('summary').innerHTML+syncNote;}
@@ -860,9 +883,15 @@ if(typeof document!=='undefined')(()=>{
  function renderReport(){const rows=reportRows();$('report-data').innerHTML=table(['Picker','Assignment koli','Target pcs','ACT pcs','VP pcs','Koli selesai','SOO pcs'],rows.map(r=>[person(r.picker),r.tasks,n(r.allocated),n(r.actual),n(r.verified),r.doneKoli+' / '+r.koli,n(r.shortage)]));}
  $('report-run').onclick=renderReport;
  $('export').onclick=()=>{const cell=v=>'"'+String(v).replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"',rows=[['Picker','Nama','Dari','Sampai','Assignment koli','Target pcs','ACT pcs','VP pcs','Koli selesai','SOO pcs'],...reportRows().map(r=>[r.picker,staffMaster[r.picker]?.name||r.picker,$('from').value,$('to').value,r.tasks,r.allocated,r.actual,r.verified,r.doneKoli,r.shortage])],url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='rekap-outbound-'+$('from').value+'-'+$('to').value+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
- function renderSources(){const filter=$('source-filter').value;$('source-filter').innerHTML='<option value="">Semua outlet</option>'+state.sources.map(s=>'<option value="'+E(s.id)+'">'+E(s.name)+'</option>').join('');$('source-filter').value=filter;$('sources').innerHTML=state.sources.map((s,i)=>'<p>'+E(s.name)+' · <a target="_blank" rel="noopener" href="'+E(s.url.replace('output=csv','output=html'))+'">Lihat SOQ publik</a> '+(s.editUrl?'<a target="_blank" rel="noopener" href="'+E(s.editUrl)+'">Buka lembar kerja</a> ':'')+'<button class="button secondary" data-ob-source="'+i+'">Ubah nama / link kerja</button></p>').join('');$('sources').querySelectorAll('button').forEach(b=>b.onclick=()=>{const s=state.sources[Number(b.dataset.obSource)];$('source-name').value=s.name;$('source-url').value=s.url;$('edit-url').value=s.editUrl||''});}
+ function renderSources(){const filter=$('source-filter').value;$('source-filter').innerHTML='<option value="">Semua outlet</option>'+state.sources.map(s=>'<option value="'+E(s.id)+'">'+E(s.name+(state.directory.find(r=>r.code===s.code)?.name?' · '+state.directory.find(r=>r.code===s.code).name:''))+'</option>').join('');$('source-filter').value=filter;$('sources').innerHTML=state.sources.map((s,i)=>'<p>'+E(s.name)+' · <a target="_blank" rel="noopener" href="'+E(s.url.replace('output=csv','output=html'))+'">Lihat SOQ publik</a> '+(s.editUrl?'<a target="_blank" rel="noopener" href="'+E(s.editUrl)+'">Buka lembar kerja</a> ':'')+'<button class="button secondary" data-ob-source="'+i+'">Ubah nama / link kerja</button></p>').join('');$('sources').querySelectorAll('button').forEach(b=>b.onclick=()=>{const s=state.sources[Number(b.dataset.obSource)];$('source-name').value=s.name;$('source-url').value=s.url;$('edit-url').value=s.editUrl||''});}
  $('save-source').onclick=()=>{try{const u=new URL($('source-url').value),name=$('source-name').value.trim(),edit=$('edit-url').value.trim();if(!name||u.origin!=='https://docs.google.com'||!/^\/spreadsheets\/d\/e\/[^/]+\/pub$/.test(u.pathname)||!/^\d+$/.test(u.searchParams.get('gid')||''))throw Error('Isi nama dan link CSV publish Google Sheets dengan gid.');if(edit&&(!edit.startsWith('https://docs.google.com/spreadsheets/')))throw Error('Link kerja harus Google Sheets HTTPS.');const canonical=u.origin+u.pathname+'?gid='+u.searchParams.get('gid')+'&single=true&output=csv';let s=state.sources.find(s=>s.url===canonical);if(!s){s={id:crypto.randomUUID(),url:canonical};state.sources.push(s)}s.name=name;s.editUrl=edit;save();renderSources();load();}catch(e){alert(e.message)}};
- async function load(){if(busy)return;const cycleStamp=Date.now();busy=true;render();await Promise.all(state.sources.map(async s=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{const response=await fetch(s.url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status);const parsed=C.parse(await response.text(),s,parsePublishedCsv);C.markSeen(parsed,state.firstSeen,cycleStamp);state.archive[s.id]=C.merge(state.archive[s.id]||[],parsed).filter(r=>r.date!==today()||parsed.some(p=>p.date===today()));live[s.id]=Date.now();delete alerts[s.id];}catch(e){alerts[s.id]='Gagal sinkron ('+e.message+'); data terakhir mungkin usang'}finally{clearTimeout(timer)}}));busy=false;save();render();}
+ async function readCsv(url){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status);return await response.text();}finally{clearTimeout(timer)}}
+ async function load(){
+  if(busy)return;const cycleStamp=Date.now();busy=true;render();
+  const directoryTask=(async()=>{try{state.directory=C.parseDirectory(await readCsv(C.csvUrl('79921160')),parsePublishedCsv);directoryStatus='Jadwal SOQ: '+state.directory.length+' outlet · diperbarui '+new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA';renderSources();}catch(e){directoryStatus='Jadwal SOQ gagal sinkron ('+e.message+'); data referensi terakhir mungkin usang';}})();
+  for(let i=0;i<state.sources.length;i+=3)await Promise.all(state.sources.slice(i,i+3).map(async s=>{try{const parsed=C.parse(await readCsv(s.url),s,parsePublishedCsv);C.markSeen(parsed,state.firstSeen,cycleStamp);state.archive[s.id]=C.merge(state.archive[s.id]||[],parsed).filter(r=>r.date!==today()||parsed.some(p=>p.date===today()));live[s.id]=Date.now();delete alerts[s.id];}catch(e){alerts[s.id]='Gagal sinkron ('+e.message+'); data terakhir mungkin usang'}}));
+  await directoryTask;busy=false;save();render();
+ }
  $('refresh').onclick=load;$('date').onchange=$('source-filter').onchange=render;renderSources();render();load();setInterval(load,60000);setInterval(()=>{if(!$('schedule').hidden||!$('ops-editor').hidden)return;render()},15000);
 })();
 // END OUTBOUND MODULE
