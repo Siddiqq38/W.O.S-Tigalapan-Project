@@ -990,4 +990,63 @@ assignmentList.after(grProgressBoard);
  panels.forEach(({panel})=>panel.addEventListener('toggle',()=>{if(panel.open)panels.forEach(other=>{if(other.panel!==panel)other.panel.open=false})}));
  document.querySelectorAll('.nav[data-page="assignment"]').forEach(button=>button.addEventListener('click',()=>panels.forEach(({panel})=>panel.open=false)));
 })();
+// BEGIN INBOUND ROLE MODULE
+const InboundRoleCore={
+ snapshot(batches,from,to,knownCodes){
+  const unique=new Map(),warnings=[];
+  for(const b of batches){
+   const date=dateToIso(b.date);
+   if(!date||date<from||date>to)continue;
+   const key=[date,normalCode(b.po),b.batch].join('|');
+   if(unique.has(key))warnings.push('Duplikat '+b.po+' batch '+b.batch+': hanya catatan terakhir dihitung.');
+   unique.set(key,b);
+  }
+  const details=[],people=new Map();let physicalKoli=0,physicalPcs=0,unknownPhysicalPcs=0;
+  for(const [key,b] of unique){
+   const codes=String(b.pic||'').toUpperCase().match(/\bW\d+\b/g)||[];
+   const valid=b.schema2027&&codes.length===2&&codes[0]!==codes[1]&&codes.every(c=>knownCodes.includes(c));
+   const items=new Map((b.items||[]).map(i=>[i.koli,i]));
+   const koli=[...new Set(b.koli||[])];
+   const pcsKnown=koli.length>0&&koli.every(k=>Number.isFinite(items.get(k)?.pcs)&&items.get(k).pcs>=0);
+   const pcs=pcsKnown?koli.reduce((sum,k)=>sum+items.get(k).pcs,0):null;
+   const badOrder=(b.putAway&&!b.counting)||(b.purchase&&!b.putAway);
+   if(!valid||badOrder)warnings.push(b.po+' batch '+b.batch+': '+(!valid?'perlu dua kode PIC berbeda dan valid (pertama Counting, kedua Put away).':'periksa urutan CNT / Put away / PO.')+' Belum masuk realisasi individu.');
+   if(b.counting&&b.putAway&&!badOrder){physicalKoli+=koli.length;if(pcs===null)unknownPhysicalPcs++;else physicalPcs+=pcs;}
+   for(const [index,role] of ['Counting','Put away'].entries()){
+    const complete=valid&&!badOrder&&!!b.counting&&(index===0||!!b.putAway);
+    const d={key,date:dateToIso(b.date),po:b.po,batch:b.batch,koli:koli.length,pcs,code:codes[index]||'',role,complete,valid:valid&&!badOrder};details.push(d);
+    if(!valid||badOrder)continue;
+    const id=codes[index]+'|'+role,p=people.get(id)||{code:codes[index],role,batches:0,done:0,targetKoli:0,targetPcs:0,unknownTarget:0,actualKoli:0,actualPcs:0,unknownActual:0};
+    p.batches++;p.targetKoli+=koli.length;if(pcs===null)p.unknownTarget++;else p.targetPcs+=pcs;
+    if(complete){p.done++;p.actualKoli+=koli.length;if(pcs===null)p.unknownActual++;else p.actualPcs+=pcs;}
+    people.set(id,p);
+   }
+  }
+  return {details,people:[...people.values()],warnings,physicalKoli,physicalPcs,unknownPhysicalPcs};
+ }
+};
+if(typeof module!=='undefined')module.exports=InboundRoleCore;
+if(typeof document!=='undefined')(()=>{
+ const E=htmlEscape,panels=[];
+ for(const page of ['productivity','reports']){
+  const box=document.createElement('div');box.className='card';box.id='inbound-role-'+page;
+  box.innerHTML='<h2>Inbound — produktivitas PIC per aktivitas</h2><p class="sub">Urutan PIC GR per batch: pertama = Counting, kedua = Put away. Volume penuh batch untuk masing-masing aktivitas, bukan dibagi rata per orang. CNT mengesahkan Counting; CNT + Put away mengesahkan Put away. PO adalah tugas admin, tidak menahan realisasi operator.</p><div class="toolbar"><label>Dari <input type="date" data-role-from></label><label>Sampai <input type="date" data-role-to></label></div><div data-role-results></div><p class="sub" data-role-source></p><p class="sub">Target aktivitas di bawah berasal dari batch yang sudah tercatat pada Form GR, bukan seluruh rencana assignment yang belum dicatat. PCS mengikuti isi per koli; yang belum diisi ditandai belum lengkap. Rekap hanya mencakup data yang tersedia di sheet, bukan arsip historis permanen.</p>';
+  document.getElementById(page).querySelector('.toolbar').after(box);
+  const from=box.querySelector('[data-role-from]'),to=box.querySelector('[data-role-to]');from.value=to.value=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Makassar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const render=()=>{
+   const root=box.querySelector('[data-role-results]');
+   if(!from.value||!to.value||from.value>to.value){root.textContent='Pilih rentang tanggal yang valid.';return;}
+   const s=InboundRoleCore.snapshot(goodReceiptBatches,from.value,to.value,Object.keys(staffMaster));
+   const number=n=>Number(n).toLocaleString('id-ID'),qty=(n,u)=>number(n)+(u?' + belum lengkap':''),name=c=>E((staffMaster[c]?.name||c)+' ('+c+')');
+   root.innerHTML='<p><strong>Barang selesai put away (dihitung sekali): '+number(s.physicalKoli)+' koli · '+qty(s.physicalPcs,s.unknownPhysicalPcs)+' pcs</strong></p>'+s.warnings.map(w=>'<p class="note">'+E(w)+'</p>').join('')+'<div style="overflow:auto"><table><thead><tr><th>PIC</th><th>Aktivitas</th><th>Batch selesai / tercatat</th><th>Target aktivitas · koli / pcs</th><th>Realisasi · koli / pcs</th></tr></thead><tbody>'+s.people.map(p=>'<tr><td>'+name(p.code)+'</td><td>'+p.role+'</td><td>'+p.done+' / '+p.batches+'</td><td>'+p.targetKoli+' koli / '+qty(p.targetPcs,p.unknownTarget)+' pcs</td><td>'+p.actualKoli+' koli / '+qty(p.actualPcs,p.unknownActual)+' pcs</td></tr>').join('')+(s.people.length?'':'<tr><td colspan="5">Belum ada batch dengan dua PIC valid pada periode ini.</td></tr>')+'</tbody></table></div><details><summary>Rincian per batch dan peran</summary><table><thead><tr><th>Tanggal / PO / batch</th><th>PIC / aktivitas</th><th>Volume batch</th><th>Status aktivitas</th></tr></thead><tbody>'+s.details.map(d=>'<tr><td>'+E(d.date)+' · '+E(d.po)+' · Batch '+E(d.batch)+'</td><td>'+name(d.code)+' · '+d.role+'</td><td>'+d.koli+' koli / '+(d.pcs===null?'belum diisi':number(d.pcs))+' pcs</td><td>'+(!d.valid?'Periksa data':d.complete?'Done':'Menunggu '+(d.role==='Counting'?'CNT':'Put away'))+'</td></tr>').join('')+'</tbody></table></details>';
+   box.querySelector('[data-role-source]').textContent=typeof grSyncNotice==='string'?grSyncNotice:'Menunggu sinkronisasi Form GR…';
+  };
+  from.onchange=to.onchange=render;panels.push(render);render();
+ }
+ // The old static operator table is illustrative and must not look like a live GR recap.
+ document.querySelectorAll('#productivity h2').forEach(h=>{if(h.textContent==='Detail assignment per operator')h.closest('.card').hidden=true;});
+ const previous=renderGoodReceiptProgress;
+ renderGoodReceiptProgress=function(source){previous(source);panels.forEach(render=>render());};
+})();
+// END INBOUND ROLE MODULE
 </script></body></html>
