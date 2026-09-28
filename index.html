@@ -578,12 +578,14 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   }catch(e){notice('Gagal menyimpan: '+e.message+'. Data belum dinyatakan terkirim. Periksa kapasitas / izin penyimpanan browser.',true);return false;}
   finally{busy=false;}
  }
+ async function syncAttendanceIn(){const day=$('date').value,missing=[...new Set(attendanceIns(day).map(r=>r.code))].filter(code=>!state.days.some(r=>r.id===rowId(day,code)));if(!missing.length){render();return}await mutate(s=>{for(const code of missing){const profile=window.getFiveRProfile?.(code);s.days.push({id:rowId(day,code),day,code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:window.fiveRRequiredOn?.(profile,day)||false,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null})}audit(s,'Sinkronkan '+missing.length+' check-in lokal untuk daftar DRM '+day)})}
  try{
   db=await new Promise((resolve,reject)=>{const req=indexedDB.open('wos-compliance-v1',1);req.onupgradeneeded=()=>{req.result.createObjectStore('records');req.result.createObjectStore('files');};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
   if(!await mutate(()=>{}))throw Error('Tidak dapat membuka catatan lokal.');
+  await syncAttendanceIn();
   notice('Penyimpanan lokal siap. Tentukan petugas harian, kemudian catat kepatuhan dan laporan 5R.');
  }catch(e){notice('Penyimpanan lokal tidak tersedia. Compliance belum dapat menyimpan data: '+e.message,true);page.querySelectorAll('button').forEach(b=>b.disabled=true);return;}
- $('date').onchange=()=>{if($('date').value){render();loadCheck();}};
+ $('date').onchange=async()=>{if($('date').value){await syncAttendanceIn();loadCheck();}};
  $('month').onchange=render;$('role').onchange=render;$('check-person').onchange=loadCheck;
  $('drm-attendance').onclick=async ev=>{
   const button=ev.target.closest('[data-drm-code]');if(!button||!canMarkDrm())return;
@@ -796,7 +798,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   if(reconcileCompliance(test))await mutate(s=>{reconcileCompliance(s);audit(s,'Pemeriksaan otomatis batas 18.00 WITA');});
   else render();
  },30000);
- document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.page!=='compliance'){stopCamera();$('view-close').click();}else render();}));
+ document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.page!=='compliance'){stopCamera();$('view-close').click();}else syncAttendanceIn();}));
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera();});
  window.addEventListener('pagehide',()=>stopCamera());
 })();
