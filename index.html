@@ -1258,5 +1258,30 @@ if(typeof document!=='undefined')(()=>{
  renderSummary();
 })();
 // END ATTENDANCE DEMO MODULE
+// BEGIN EMPLOYEE MASTER MODULE
+(()=>{
+ const master=document.getElementById('master'),cards=document.getElementById('kpi-cards');
+ if(!master||!cards)return;
+ const key='wos-employee-profile-draft-v1';
+ let drafts={};
+ try{const saved=JSON.parse(localStorage.getItem(key)||'{}');if(saved&&typeof saved==='object'&&!Array.isArray(saved))drafts=saved}catch{}
+ const codes=Object.keys(staffMaster).sort((a,b)=>a.localeCompare(b,'id',{numeric:true}));
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const initials=s=>String(s||'').trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'—';
+ for(const code of codes){const name=String(drafts[code]?.name||'').trim();if(name)staffMaster[code].name=name}
+ const section=document.createElement('section');section.className='card';section.id='employee-master';section.style.marginTop='18px';
+ section.innerHTML='<div class="card-head"><div><h2>Database karyawan · profil & foto</h2><p class="sub">'+codes.length+' kode staff saat ini. Perubahan profil sementara hanya di browser ini; belum menjadi database bersama.</p></div><span class="tag amber">Draft lokal</span></div><p class="note">Foto belum dikumpulkan. Setiap profil memiliki slot foto kosong; unggahan akan diaktifkan setelah project database W.O.S dan aturan akses foto siap. Jangan menaruh foto pribadi sebagai tautan publik.</p><div style="overflow:auto"><table><thead><tr><th>Kode</th><th>Nama</th><th>Jabatan</th><th>Departemen / tim</th><th>Foto</th><th>Kelola</th></tr></thead><tbody id="employee-master-rows"></tbody></table></div><form id="employee-edit-form" class="card" style="margin-top:16px;display:none;background:#fafdff"><h3>Perbarui profil (draft lokal)</h3><div class="form-grid"><div class="field"><label>Kode staff</label><input id="employee-code" readonly></div><div class="field"><label>Nama tampil</label><input id="employee-name" required maxlength="100"></div><div class="field"><label>Departemen</label><input id="employee-department" maxlength="60" placeholder="Contoh: Inbound"></div><div class="field"><label>Tim</label><input id="employee-team" maxlength="60" placeholder="Contoh: GR"></div></div><p class="sub">Kode staff dan hak akses tidak diubah di demo ini. Slot foto tetap kosong sampai penyimpanan privat aktif.</p><button class="button" type="submit">Simpan draft profil</button> <button class="button secondary" type="button" id="employee-cancel">Batal</button></form>';
+ master.append(section);
+ const rows=section.querySelector('#employee-master-rows'),form=section.querySelector('#employee-edit-form');
+ function renderRows(){rows.innerHTML=codes.map(code=>{const p=staffMaster[code],d=drafts[code]||{};return '<tr><td><strong>'+esc(code)+'</strong></td><td>'+esc(p.name)+'</td><td>'+esc(p.role)+'</td><td>'+esc(d.department||'Belum diisi')+' / '+esc(d.team||'Belum diisi')+'</td><td><span class="tag amber">Foto belum ada</span></td><td><button class="button secondary" type="button" data-edit-employee="'+esc(code)+'">Edit profil</button></td></tr>'}).join('')}
+ rows.addEventListener('click',e=>{const button=e.target.closest('[data-edit-employee]');if(!button)return;const code=button.dataset.editEmployee,d=drafts[code]||{};form.style.display='block';form.querySelector('#employee-code').value=code;form.querySelector('#employee-name').value=staffMaster[code].name;form.querySelector('#employee-department').value=d.department||'';form.querySelector('#employee-team').value=d.team||'';form.scrollIntoView({block:'nearest'})});
+ form.querySelector('#employee-cancel').onclick=()=>{form.style.display='none'};
+ form.addEventListener('submit',e=>{e.preventDefault();const code=form.querySelector('#employee-code').value,name=form.querySelector('#employee-name').value.trim(),department=form.querySelector('#employee-department').value.trim(),team=form.querySelector('#employee-team').value.trim();if(!staffMaster[code]||!name)return;const next={...drafts,[code]:{name,department,team,photoPath:null}};try{localStorage.setItem(key,JSON.stringify(next))}catch{alert('Draft profil gagal disimpan di browser ini.');return}drafts=next;staffMaster[code].name=name;form.style.display='none';renderRows();document.querySelectorAll('#kpi-person option').forEach(option=>{if(option.value===code)option.textContent=name+' ('+code+')'});document.getElementById('kpi-run')?.click();alert('Draft profil '+code+' disimpan di browser ini. Belum tersinkron ke database W.O.S.')});
+ function decorateCards(){for(const card of cards.querySelectorAll('article.kpi-sheet')){if(card.querySelector('.employee-photo-slot'))continue;const title=card.querySelector('h2');if(!title)continue;const code=codes.find(c=>staffMaster[c].name===title.textContent.trim());if(!code)continue;const wrap=document.createElement('div');wrap.className='employee-photo-slot';wrap.innerHTML='<div class="employee-avatar" role="img" aria-label="Foto '+esc(staffMaster[code].name)+' belum tersedia">'+esc(initials(staffMaster[code].name))+'</div><div><span class="tag amber">Foto belum tersedia</span><p class="sub" style="margin:5px 0 0">Slot foto karyawan · unggah setelah database aktif</p></div>';title.before(wrap)}}
+ const style=document.createElement('style');style.textContent='.employee-photo-slot{display:flex;align-items:center;gap:14px;margin-bottom:14px}.employee-avatar{width:70px;height:70px;flex:0 0 70px;display:grid;place-items:center;border-radius:50%;border:2px dashed #98b6cb;background:#eaf3f9;color:#315c76;font-size:23px;font-weight:700}@media(max-width:560px){#employee-master{padding:12px}.employee-photo-slot{gap:10px}.employee-avatar{width:58px;height:58px;flex-basis:58px}}';document.head.append(style);
+ new MutationObserver(decorateCards).observe(cards,{childList:true});
+ renderRows();decorateCards();
+})();
+// END EMPLOYEE MASTER MODULE
 </script></body></html>
 
