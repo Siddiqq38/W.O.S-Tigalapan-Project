@@ -1246,13 +1246,15 @@ if(typeof document!=='undefined')(()=>{
  function persistApplications(){try{localStorage.setItem(storageKey,JSON.stringify({changeOff:jotmRequests,annualLeave:annualLeaveRequests,used:jotmUsed,leaveBalances:annualLeaveMaster,changeOffHistory:jotmHistory,leaveHistory:annualLeaveHistory}))}catch{notice.textContent+=' Penyimpanan pengajuan di browser gagal; periksa kapasitas penyimpanan.'}renderSummary()}
  try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){if(Array.isArray(saved.changeOff))jotmRequests.push(...saved.changeOff);if(Array.isArray(saved.annualLeave))annualLeaveRequests.push(...saved.annualLeave);if(saved.used&&typeof saved.used==='object')Object.assign(jotmUsed,saved.used);if(saved.leaveBalances&&typeof saved.leaveBalances==='object')Object.assign(annualLeaveMaster,saved.leaveBalances);if(Array.isArray(saved.changeOffHistory))jotmHistory.push(...saved.changeOffHistory);if(Array.isArray(saved.leaveHistory))annualLeaveHistory.push(...saved.leaveHistory);renderUnifiedApproval()}}catch{}
  const submit=applicationCard.querySelector('button.secondary'),priorSubmit=submit?.onclick;
- if(submit&&priorSubmit)submit.onclick=function(...args){const before=jotmRequests.length+annualLeaveRequests.length;priorSubmit.apply(this,args);if(jotmRequests.length+annualLeaveRequests.length>before){persistApplications();notice.scrollIntoView({block:'nearest'});alert('Pengajuan tersimpan hanya di browser ini; belum diterima SPV di perangkat lain.')}};
+ if(submit)submit.textContent='Catat pengajuan (demo lokal)';
+ if(submit&&priorSubmit)submit.onclick=function(...args){const before=jotmRequests.length+annualLeaveRequests.length,originalAlert=window.alert;window.alert=message=>originalAlert.call(window,String(message).replace('dikirim ke SPV','disimpan lokal, belum sampai ke SPV').replace('diteruskan ke Manager','disimpan lokal, belum sampai ke Manager'));try{priorSubmit.apply(this,args)}finally{window.alert=originalAlert}if(jotmRequests.length+annualLeaveRequests.length>before){persistApplications();notice.scrollIntoView({block:'nearest'})}};
  const priorApprove=window.approveLeave;
  window.approveLeave=(...args)=>{priorApprove(...args);persistApplications()};
  const confirm=document.getElementById('attendance-confirm'),priorConfirm=confirm?.onclick;
  if(confirm&&priorConfirm)confirm.onclick=function(...args){const wasReady=!this.disabled;priorConfirm.apply(this,args);if(wasReady){const summary=document.getElementById('attendance-summary');if(summary)summary.textContent='Presensi tersimpan di browser ini saja. Foto tidak disimpan dan SPV belum dapat melihatnya.';renderSummary()}};
- const priorOther=document.getElementById('other-leave-submit')?.onclick;
- if(priorOther)document.getElementById('other-leave-submit').onclick=function(...args){priorOther.apply(this,args);renderSummary();alert('Izin ini hanya ada di browser ini; foto bukti belum tersinkron ke SPV.')};
+ const otherSubmit=document.getElementById('other-leave-submit'),priorOther=otherSubmit?.onclick;
+ if(otherSubmit)otherSubmit.textContent='Catat izin (demo lokal)';
+ if(priorOther)otherSubmit.onclick=function(...args){const originalAlert=window.alert;window.alert=message=>originalAlert.call(window,String(message).replace('berhasil dikirim ke SPV','dicatat di browser ini saja; belum sampai ke SPV'));try{priorOther.apply(this,args)}finally{window.alert=originalAlert}renderSummary()};
  renderSummary();
 })();
 // END ATTENDANCE DEMO MODULE
