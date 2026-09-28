@@ -416,6 +416,7 @@ function complianceDate(now=new Date()){
 function complianceDue(day){return Date.parse(day+'T18:00:00+08:00');}
 function complianceReportStatus(row,now=new Date()){
  if(row.exempt)return 'Dikecualikan';
+ if(row.fiveRRequired===false&&!row.report)return 'Tidak dijadwalkan 5R';
  if(row.report){
   if(row.report.approval==='approved')return row.report.at<complianceDue(row.day)?'Done · disetujui SPV':'Done · disetujui, terlambat';
   if(row.report.approval==='rejected')return 'Ditolak · perlu perbaikan';
@@ -427,7 +428,7 @@ function reconcileCompliance(state,now=new Date()){
  let changed=false;
  for(const row of state.days){
   const overdue=now.getTime()>=complianceDue(row.day);
-  const violation=!row.exempt&&overdue&&(!row.report||row.report.at>=complianceDue(row.day));
+  const violation=!row.exempt&&row.fiveRRequired!==false&&overdue&&(!row.report||row.report.at>=complianceDue(row.day)||row.report.approval==='rejected');
   const id='5r:'+row.id,existing=state.events.find(e=>e.id===id);
   if(violation&&!existing){
    state.events.push({id,day:row.day,code:row.code,type:'5R',detail:'Laporan area '+row.area+' belum diterima sebelum 18.00 WITA.',status:'valid',source:'system',createdAt:now.getTime(),actor:'Sistem',resolved:false});
@@ -444,11 +445,12 @@ function complianceMonthly(state,month){
  const codes=[...new Set([...state.days.filter(r=>r.day.startsWith(month)).map(r=>r.code),...state.events.filter(e=>e.day.startsWith(month)).map(e=>e.code)])];
  return codes.map(code=>{
   const days=state.days.filter(r=>r.code===code&&r.day.startsWith(month)&&!r.exempt);
+  const required=days.filter(r=>r.fiveRRequired!==false);
   const events=state.events.filter(e=>e.code===code&&e.day.startsWith(month));
-  return {code,scheduled:days.length,briefing:days.filter(r=>r.drm==='yes').length,device:days.filter(r=>r.device==='yes').length,
-   reports:days.filter(r=>r.report?.approval==='approved').length,
-   waitingReports:days.filter(r=>r.report&&!['approved','rejected'].includes(r.report.approval)).length,
-   rejectedReports:days.filter(r=>r.report?.approval==='rejected').length,
+  return {code,scheduled:required.length,briefing:days.filter(r=>r.drm==='yes').length,device:days.filter(r=>r.device==='yes').length,
+   reports:required.filter(r=>r.report?.approval==='approved').length,
+   waitingReports:required.filter(r=>r.report&&!['approved','rejected'].includes(r.report.approval)).length,
+   rejectedReports:required.filter(r=>r.report?.approval==='rejected').length,
    pending:events.filter(e=>e.status==='pending').length,valid:events.filter(e=>e.status==='valid').length,
    sop:events.filter(e=>e.status==='valid'&&e.type==='SOP').length,complaints:events.filter(e=>e.status==='valid'&&e.type.startsWith('Komplain')).length,
    fiveR:events.filter(e=>e.status==='valid'&&e.type==='5R').length};
@@ -476,7 +478,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  let draft=null,draftUrl=null,recordBinding=null,cameraGeneration=0,elapsedTimer=null,viewUrl=null,pendingReview=null,fiveRReview=null;
  names.compliance=['Compliance','DRM, device, SOP, komplain, dan laporan 5R'];
  const style=document.createElement('style');
- style.textContent='#compliance .cp-table{overflow:auto}#compliance table{min-width:700px}#compliance th,#compliance td{display:table-cell!important}#compliance .cp-stack{display:grid;gap:16px}#compliance video,#compliance img{width:100%;max-height:300px;object-fit:contain;background:#102131;border-radius:8px}#compliance button:disabled{opacity:.5;cursor:not-allowed}#compliance [hidden]{display:none!important}#compliance .cp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}#compliance .cp-admin{border-left:3px solid #1675bd}';
+ style.textContent='#compliance .cp-table{overflow:auto}#compliance table{min-width:700px}#compliance th,#compliance td{display:table-cell!important}#compliance .cp-stack{display:grid;gap:16px}#compliance .cp-fold>summary{cursor:pointer;font-size:20px;font-weight:700;padding:5px 0;color:#12334b}#compliance .cp-fold>section,#compliance .cp-fold>details{margin-top:14px}#compliance video,#compliance img{width:100%;max-height:300px;object-fit:contain;background:#102131;border-radius:8px}#compliance button:disabled{opacity:.5;cursor:not-allowed}#compliance [hidden]{display:none!important}#compliance .cp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}#compliance .cp-admin{border-left:3px solid #1675bd}';
  document.head.append(style);
  page.innerHTML='<div class="toolbar"><div><h2>Compliance & 5R</h2><span class="sub">Kepatuhan harian, laporan kejadian, dan bukti area</span></div><span class="tag amber">Mode uji · penyimpanan lokal</span></div>'+
  '<div class="note">Catatan dan foto/video tersimpan di browser perangkat ini (IndexedDB), bukan server. Belum tersinkron antarperangkat; identitas dan peran masih simulasi. Menghapus data browser menghapus bukti. Waktu menggunakan jam perangkat dalam WITA, bukan waktu server.</div>'+
@@ -500,11 +502,25 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  '<section class="card"><div class="card-head"><h2>Rekap Compliance bulanan</h2><div class="field"><label for="cp-month">Bulan</label><input id="cp-month" type="month" value="'+today.slice(0,7)+'"></div></div><div id="cp-monthly" class="cp-table"></div><button id="cp-export" class="button secondary">Unduh rekap CSV</button><p class="sub">Belum ada peringkat gabungan. Attendance, jumlah assignment, volume pcs/koli, dan Compliance harus dinilai terpisah sebelum bobot disepakati. Jumlah assignment bukan pengganti volume; pcs tidak disamakan dengan koli. Rekap ini hanya mencakup data lokal.</p></section>'+
  '<details class="card"><summary>Riwayat perubahan lokal</summary><div id="cp-audit"></div></details>'+
  '<section id="cp-viewer" class="card" hidden><h2 id="cp-view-title">Bukti tersimpan lokal</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><div id="cp-5r-review" hidden><h3>Checklist SPV — pemeriksaan 5R</h3><p class="sub">Checklist awal simulasi; sesuaikan standar rinci bersama SPV. Tinjau video/foto sebelum memberi keputusan. Semua butir wajib memenuhi standar untuk ACC.</p><div class="cp-stack">'+['Ringkas — barang tidak diperlukan telah disingkirkan','Rapi — barang dan alat tersusun di tempatnya','Resik — area, lantai, dan alat bersih','Rawat — label, penandaan, serta kondisi area terjaga','Rajin — standar area dipelihara dan tidak ada temuan terbuka'].map((t,i)=>'<label><input type="checkbox" id="cp-5r-check-'+i+'"> '+t+'</label>').join('')+'</div><div class="field" style="margin-top:12px"><label for="cp-5r-note">Catatan SPV / temuan (wajib jika ditolak)</label><textarea id="cp-5r-note" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-5r-approve" class="button">ACC 5R</button><button id="cp-5r-reject" class="button secondary">Tolak / minta perbaikan</button></div></div><div id="cp-5r-history"></div><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
+ const stack=page.querySelector('.cp-stack');
+ const fold=(id,title,nodes)=>{const box=document.createElement('details');box.className='card cp-fold';box.id=id;box.innerHTML='<summary>'+title+'</summary>';for(const node of nodes)if(node)box.append(node);stack.append(box);return box};
+ const dutyPanel=$('duty-panel'),dailyPanel=$('daily').closest('section'),checkPanel=$('check-panel'),reportPanel=$('report-person').closest('section'),viewer=$('viewer'),incidentPanel=$('event-person').closest('section'),eventsPanel=$('events').closest('section'),monthlyPanel=$('monthly').closest('section'),auditPanel=$('audit').closest('details');
+ const attendancePanel=document.createElement('section');attendancePanel.className='card';attendancePanel.innerHTML='<h2>DRM · daftar check-in</h2><p class="sub">Hanya staff yang mempunyai Attendance in pada tanggal terpilih di browser ini. SPV/Admin menandai ✓ ikut atau ✕ tidak ikut; tanda kosong berarti belum diperiksa. Belum sinkron lintas HP.</p><div id="cp-drm-attendance" class="cp-table"></div>';
+ fold('cp-drm-group','DRM · briefing harian',[attendancePanel,checkPanel]);
+ const quick=document.createElement('div');quick.className='form-grid';quick.innerHTML='<div class="field"><label for="cp-report-code">Kode / nama staff</label><select id="cp-report-code"><option value="">Pilih staff</option></select></div><div class="field"><label for="cp-report-area-choice">Area 5R dari master</label><select id="cp-report-area-choice"><option value="">Pilih area</option></select></div>';
+ reportPanel.querySelector('.form-grid').before(quick);
+ $('report-person').closest('.field').hidden=true;
+ const revision=document.createElement('p');revision.id='cp-revision-note';revision.className='note';revision.hidden=true;quick.after(revision);
+ fold('cp-five-r-group','5R · area, video, revisi & approval',[dutyPanel,dailyPanel,reportPanel,viewer]);
+ fold('cp-incident-group','SOP & komplain',[incidentPanel,eventsPanel]);
+ fold('cp-recap-group','Rekap Compliance',[monthlyPanel,auditPanel]);
  $('actor').value='W999';
  const notice=(text,error=false)=>{$('message').textContent=text;$('message').style.color=error?'#b42318':'';};
  const actor=()=>staffMaster[$('actor').value]?.name||'Pengguna';
  const isAdmin=()=>['SPV','Manager','Admin'].includes($('role').value);
+ const canMarkDrm=()=>['SPV','Admin'].includes($('role').value);
  const isReviewer=()=>['SPV','Manager'].includes($('role').value);
+ const canApproveFiveR=()=>$('role').value==='SPV';
  const audit=(s,text)=>s.audit.push({at:Date.now(),actor:actor(),text});
  const rowId=(day,code)=>day+':'+code;
  const clock=ms=>new Date(ms).toLocaleString('id-ID',{timeZone:'Asia/Makassar',hour12:false});
@@ -523,15 +539,25 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  function reportArea(){
   const r=state.days.find(r=>r.id===$('report-person').value);
   $('report-area').value=r?.area||'';
+  $('revision-note').hidden=r?.report?.approval!=='rejected';
+  $('revision-note').textContent=r?.report?.approval==='rejected'?'Revisi diminta SPV: '+(r.report.reviewNote||'Perbaiki area, rekam video baru, lalu kirim ulang.')+' · Laporan ini belum dihitung Done.':'';
  }
+ function attendanceIns(day){try{const rows=JSON.parse(localStorage.getItem('wos-attendance-kpi-v1')||'[]');return Array.isArray(rows)?rows.filter(r=>r.day===day&&r.action==='Attendance in'&&staffMaster[r.code]):[]}catch{return[]}}
+ function renderDrm(){const seen=new Map();for(const entry of attendanceIns($('date').value))if(!seen.has(entry.code)||String(entry.at)<String(seen.get(entry.code).at))seen.set(entry.code,entry);const rows=[...seen.values()].sort((a,b)=>a.code.localeCompare(b.code,'id',{numeric:true}));$('drm-attendance').innerHTML=rows.length?'<table><thead><tr><th>Staff check-in</th><th>Waktu check-in</th><th>Ikut DRM</th><th>Tidak ikut</th><th>Status</th></tr></thead><tbody>'+rows.map(e=>{const r=state.days.find(x=>x.id===rowId($('date').value,e.code)),status=r?.drm||'unknown';return '<tr><td>'+esc(label(e.code))+'</td><td>'+esc(clock(Date.parse(e.at)))+' WITA</td><td><button class="button secondary" type="button" data-drm-code="'+esc(e.code)+'" data-drm-value="yes" '+(!canMarkDrm()?'disabled':'')+' aria-label="'+esc('Tandai '+label(e.code)+' ikut DRM')+'">✓</button></td><td><button class="button secondary" type="button" data-drm-code="'+esc(e.code)+'" data-drm-value="no" '+(!canMarkDrm()?'disabled':'')+' aria-label="'+esc('Tandai '+label(e.code)+' tidak ikut DRM')+'">✕</button></td><td>'+tag(({yes:'Ikut DRM',no:'Tidak ikut',unknown:'Belum diperiksa'})[status],status==='yes'?'green':status==='no'?'red':'amber')+'</td></tr>'}).join('')+'</tbody></table>':'<p class="sub">Belum ada Attendance in yang tersimpan pada tanggal ini di browser ini. Check-in dari HP lain belum dapat terbaca sebelum database W.O.S aktif.</p>'}
+ function refreshReportChoices(){const current=$('report-code').value,profiles=window.getFiveRMaster?.()||[];$('report-code').innerHTML='<option value="">Pilih staff</option>'+profiles.map(r=>'<option value="'+esc(r.code)+'">'+esc(r.code+' · '+(staffMaster[r.code]?.name||r.name))+'</option>').join('');if(profiles.some(r=>r.code===current))$('report-code').value=current;refreshAreaChoices()}
+ function refreshAreaChoices(){const code=$('report-code').value,profile=window.getFiveRProfile?.(code),area=$('report-area-choice');area.innerHTML='<option value="">Pilih area</option>'+(profile?'<option value="'+esc(profile.area)+'">'+esc(profile.area)+'</option>':'');area.value='';$('report-person').value='';reportArea();stopCamera()}
  function render(){
   const rows=state.days.filter(r=>r.day===$('date').value),working=rows.filter(r=>!r.exempt);
+  const required=working.filter(r=>r.fiveRRequired!==false);
   const card=(name,n,sub)=>'<div class="card"><span class="sub">'+name+'</span><div class="metric">'+n+'</div><span class="sub">'+sub+'</span></div>';
-  $('totals').innerHTML=card('DRM hadir',working.filter(r=>r.drm==='yes').length+'/'+working.length,'Berdasarkan checklist, bukan attendance')+card('5R disetujui SPV',working.filter(r=>r.report?.approval==='approved').length+'/'+working.length,'Upload saja belum dihitung selesai')+card('Kejadian terverifikasi',state.events.filter(e=>e.day===$('date').value&&e.status==='valid').length,'Termasuk 5R lewat batas; bukan skor akhir');
+  const checkedIn=new Set(attendanceIns($('date').value).map(e=>e.code));
+  $('totals').innerHTML=card('DRM hadir',working.filter(r=>r.drm==='yes'&&checkedIn.has(r.code)).length+'/'+checkedIn.size,'Dari check-in lokal; hanya checklist SPV/Admin dihitung')+card('5R disetujui SPV',required.filter(r=>r.report?.approval==='approved').length+'/'+required.length,'Upload / revisi tanpa ACC belum Done')+card('Kejadian terverifikasi',state.events.filter(e=>e.day===$('date').value&&e.status==='valid').length,'Termasuk 5R lewat batas; bukan skor akhir');
+  renderDrm();
   $('daily').innerHTML=rows.length?'<table><thead><tr><th>Staff / tim</th><th>Area</th><th>DRM / Device</th><th>Status 5R</th><th>Bukti</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(label(r.code))+'<br><span class="sub">'+esc(r.team)+'</span></td><td>'+esc(r.area)+'</td><td>'+esc(({yes:'Hadir',no:'Tidak hadir',unknown:'Belum diperiksa'})[r.drm])+' / '+esc(({yes:'Dikumpulkan',no:'Tidak dikumpulkan',unknown:'Belum diperiksa'})[r.device])+'</td><td>'+tag(complianceReportStatus(r),r.exempt?'purple':r.report?.approval==='approved'?'green':r.report?.approval==='rejected'?'red':r.report?'amber':Date.now()>=complianceDue(r.day)?'red':'amber')+(r.exempt?'<br>'+esc(r.reason):'')+(r.report?.reviewNote?'<br><span class="sub">Catatan SPV: '+esc(r.report.reviewNote)+'</span>':'')+'</td><td>'+(r.report?'<button class="button secondary" data-view="'+esc(r.id)+'">Lihat '+esc(r.report.kind)+'</button><br><span class="sub">'+clock(r.report.at)+'</span>':'—')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada petugas untuk tanggal ini. Tetapkan area dan petugas terlebih dahulu; tidak ada pelanggaran otomatis bagi staf yang belum dijadwalkan.</p>';
   selectRows('check-person',rows);selectRows('report-person',state.days.filter(r=>r.day===complianceDate()&&!r.exempt));reportArea();
-  $('duty-panel').hidden=!isAdmin();$('check-panel').hidden=!isAdmin();
-  if(!isReviewer()){$('review-panel').hidden=true;pendingReview=null;$('5r-review').hidden=true;fiveRReview=null;}
+  $('duty-panel').hidden=!isAdmin();$('check-panel').hidden=!canMarkDrm();
+  if(!isReviewer()){$('review-panel').hidden=true;pendingReview=null;}
+  if(!canApproveFiveR()){$('5r-review').hidden=true;fiveRReview=null;}
   const events=state.events.filter(e=>e.day===$('date').value);
   $('events').innerHTML=events.length?'<table><thead><tr><th>Staff / kategori</th><th>Fakta / sumber</th><th>Status</th><th>Tindak lanjut</th></tr></thead><tbody>'+events.map(e=>'<tr><td>'+esc(label(e.code))+'<br>'+esc(e.type)+'</td><td>'+esc(e.detail)+'<br><span class="sub">'+esc(e.source)+' · '+esc(e.actor)+'</span></td><td>'+tag(({pending:'Menunggu verifikasi',valid:'Terverifikasi',batal:'Dibatalkan'})[e.status],e.status==='valid'?'red':'amber')+'<br>'+esc(e.review||'')+'</td><td>'+ (e.resolved?'Selesai · '+esc(e.resolution||''):isReviewer()?'<button class="button secondary" data-review="'+esc(e.id)+'" data-status="valid">Verifikasi</button> <button class="button secondary" data-review="'+esc(e.id)+'" data-status="batal">Batalkan</button> '+(e.status==='valid'?'<button class="button secondary" data-resolve="'+esc(e.id)+'">Selesai ditindaklanjuti</button>':''):'Menunggu SPV / Manager')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada kejadian tercatat pada tanggal ini.</p>';
   const monthly=complianceMonthly(state,$('month').value);
@@ -559,12 +585,23 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  }catch(e){notice('Penyimpanan lokal tidak tersedia. Compliance belum dapat menyimpan data: '+e.message,true);page.querySelectorAll('button').forEach(b=>b.disabled=true);return;}
  $('date').onchange=()=>{if($('date').value){render();loadCheck();}};
  $('month').onchange=render;$('role').onchange=render;$('check-person').onchange=loadCheck;
+ $('drm-attendance').onclick=async ev=>{
+  const button=ev.target.closest('[data-drm-code]');if(!button||!canMarkDrm())return;
+  const code=button.dataset.drmCode,value=button.dataset.drmValue,day=$('date').value;
+  if(!attendanceIns(day).some(r=>r.code===code))return notice('Check-in staff tidak ditemukan di browser ini untuk tanggal tersebut.',true);
+  if(await mutate(s=>{const id=rowId(day,code),profile=window.getFiveRProfile?.(code),required=window.fiveRRequiredOn?.(profile,day)||false;let row=s.days.find(r=>r.id===id);if(!row){row={id,day,code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:required,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row);}row.drm=value;const eid='DRM:'+id,existing=s.events.find(e=>e.id===eid);if(value==='no'){if(existing){existing.status='pending';existing.resolved=false}else s.events.push({id:eid,day,code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+actor(),status:'pending',source:'Daftar check-in',actor:actor(),createdAt:Date.now(),resolved:false})}else if(existing){existing.status='batal';existing.review='Checklist dikoreksi: ikut DRM'}audit(s,'DRM '+code+' '+(value==='yes'?'ikut':'tidak ikut')+' · '+day);})){notice('Status DRM '+label(code)+' tersimpan lokal.');}
+ };
+ $('report-code').onchange=refreshAreaChoices;
+ $('report-area-choice').onchange=()=>{stopCamera();$('report-area').value=$('report-area-choice').value;$('camera-status').textContent='Area dipilih. Buka kamera untuk memulai laporan 5R.'};
+ window.addEventListener('five-r-master-updated',refreshReportChoices);
+ refreshReportChoices();
+ async function ensureDutyForReport(){const day=complianceDate(),code=$('report-code').value,area=$('report-area-choice').value,profile=window.getFiveRProfile?.(code);if(!code||!area||!profile||area!==profile.area)throw Error('Pilih kode staff dan area sesuai Master 5R. Jika pindah area, minta SPV/Admin memperbarui master terlebih dahulu.');const id=rowId(day,code),existing=state.days.find(r=>r.id===id);if(existing){if(existing.exempt)throw Error('Staff dikecualikan pada hari ini. Minta SPV/Admin meninjau statusnya.');if(existing.area!==area)throw Error('Area penugasan hari ini berbeda. Minta SPV/Admin mengoreksi penugasan.');if(existing.fiveRRequired===false){const okay=await mutate(s=>{s.days.find(r=>r.id===id).fiveRRequired=true;audit(s,'Aktifkan tugas 5R '+id)});if(!okay)throw Error('Penugasan 5R belum tersimpan.')}}else{const okay=await mutate(s=>{s.days.push({id,day,code,area,team:profile.ket||'5R',fiveRRequired:true,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null});audit(s,'Mulai tugas 5R '+id+' · '+area)});if(!okay)throw Error('Penugasan 5R belum tersimpan.')}render();$('report-person').value=id;reportArea();return state.days.find(r=>r.id===id)}
  $('duty-save').onclick=async()=>{
   if(!isAdmin())return notice('Hanya Admin / SPV / Manager pada mode uji.',true);
   const day=$('date').value,codes=parseCodes($('duty-code').value),area=$('duty-area').value.trim(),team=$('duty-team').value.trim();
   if(!day||!codes.length||codes.some(c=>!staffMaster[c])||!area||!team)return notice('Isi tanggal, kode staff yang valid, tim, dan area.',true);
   if(state.days.some(r=>r.day===day&&codes.includes(r.code)&&r.report&&r.area!==area))return notice('Area sudah memiliki bukti. Jangan mengganti area setelah laporan; gunakan tanggal penugasan berikutnya.',true);
-  if(await mutate(s=>{for(const code of codes){const id=rowId(day,code),row=s.days.find(r=>r.id===id);if(row){row.area=area;row.team=team;}else s.days.push({id,day,code,area,team,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null});}audit(s,'Tetapkan area '+area+' untuk '+codes.join(', ')+' tanggal '+day);})){
+  if(await mutate(s=>{for(const code of codes){const id=rowId(day,code),row=s.days.find(r=>r.id===id);if(row){row.area=area;row.team=team;row.fiveRRequired=true;}else s.days.push({id,day,code,area,team,fiveRRequired:true,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null});}audit(s,'Tetapkan area '+area+' untuk '+codes.join(', ')+' tanggal '+day);})){ 
    notice('Petugas dan area harian tersimpan lokal.');$('duty-code').value='';
   }
  };
@@ -577,7 +614,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   }
  };
  $('check-save').onclick=async()=>{
-  if(!isAdmin())return;
+  if(!canMarkDrm())return;
   const id=$('check-person').value,drm=$('check-drm').value,device=$('check-device').value,exempt=$('check-exempt').value==='yes',reason=$('check-reason').value.trim();
   if(!id)return notice('Pilih petugas.',true);
   if((exempt||drm==='no'||device==='no')&&!reason)return notice('Alasan wajib untuk pelanggaran atau pengecualian.',true);
@@ -643,11 +680,11 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  $('report-person').onchange=()=>{stopCamera();reportArea();$('camera-status').textContent='Petugas berubah; ambil bukti baru untuk petugas ini.';};
  $('camera-open').onclick=async()=>{
   try{
-   captureRow();stopCamera();const generation=cameraGeneration;$('camera-open').disabled=true;$('camera-status').textContent='Menunggu izin kamera. Izinkan kamera di browser, atau pilih Batal / tutup kamera.';
+   if(!$('report-code').value||!$('report-area-choice').value)throw Error('Pilih kode staff dan area 5R terlebih dahulu.');stopCamera();const generation=cameraGeneration;$('camera-open').disabled=true;$('camera-status').textContent='Menunggu izin kamera. Izinkan kamera di browser, atau pilih Batal / tutup kamera.';
    if(!navigator.mediaDevices?.getUserMedia)throw Error('Kamera membutuhkan HTTPS dan browser yang mendukung.');
    const acquired=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
    if(generation!==cameraGeneration){acquired.getTracks().forEach(t=>t.stop());return;}
-   stream=acquired;$('live').srcObject=stream;$('live').hidden=false;await $('live').play();
+   stream=acquired;await ensureDutyForReport();captureRow();$('live').srcObject=stream;$('live').hidden=false;await $('live').play();
    $('photo').disabled=false;$('video-start').disabled=typeof MediaRecorder==='undefined';
    $('camera-status').textContent=typeof MediaRecorder==='undefined'?'Video tidak didukung browser ini; gunakan foto kamera.':'Kamera aktif. Pilih Mulai video (disarankan) atau Ambil foto.';
   }catch(e){stopCamera();$('camera-status').textContent='Kamera belum dapat digunakan: '+(e.name==='NotAllowedError'?'izinkan kamera pada pengaturan browser.':e.message);}
@@ -703,7 +740,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    (row.report.kind==='video'?$('view-video'):$('view-photo')).src=viewUrl;$('viewer').hidden=false;$('viewer').scrollIntoView({behavior:'smooth'});
    fiveRReview={id:row.id,fileId:row.report.fileId};
    $('view-title').textContent='Bukti 5R — '+label(row.code)+' · '+row.area+' · '+row.day;
-   $('5r-review').hidden=!isReviewer()||row.exempt;
+   $('5r-review').hidden=!canApproveFiveR()||row.exempt;
    for(let i=0;i<5;i++)$('5r-check-'+i).checked=!!row.report.checks?.[i];
    $('5r-note').value=row.report.reviewNote||'';
    $('5r-history').innerHTML='<p class="sub">'+esc(complianceReportStatus(row))+'</p>'+
@@ -727,7 +764,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   req.onerror=()=>notice('Bukti lama gagal dibaca.',true);
  };
  async function decideFiveR(decision){
-  if(!isReviewer()||!fiveRReview)return notice('Buka bukti terbaru sebagai SPV / Manager terlebih dahulu.',true);
+  if(!canApproveFiveR()||!fiveRReview)return notice('Buka bukti terbaru sebagai SPV terlebih dahulu.',true);
   const target={...fiveRReview},checks=Array.from({length:5},(_,i)=>$('5r-check-'+i).checked),note=$('5r-note').value.trim();
   if(decision==='approved'&&!checks.every(Boolean))return notice('ACC belum dapat dilakukan: semua checklist 5R harus memenuhi standar.',true);
   if(decision==='rejected'&&!note)return notice('Isi temuan / alasan penolakan terlebih dahulu.',true);
@@ -736,9 +773,9 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    reviewFiveR(row,target.fileId,decision,checks,note,actor());
    const eventId='5r-quality:'+target.id+':'+target.fileId,existing=s.events.find(e=>e.id===eventId);
    if(decision==='rejected'){
-    if(existing){existing.detail=note;existing.status='valid';}
-    else s.events.push({id:eventId,day:row.day,code:row.code,type:'Temuan 5R',detail:note,status:'valid',source:'Checklist approval SPV',createdAt:Date.now(),actor:actor(),resolved:false});
-   }else if(existing){existing.status='batal';existing.review='Keputusan laporan yang sama dikoreksi menjadi ACC: '+note;}
+    if(existing){existing.detail=note;existing.status='pending';}
+    else s.events.push({id:eventId,day:row.day,code:row.code,type:'Temuan 5R',detail:note,status:'pending',source:'Checklist approval SPV',createdAt:Date.now(),actor:actor(),resolved:false});
+   }else for(const event of s.events.filter(e=>e.id.startsWith('5r-quality:'+target.id+':')&&e.status==='pending')){event.status='batal';event.review='Perbaikan diterima dan 5R di-ACC: '+note;}
    audit(s,'Approval 5R '+target.id+' · '+decision+' · '+note);
   })){
    $('view-close').click();notice(decision==='approved'?'5R di-ACC. Sekarang dihitung Done pada rekap.':'5R ditolak dan belum dihitung selesai. Temuan dicatat; petugas dapat mengirim bukti perbaikan hari ini.');
@@ -759,7 +796,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   if(reconcileCompliance(test))await mutate(s=>{reconcileCompliance(s);audit(s,'Pemeriksaan otomatis batas 18.00 WITA');});
   else render();
  },30000);
- document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.page!=='compliance'){stopCamera();$('view-close').click();}}));
+ document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.page!=='compliance'){stopCamera();$('view-close').click();}else render();}));
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera();});
  window.addEventListener('pagehide',()=>stopCamera());
 })();
@@ -1283,5 +1320,52 @@ if(typeof document!=='undefined')(()=>{
  renderRows();decorateCards();
 })();
 // END EMPLOYEE MASTER MODULE
+// BEGIN FIVE R MASTER MODULE
+(()=>{
+ const master=document.getElementById('master');if(!master)return;
+ const key='wos-5r-area-master-v1';
+ const seed=[
+  ['W09','Rezky Novita','Kontrak','P7','Office DC','Daily'],
+  ['W28','Zuhdi','Kontrak','P1','Inbound (Intransit & Good Receipt)','Senin'],
+  ['W17','Sulqadri','Kontrak','P1','Inbound (Intransit & Good Receipt)','Senin'],
+  ['W07','Ardi Wahidin','Kontrak','P2','Storage','Selasa'],
+  ['W08','Yusri','Kontrak','P2','Parkiran 2, toilet urinoir','Selasa'],
+  ['W04','Abd. Halik','Kontrak','P3','Storage','Rabu'],
+  ['W24','Suldeni','Kontrak','P3','Storage','Rabu'],
+  ['W14','Riang indra pratiwi','Kontrak','P7','Office DC','Daily'],
+  ['W19','Jabal Rahmat','Kontrak','P4','Outbound (Packing, Stagging & Receiving)','Kamis'],
+  ['W21','Laode Syarif','Kontrak','P4','Outbound (Packing, Stagging & Receiving)','Kamis'],
+  ['W36','Abd. Yandi Saputra','Kontrak','P5','Parkiran 1 & waste','Jumat'],
+  ['W03','Syafii','Freelance','P5','Storage','Jumat'],
+  ['W29','Muh. Fahri','Kontrak','P6','Area QC & karantina','Sabtu'],
+  ['W35','A. Muh Akram','Probation','P6','Parkiran 2, toilet urinoir','Sabtu'],
+  ['W34','Ansar Ramadhan','Kontrak','P6','Mobil Operasional DC','Sabtu']
+ ].map(([code,name,category,ket,area,schedule])=>({code,name,category,ket,area,schedule}));
+ let records=seed;
+ try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(saved)&&saved.length)records=saved.filter(r=>r&&/^W\d{2,4}$/.test(r.code)&&r.name&&r.area)}catch{}
+ for(const r of records)if(!staffMaster[r.code])staffMaster[r.code]={name:r.name,role:'Operator'};
+ const clone=()=>records.map(r=>({...r}));
+ window.getFiveRMaster=clone;
+ window.getFiveRProfile=code=>clone().find(r=>r.code===code)||null;
+ window.fiveRRequiredOn=(profile,day)=>{if(!profile||!day)return false;if(profile.schedule==='Daily')return true;const weekday=new Intl.DateTimeFormat('id-ID',{timeZone:'UTC',weekday:'long'}).format(new Date(day+'T12:00:00Z')).toLowerCase();return weekday===String(profile.schedule).toLowerCase()};
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const box=document.createElement('details');box.className='card';box.id='five-r-master';box.style.marginTop='16px';
+ box.innerHTML='<summary style="font-size:19px;font-weight:700;cursor:pointer">Master area 5R · '+records.length+' petugas</summary><p class="sub">Diisi dari daftar area yang Anda lampirkan. Jadwal JBS: Daily atau hari Senin–Sabtu. Perubahan saat ini hanya tersimpan di browser ini.</p><div style="overflow:auto"><table><thead><tr><th>Kode / nama</th><th>Kategori / ket</th><th>Area 5R</th><th>Jadwal</th><th>Kelola</th></tr></thead><tbody id="five-r-master-rows"></tbody></table></div><h3 style="margin-top:18px">Tambah / perbarui petugas dan area</h3><form id="five-r-master-form"><div class="form-grid"><div class="field"><label>Kode staff</label><input id="five-r-code" required pattern="W[0-9]{2,4}" placeholder="W03" maxlength="5"></div><div class="field"><label>Nama</label><input id="five-r-name" required maxlength="100"></div><div class="field"><label>Kategori</label><select id="five-r-category"><option>Kontrak</option><option>Freelance</option><option>Probation</option><option>Tetap</option></select></div><div class="field"><label>Ket / grup</label><input id="five-r-ket" maxlength="30" placeholder="P1"></div><div class="field"><label>Area 5R</label><input id="five-r-area" required maxlength="150"></div><div class="field"><label>Jadwal 5R</label><select id="five-r-schedule"><option>Daily</option><option>Senin</option><option>Selasa</option><option>Rabu</option><option>Kamis</option><option>Jumat</option><option>Sabtu</option></select></div></div><p class="sub">Perubahan area berlaku untuk tugas berikutnya; laporan yang sudah memiliki bukti tetap mempertahankan area lamanya.</p><button class="button" type="submit">Simpan draft area</button> <button class="button secondary" type="reset">Kosongkan form</button></form>';
+ master.append(box);
+ const rows=box.querySelector('#five-r-master-rows'),form=box.querySelector('#five-r-master-form');
+ function render(){box.querySelector('summary').textContent='Master area 5R · '+records.length+' petugas';rows.innerHTML=records.map(r=>'<tr><td><strong>'+esc(r.code)+'</strong> · '+esc(r.name)+'</td><td>'+esc(r.category)+' · '+esc(r.ket)+'</td><td>'+esc(r.area)+'</td><td>'+esc(r.schedule)+'</td><td><button class="button secondary" type="button" data-five-r-edit="'+esc(r.code)+'">Edit</button></td></tr>').join('')}
+ rows.onclick=e=>{const code=e.target.closest('[data-five-r-edit]')?.dataset.fiveREdit,r=records.find(x=>x.code===code);if(!r)return;for(const field of ['code','name','category','ket','area','schedule'])box.querySelector('#five-r-'+field).value=r[field]||'';form.scrollIntoView({block:'nearest'})};
+ form.onsubmit=e=>{e.preventDefault();const row=Object.fromEntries(['code','name','category','ket','area','schedule'].map(field=>[field,box.querySelector('#five-r-'+field).value.trim()]));row.code=row.code.toUpperCase();if(!/^W\d{2,4}$/.test(row.code)||!row.name||!row.area)return;const next=clone(),at=next.findIndex(r=>r.code===row.code);if(at>=0)next[at]=row;else next.push(row);next.sort((a,b)=>a.code.localeCompare(b.code,'id',{numeric:true}));try{localStorage.setItem(key,JSON.stringify(next))}catch{alert('Master 5R gagal disimpan di browser ini.');return}records=next;if(!staffMaster[row.code])staffMaster[row.code]={name:row.name,role:'Operator'};render();form.reset();window.dispatchEvent(new Event('five-r-master-updated'));alert('Draft area 5R '+row.code+' tersimpan di browser ini. Belum tersinkron antarperangkat.')};
+ render();window.dispatchEvent(new Event('five-r-master-updated'));
+})();
+// END FIVE R MASTER MODULE
+// BEGIN MASTER FOLD MODULE
+(()=>{
+ const root=document.getElementById('master');if(!root)return;
+ const style=document.createElement('style');style.textContent='#master>details.master-fold{margin:0 0 14px}#master>details.master-fold>summary{font-size:19px;font-weight:700;cursor:pointer;padding:4px 0}#master>details.master-fold>.card,#master>details.master-fold>.grid{margin-top:14px}';document.head.append(style);
+ const items=[...root.children].filter(node=>!node.matches('.toolbar')&&!node.matches('details'));
+ for(const node of items){let title='Data referensi';if(node.id==='employee-master')title='Database karyawan & foto';else if(node.classList.contains('grid'))title='Kategori master data';else title=node.querySelector('h2,h3')?.textContent?.trim()||title;const fold=document.createElement('details');fold.className='card master-fold';const summary=document.createElement('summary');summary.textContent=title;node.before(fold);fold.append(summary,node)}
+})();
+// END MASTER FOLD MODULE
 </script></body></html>
 
