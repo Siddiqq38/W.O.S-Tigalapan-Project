@@ -176,14 +176,21 @@ function parseGoodReceiptCsv(text){
   const row=rows[i]||[],id=cleanText(row[0]);
   if(id&&/^\d+$/.test(id)){
    current={batch:id,date:cleanText(row[1]),start:cleanText(row[2]),finish:cleanText(row[3]),leadTime:cleanText(row[4]),po:cleanText(row[5]),koli:[],items:[],totalPcs:cleanText(row[9]),totalKoli:cleanText(row[10]),pic:cleanText(row[11]),notes:cleanText(row[12]),sku:cleanText(row[13]),schema2027:modern,counting:modern?yes(row[cnt]):null,putAway:modern?yes(row[put]):null,purchase:yes(row[modern?po:14]),ket:cleanText(row[modern?17:15])};
-   const below=rows[i+1]||[],isPcsRow=!cleanText(below[0]);
-   for(let col=6;col<=8;col++){
-    const number=cleanText(row[col]);
-    if(!/^\d+$/.test(number)||Number(number)<=0)continue;
-    const rawPcs=isPcsRow?cleanText(below[col]):'',pcs=rawPcs===''?null:csvNumber(rawPcs);
-    current.koli.push(Number(number));current.items.push({koli:Number(number),pcs,counted:pcs!==null&&pcs>=0});
+   if(!dateToIso(current.date)||!current.po){current=null;continue;}
+   let next=i+1;while(next<rows.length&&!/^\d+$/.test(cleanText((rows[next]||[])[0])))next++;
+   for(let j=i;j+1<next;j++){
+    const koliRow=rows[j]||[],pcsRow=rows[j+1]||[];
+    const numbers=[6,7,8].map(col=>cleanText(koliRow[col]));
+    if(!numbers.some(n=>/^\d+$/.test(n)&&Number(n)>0)||!numbers.every(n=>!n||/^\d+$/.test(n)))continue;
+    for(let col=6;col<=8;col++){
+     const number=numbers[col-6];if(!number||Number(number)<=0)continue;
+     const rawPcs=cleanText(pcsRow[col]),pcs=rawPcs===''?null:csvNumber(rawPcs);
+     current.koli.push(Number(number));current.items.push({koli:Number(number),pcs,counted:pcs!==null&&pcs>=0});
+    }
+    j++;
    }
-   batches.push(current);
+   if(current.koli.length)batches.push(current);
+   i=next-1;
   }else if(current&&i>header+1&&!modern){
    if(!current.notes)current.notes=cleanText(row[12]);
    if(!current.ket)current.ket=cleanText(row[15]);
@@ -1212,5 +1219,42 @@ if(typeof document!=='undefined')(()=>{
  window.addEventListener('outbound-snapshot-updated',render);window.addEventListener('kpi-source-updated',render);const previousGR=renderGoodReceiptProgress;renderGoodReceiptProgress=function(source){previousGR(source);render();};render();
 })();
 // END PERFORMANCE MODULE
+// BEGIN ATTENDANCE DEMO MODULE
+(()=>{
+ const page=document.getElementById('attendance');
+ if(!page)return;
+ const storageKey='wos-attendance-applications-demo-v1';
+ const count=document.createElement('div');
+ count.className='grid three';
+ count.id='attendance-real-summary';
+ page.querySelector(':scope > .grid.three')?.replaceWith(count);
+ const notice=document.createElement('div');
+ notice.className='note';
+ notice.style.cssText='border-left:5px solid #b83a33;background:#fff8ee;color:#703d0a;margin:14px 0';
+ notice.textContent='SIMULASI LOKAL — Belum ada akun staff dan sinkronisasi Supabase. Presensi/pengajuan di HP ini tidak terlihat di HP SPV, bukan catatan resmi. Foto kamera hanya untuk validasi saat ini dan tidak tersimpan setelah halaman ditutup.';
+ count.before(notice);
+ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const todayWita=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Makassar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const readAttendance=()=>{try{const v=JSON.parse(localStorage.getItem('wos-attendance-kpi-v1')||'[]');return Array.isArray(v)?v:[]}catch{return[]}};
+ function renderSummary(){
+  const day=todayWita(),entries=readAttendance().filter(e=>e.day===day),ins=new Set(entries.filter(e=>e.action==='Attendance in').map(e=>e.code)),outs=new Set(entries.filter(e=>e.action==='Attendance out').map(e=>e.code));
+  const pending=jotmRequests.length+annualLeaveRequests.length+otherLeaveRequests.length+lateRequests.length;
+  count.innerHTML='<div class="card"><span class="metric-label">Check-in lokal hari ini</span><div class="metric good">'+ins.size+'</div><span class="sub">Hanya browser ini · '+day+'</span></div><div class="card"><span class="metric-label">Check-out lokal hari ini</span><div class="metric">'+outs.size+'</div><span class="sub">Belum tersinkron ke SPV</span></div><div class="card"><span class="metric-label">Pengajuan lokal menunggu</span><div class="metric warn">'+pending+'</div><span class="sub">Belum dikirim ke akun SPV</span></div>';
+  const log=document.getElementById('attendance-log');
+  if(log)log.innerHTML=entries.sort((a,b)=>String(b.at).localeCompare(String(a.at))).map(e=>'<div class="mini"><div><strong>'+escape(staffMaster[e.code]?.name||e.code)+' ('+escape(e.code)+')</strong><br><span class="sub">'+escape(e.action)+' · '+escape(new Date(e.at).toLocaleString('id-ID',{timeZone:'Asia/Makassar',hour12:false}))+' WITA · browser ini</span></div><span class="tag green">Lokal</span></div>').join('')||'<p class="sub">Belum ada presensi lokal hari ini.</p>';
+ }
+ function persistApplications(){try{localStorage.setItem(storageKey,JSON.stringify({changeOff:jotmRequests,annualLeave:annualLeaveRequests,used:jotmUsed,leaveBalances:annualLeaveMaster,changeOffHistory:jotmHistory,leaveHistory:annualLeaveHistory}))}catch{notice.textContent+=' Penyimpanan pengajuan di browser gagal; periksa kapasitas penyimpanan.'}renderSummary()}
+ try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){if(Array.isArray(saved.changeOff))jotmRequests.push(...saved.changeOff);if(Array.isArray(saved.annualLeave))annualLeaveRequests.push(...saved.annualLeave);if(saved.used&&typeof saved.used==='object')Object.assign(jotmUsed,saved.used);if(saved.leaveBalances&&typeof saved.leaveBalances==='object')Object.assign(annualLeaveMaster,saved.leaveBalances);if(Array.isArray(saved.changeOffHistory))jotmHistory.push(...saved.changeOffHistory);if(Array.isArray(saved.leaveHistory))annualLeaveHistory.push(...saved.leaveHistory);renderUnifiedApproval()}}catch{}
+ const submit=applicationCard.querySelector('button.secondary'),priorSubmit=submit?.onclick;
+ if(submit&&priorSubmit)submit.onclick=function(...args){const before=jotmRequests.length+annualLeaveRequests.length;priorSubmit.apply(this,args);if(jotmRequests.length+annualLeaveRequests.length>before){persistApplications();notice.scrollIntoView({block:'nearest'});alert('Pengajuan tersimpan hanya di browser ini; belum diterima SPV di perangkat lain.')}};
+ const priorApprove=window.approveLeave;
+ window.approveLeave=(...args)=>{priorApprove(...args);persistApplications()};
+ const confirm=document.getElementById('attendance-confirm'),priorConfirm=confirm?.onclick;
+ if(confirm&&priorConfirm)confirm.onclick=function(...args){const wasReady=!this.disabled;priorConfirm.apply(this,args);if(wasReady){const summary=document.getElementById('attendance-summary');if(summary)summary.textContent='Presensi tersimpan di browser ini saja. Foto tidak disimpan dan SPV belum dapat melihatnya.';renderSummary()}};
+ const priorOther=document.getElementById('other-leave-submit')?.onclick;
+ if(priorOther)document.getElementById('other-leave-submit').onclick=function(...args){priorOther.apply(this,args);renderSummary();alert('Izin ini hanya ada di browser ini; foto bukti belum tersinkron ke SPV.')};
+ renderSummary();
+})();
+// END ATTENDANCE DEMO MODULE
 </script></body></html>
 
