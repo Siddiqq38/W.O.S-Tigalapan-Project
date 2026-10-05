@@ -2017,8 +2017,9 @@ const todayKey=()=>dayOf(Date.now());
 const minOfDay=ms=>{const d=new Date(ms+WITA);return d.getUTCHours()*60+d.getUTCMinutes()};
 const brk=ms=>new Date(ms+WITA).getUTCDay()===5?[705,810]:[720,780];
 const clock=ms=>{const d=new Date(ms+WITA);return String(d.getUTCHours()).padStart(2,'0')+'.'+String(d.getUTCMinutes()).padStart(2,'0')};
-function worked(inMs,nowMs){let total=(nowMs-inMs)/60000;const [b0,b1]=brk(inMs);if(dayOf(inMs)===dayOf(nowMs)){total-=Math.max(0,Math.min(minOfDay(nowMs),b1)-Math.max(minOfDay(inMs),b0))}else total-=(b1-b0);return total}
-function earliestOut(inMs){let t=inMs;for(let i=0;i<1500;i++){if(worked(inMs,t)>=NEED)return t;t+=60000}return t}
+const isFri=ms=>new Date(ms+WITA).getUTCDay()===5,startOf=ms=>Math.max(ms,Date.parse(dayOf(ms)+'T08:00:00+08:00')),friOut=ms=>Date.parse(dayOf(ms)+'T16:00:00+08:00');
+function worked(inMs,nowMs){inMs=startOf(inMs);let total=(nowMs-inMs)/60000;const [b0,b1]=brk(inMs);if(dayOf(inMs)===dayOf(nowMs)){total-=Math.max(0,Math.min(minOfDay(nowMs),b1)-Math.max(minOfDay(inMs),b0))}else total-=(b1-b0);return total}
+function earliestOut(inMs){if(isFri(inMs))return friOut(inMs);let t=startOf(inMs);for(let i=0;i<1500;i++){if(worked(inMs,t)>=NEED)return t;t+=60000}return t}
 const rows=()=>{try{const r=JSON.parse(localStorage.getItem(ATT)||'[]');return Array.isArray(r)?r:[]}catch(e){return[]}};
 const readRel=()=>{try{return JSON.parse(localStorage.getItem(REL)||'{}')||{}}catch(e){return{}}};
 const writeRel=o=>{try{localStorage.setItem(REL,JSON.stringify(o))}catch(e){}};
@@ -2035,8 +2036,8 @@ function check(code,action,now){
  if(action!=='Attendance out')return null;
  if(!inMs)return 'Belum ada Attendance in hari ini untuk staff ini.';
  if(released(code))return null;
- const w=worked(inMs,now);if(w>=NEED)return null;
- return 'Attendance out belum dibuka. Wajib 7 jam kerja (istirahat tidak dihitung). Masuk '+clock(inMs)+' → paling cepat keluar '+clock(earliestOut(inMs))+' WITA, kurang '+Math.ceil(NEED-w)+' menit. Hubungi SPV untuk kompensasi.';
+ const out=earliestOut(inMs);if(now>=out)return null;
+ return 'Attendance out belum dibuka. '+(isFri(inMs)?'Hari Jumat Attendance out mulai 16.00 WITA.':'Wajib 7 jam kerja dihitung mulai 08.00 WITA (istirahat tidak dihitung), paling cepat keluar '+clock(out)+' WITA.')+' Masuk tercatat '+clock(inMs)+', kurang '+Math.ceil((out-now)/60000)+' menit. Hubungi SPV untuk kompensasi.';
 }
 document.addEventListener('click',e=>{
  if(!e.target.closest?.('#attendance-confirm'))return;
@@ -2049,9 +2050,9 @@ function info(){
  const host=$('attendance-summary');if(!host)return;let box=$('wos-out-rule');
  if(!box){box=document.createElement('div');box.id='wos-out-rule';box.className='note';box.style.margin='10px 0';host.before(box)}
  const code=selCode(),inMs=inTime(code);let t;
- if(!sm()[code])t='Aturan jam kerja: wajib 7 jam kerja per hari. Istirahat 12.00–13.00 (Jumat 11.45–13.30) tidak dihitung.';
- else if(!inMs)t='Aturan jam kerja: wajib 7 jam kerja (istirahat tidak dihitung). Belum ada Attendance in hari ini untuk '+sm()[code].name+'.';
- else{const out=earliestOut(inMs);t='Masuk '+clock(inMs)+' WITA → Attendance out paling cepat '+clock(out)+' WITA'+(released(code)?' · <strong>dibuka SPV (kompensasi)</strong>':Date.now()>=out?' · sudah bisa Attendance out':'')+'. Wajib 7 jam kerja; istirahat 12.00–13.00 (Jumat 11.45–13.30) tidak dihitung.'}
+ if(!sm()[code])t='Aturan jam kerja: wajib 7 jam kerja per hari, dihitung mulai 08.00 WITA (masuk lebih awal tidak mempercepat). Istirahat 12.00–13.00 tidak dihitung. Jumat: Attendance out mulai 16.00.';
+ else if(!inMs)t='Aturan jam kerja: wajib 7 jam kerja mulai 08.00 WITA (Jumat: out mulai 16.00). Belum ada Attendance in hari ini untuk '+sm()[code].name+'.';
+ else{const out=earliestOut(inMs);t='Masuk '+clock(inMs)+' WITA → Attendance out paling cepat '+clock(out)+' WITA'+(released(code)?' · <strong>dibuka SPV (kompensasi)</strong>':Date.now()>=out?' · sudah bisa Attendance out':'')+(isFri(inMs)?'. Jumat: Attendance out mulai 16.00 WITA.':'. Wajib 7 jam kerja, dihitung mulai 08.00 WITA; istirahat 12.00–13.00 tidak dihitung.')}
  if(box.dataset.s!==t){box.dataset.s=t;box.innerHTML=t}
 }
 
@@ -2068,7 +2069,7 @@ function spvPanel(){
  function panel(){
   const d=todayKey(),ins=[...new Set(rows().filter(r=>r.day===d&&r.action==='Attendance in').map(r=>r.code))].filter(c=>sm()[c]),rel=readRel()[d]||{};
   const keep=$('wos-rel-code')?.value||'',noteKeep=$('wos-rel-note')?.value||'';
-  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Operator wajib 7 jam kerja sebelum Attendance out. Buka akses di sini agar operator tertentu boleh Attendance out lebih awal. Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staff yang sudah Attendance in</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · masuk '+clock(inTime(c))+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-note">Alasan kompensasi (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staff</th><th>Alasan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
+  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Operator wajib 7 jam kerja (mulai 08.00 WITA; Jumat out mulai 16.00) sebelum Attendance out. Buka akses di sini agar operator tertentu boleh Attendance out lebih awal. Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staff yang sudah Attendance in</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · masuk '+clock(inTime(c))+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-note">Alasan kompensasi (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staff</th><th>Alasan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
   if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html;const c=$('wos-rel-code'),n=$('wos-rel-note');if(c&&keep)c.value=keep;if(n)n.value=noteKeep}
  }
 }
