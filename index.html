@@ -2006,5 +2006,76 @@ form.onsubmit=async ev=>{ev.preventDefault();const u=$('wos-user').value.trim().
 const saved=getSession();if(saved)start(saved);else setTimeout(()=>$('wos-user')?.focus(),50);
 })();
 </script>
+<script>
+// ATTENDANCE OUT RULE MODULE: Attendance out baru bisa setelah 7 jam kerja (istirahat tidak dihitung); SPV dapat memberi kompensasi.
+(()=>{
+const ATT='wos-attendance-kpi-v1',REL='wos-attendance-release-v1',SESS='wos-session-v1',NEED=420,WITA=8*3600e3;
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dayOf=ms=>new Date(ms+WITA).toISOString().slice(0,10);
+const todayKey=()=>dayOf(Date.now());
+const minOfDay=ms=>{const d=new Date(ms+WITA);return d.getUTCHours()*60+d.getUTCMinutes()};
+const brk=ms=>new Date(ms+WITA).getUTCDay()===5?[705,810]:[720,780];
+const clock=ms=>{const d=new Date(ms+WITA);return String(d.getUTCHours()).padStart(2,'0')+'.'+String(d.getUTCMinutes()).padStart(2,'0')};
+function worked(inMs,nowMs){let total=(nowMs-inMs)/60000;const [b0,b1]=brk(inMs);if(dayOf(inMs)===dayOf(nowMs)){total-=Math.max(0,Math.min(minOfDay(nowMs),b1)-Math.max(minOfDay(inMs),b0))}else total-=(b1-b0);return total}
+function earliestOut(inMs){let t=inMs;for(let i=0;i<1500;i++){if(worked(inMs,t)>=NEED)return t;t+=60000}return t}
+const rows=()=>{try{const r=JSON.parse(localStorage.getItem(ATT)||'[]');return Array.isArray(r)?r:[]}catch(e){return[]}};
+const readRel=()=>{try{return JSON.parse(localStorage.getItem(REL)||'{}')||{}}catch(e){return{}}};
+const writeRel=o=>{try{localStorage.setItem(REL,JSON.stringify(o))}catch(e){}};
+const inTime=code=>{const ts=rows().filter(r=>r.day===todayKey()&&r.code===code&&r.action==='Attendance in').map(r=>Date.parse(r.at)).filter(Number.isFinite);return ts.length?Math.min(...ts):null};
+const released=code=>!!readRel()[todayKey()]?.[code];
+const sm=()=>{try{return staffMaster}catch(e){return{}}};
+const selCode=()=>($('attendance-code')?.value||'').trim().toUpperCase();
+const selAction=()=>$('attendance-action')?.value||'';
+
+// Aturan: kembalikan teks penolakan atau null bila diizinkan.
+function check(code,action,now){
+ const inMs=inTime(code);
+ if(action==='Attendance in')return inMs?'Staff ini sudah Attendance in hari ini pukul '+clock(inMs)+' WITA.':null;
+ if(action!=='Attendance out')return null;
+ if(!inMs)return 'Belum ada Attendance in hari ini untuk staff ini.';
+ if(released(code))return null;
+ const w=worked(inMs,now);if(w>=NEED)return null;
+ return 'Attendance out belum dibuka. Wajib 7 jam kerja (istirahat tidak dihitung). Masuk '+clock(inMs)+' → paling cepat keluar '+clock(earliestOut(inMs))+' WITA, kurang '+Math.ceil(NEED-w)+' menit. Hubungi SPV untuk kompensasi.';
+}
+document.addEventListener('click',e=>{
+ if(!e.target.closest?.('#attendance-confirm'))return;
+ const code=selCode(),action=selAction(),msg=check(code,action,Date.now());
+ if(msg){e.stopImmediatePropagation();e.preventDefault();const s=$('attendance-summary');if(s){s.textContent=msg;s.style.color='#b3261e'}alert(msg)}
+ else{const s=$('attendance-summary');if(s)s.style.color=''}
+},true);
+
+function info(){
+ const host=$('attendance-summary');if(!host)return;let box=$('wos-out-rule');
+ if(!box){box=document.createElement('div');box.id='wos-out-rule';box.className='note';box.style.margin='10px 0';host.before(box)}
+ const code=selCode(),inMs=inTime(code);let t;
+ if(!sm()[code])t='Aturan jam kerja: wajib 7 jam kerja per hari. Istirahat 12.00–13.00 (Jumat 11.45–13.30) tidak dihitung.';
+ else if(!inMs)t='Aturan jam kerja: wajib 7 jam kerja (istirahat tidak dihitung). Belum ada Attendance in hari ini untuk '+sm()[code].name+'.';
+ else{const out=earliestOut(inMs);t='Masuk '+clock(inMs)+' WITA → Attendance out paling cepat '+clock(out)+' WITA'+(released(code)?' · <strong>dibuka SPV (kompensasi)</strong>':Date.now()>=out?' · sudah bisa Attendance out':'')+'. Wajib 7 jam kerja; istirahat 12.00–13.00 (Jumat 11.45–13.30) tidak dihitung.'}
+ if(box.dataset.s!==t){box.dataset.s=t;box.innerHTML=t}
+}
+
+function spvPanel(){
+ let spv=false;try{spv=sessionStorage.getItem(SESS)==='supervisor'}catch(e){}
+ const att=$('attendance');let box=$('wos-release');
+ if(!spv||!att){box?.remove();return}
+ if(!box){box=document.createElement('div');box.id='wos-release';box.className='card';box.style.margin='14px 0';(att.querySelector('.toolbar')||att.firstChild).after(box);
+  box.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;const r=readRel(),d=todayKey();
+   if(b.id==='wos-rel-grant'){const code=$('wos-rel-code').value,note=$('wos-rel-note').value.trim();if(!code)return;r[d]={...(r[d]||{}),[code]:{by:'SPV',at:new Date().toISOString(),note}};writeRel(r)}
+   if(b.dataset.revoke){if(r[d]){delete r[d][b.dataset.revoke];writeRel(r)}}
+   box.dataset.sig='';panel()})}
+ panel();
+ function panel(){
+  const d=todayKey(),ins=[...new Set(rows().filter(r=>r.day===d&&r.action==='Attendance in').map(r=>r.code))].filter(c=>sm()[c]),rel=readRel()[d]||{};
+  const keep=$('wos-rel-code')?.value||'',noteKeep=$('wos-rel-note')?.value||'';
+  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Operator wajib 7 jam kerja sebelum Attendance out. Buka akses di sini agar operator tertentu boleh Attendance out lebih awal. Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staff yang sudah Attendance in</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · masuk '+clock(inTime(c))+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-note">Alasan kompensasi (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staff</th><th>Alasan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
+  if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html;const c=$('wos-rel-code'),n=$('wos-rel-note');if(c&&keep)c.value=keep;if(n)n.value=noteKeep}
+ }
+}
+function tick(){info();spvPanel()}
+tick();setInterval(tick,5000);
+['input','change'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target.id==='attendance-code'||e.target.id==='attendance-action')info()}));
+})();
+</script>
 </body></html>
 
