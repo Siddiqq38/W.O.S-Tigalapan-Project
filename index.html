@@ -1899,7 +1899,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const allowed=new Set(account.level==='OPERATOR'?['attendance',...(attendanceState()==='in'&&roleToday()?['assignment']:[])]:PAGES[account.level]);
+ const allowed=new Set(account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleToday()?['assignment']:[])]:PAGES[account.level]);
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -1917,6 +1917,10 @@ function operatorContent(){
  const outbound=cat==='outbound';
  ['ob-team-panel'].forEach(id=>$(id)?.classList.add('wos-hide'));
  document.querySelectorAll('#ob-board>details').forEach(d=>{if(/Kelola sumber SOQ/i.test(d.querySelector('summary')?.textContent||''))d.classList.add('wos-hide')});
+ ['ob-findings','cp-drm-group','cp-incident-group','cp-recap-group','cp-totals','cp-duty-panel'].forEach(id=>$(id)?.classList.add('wos-hide'));
+ $('cp-role')?.closest('.field')?.classList.add('wos-hide');
+ const fr=$('cp-five-r-group');if(fr&&!fr.dataset.wosOpened){fr.open=true;fr.dataset.wosOpened='1'}
+ for(const id of ['cp-actor','cp-report-code']){const el=$(id);if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}
  $('ob-lp')?.classList.toggle('wos-hide',!(outbound&&peran==='Driver'));
  $('cpsl-workflow')?.classList.toggle('wos-hide',!(outbound&&peran!=='Picker'));
 }
