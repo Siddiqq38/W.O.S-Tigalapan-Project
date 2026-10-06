@@ -1878,7 +1878,7 @@ const norm=s=>String(s||'').toUpperCase().replace(/\s+/g,' ').trim();
 const num=v=>{const s=String(v??'').trim().replace(/\s/g,'');if(!s)return NaN;if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s))return Number(s.replace(/\./g,'').replace(',','.'));if(/^\d+,\d+$/.test(s))return Number(s.replace(',','.'));return Number(s.replace(/,/g,''))};
 
 let S=load();
-function blank(){return{pos:{},unloads:[],sj:{},hpp:{},koli:{},batches:[],log:[],draft:null,seq:0}}
+function blank(){return{pos:{},unloads:[],sj:{},hpp:{},koli:{},batches:[],log:[],draft:null,seq:0,resi:[]}}
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&s.pos)return s}catch(e){}return blank()}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){alert('Penyimpanan browser penuh. Data inbound belum tersimpan.');return false}}
 const logAct=(staff,activity,ref,qty)=>{S.log.unshift({at:nowIso(),staff,activity,ref,qty:qty??null});if(S.log.length>500)S.log.length=500};
@@ -1946,7 +1946,7 @@ const msgHtml=k=>msg[k]?'<div class="iw-msg '+(msg[k].cls||'')+'" role="status">
 function render(){
  const root=$('inbound');if(!root)return;
  if(!tabsFor().some(t=>t[0]===tab))tab='unload';
- root.innerHTML='<div class="toolbar"><div><h2>Inbound Web</h2><span class="sub">Penerimaan barang langsung di web: unloading, staging in, GR berdasarkan surat jalan, put away</span></div>'+(isAdm()?'<div class="filters"><button class="filter" data-act="sample">Muat data contoh</button><button class="filter" data-act="reset">Reset data inbound</button></div>':'')+'</div><div class="note">Mode simulasi: data tersimpan di browser ini (belum Supabase). Alur: Unloading → Staging In → Ready GR (HPP dan surat jalan lengkap) → Admin menjadwalkan GR → tim GR menghitung sesuai surat jalan → Put away ke bin → stok per lokasi.</div><div class="iw-tabs" role="tablist">'+tabsFor().map(t=>'<button type="button" data-tab="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div><div id="iw-body"></div>';
+ root.innerHTML='<div class="toolbar"><div><h2>Inbound Web</h2><span class="sub">Penerimaan barang langsung di web: unloading, staging in, GR berdasarkan surat jalan, put away</span></div>'+(isAdm()?'<div class="filters"><button class="filter" data-act="sample">Muat data contoh</button><button class="filter" data-act="reset">Reset data inbound</button></div>':'')+'</div><div class="note">Mode simulasi: data tersimpan di browser ini (belum Supabase). Alur: Admin mendaftarkan STTB / resi → operator mengisi lembar kerja unloading → Staging In → Ready GR (HPP dan surat jalan lengkap) → Admin menjadwalkan GR → tim GR menghitung sesuai surat jalan → Put away ke bin → stok per lokasi.</div><div class="iw-tabs" role="tablist">'+tabsFor().map(t=>'<button type="button" data-tab="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div><div id="iw-body"></div>';
  ({unload:rUnload,staging:rStaging,ready:rReady,gr:rGr,stock:rStock,import:rImport,moka:rMoka,rekap:rRekap}[tab])($('iw-body'));
 }
 
@@ -1958,39 +1958,84 @@ function totals(){
  return{pos:pos.length,total,rec,intransit:total-rec,stag,noDoc,ready};
 }
 
-// --- Unloading ---
+// --- Unloading: admin mendaftarkan STTB / resi ekspedisi, operator mengisi lembar kerja ---
+let uForm={exp:'',staff:'',date:''};
+const newRound=(seq,n)=>({seq,startAt:null,endAt:null,slots:Array.from({length:Math.max(1,n)},()=>({koli:null,ok:false}))});
+const resiChecked=r=>r.rounds.reduce((a,x)=>a+x.slots.filter(s=>s.ok).length,0);
+const resiRemain=r=>Math.max(0,r.jumlahKoli-resiChecked(r));
+function flash(text,err){say('u',text,err?'err':'ok');const m=$('iw-body')?.querySelector('.iw-msg');if(m){m.textContent=text;m.className='iw-msg '+(err?'err':'ok')}}
 function rUnload(b){
- const t=totals(),d=S.draft,poHint=poList().filter(p=>received(p.po).length<p.totalKoli);
- b.innerHTML=kpis([['PO aktif',t.pos],['Total koli semua PO',t.total],['Sudah diterima',t.rec],['Total in-transit (sisa)',t.intransit,t.intransit?'warn':'good']])+
- '<div class="card"><h3>Form unloading / penerimaan barang dari vendor</h3><p class="sub">Tim mencatat penerimaan langsung di web. Penerimaan bisa bertahap (unloading pertama, kedua, ketiga) untuk PO yang sama.</p>'+
- '<div class="form-grid"><div class="field"><label for="iw-exp">Ekspedisi</label><input id="iw-exp" list="iw-exp-l" placeholder="Contoh: JNE Trucking"><datalist id="iw-exp-l">'+[...new Set(S.unloads.map(u=>u.expedisi))].map(e=>'<option value="'+esc(e)+'">').join('')+'</datalist></div>'+
- '<div class="field"><label for="iw-vendor">Vendor</label><input id="iw-vendor" list="iw-vendor-l" placeholder="Contoh: BAYU"><datalist id="iw-vendor-l">'+[...new Set(poList().map(p=>p.vendor))].map(e=>'<option value="'+esc(e)+'">').join('')+'</datalist></div>'+
- '<div class="field"><label for="iw-po">Kode PO</label><input id="iw-po" list="iw-po-l" placeholder="Contoh: BY30"><datalist id="iw-po-l">'+poHint.map(p=>'<option value="'+esc(p.po)+'">').join('')+'</datalist></div>'+
- '<div class="field"><label for="iw-total">Total koli di PO</label><input id="iw-total" type="number" min="1" placeholder="Contoh: 30"></div>'+
- '<div class="field"><label for="iw-staff">Kode staff penerima</label><select id="iw-staff"'+(level()==='OPERATOR'?' disabled':'')+'><option value="">— pilih —</option>'+staffOpts(level()==='OPERATOR'?myCode():(d?.staff||''))+'</select></div>'+
- '<div class="field"><label for="iw-date">Tanggal masuk</label><input id="iw-date" type="date" value="'+todayKey()+'"></div>'+
- '<div class="field"><label for="iw-koli">No koli diterima</label><input id="iw-koli" placeholder="Contoh: 1-10 atau 1-5, 8"></div></div>'+
- '<div class="filters iw-mt"><button class="button secondary" data-act="u-start" type="button">Mulai unloading</button><button class="button" data-act="u-save" type="button">Selesai &amp; simpan</button></div>'+
- '<p class="sub">'+(d?'Unloading dimulai pukul '+hm(d.startAt)+' oleh '+esc(staffName(d.staff))+'.':'Tekan "Mulai unloading" saat mulai menurunkan barang agar jam mulai tercatat.')+'</p>'+msgHtml('u')+'</div>'+
- '<div class="card iw-mt"><h3>Riwayat unloading</h3><div class="iw-scroll">'+(S.unloads.length?'<table><thead><tr><th>Tanggal masuk</th><th>Vendor</th><th>PO</th><th>Ekspedisi</th><th>Unloading ke-</th><th>No koli</th><th>Penerima</th><th>Mulai – selesai</th><th>In-transit PO setelah ini</th></tr></thead><tbody>'+S.unloads.slice().reverse().map(u=>'<tr><td>'+dmy(u.dateIn)+'</td><td>'+esc(u.vendor)+'</td><td><strong>'+esc(u.po)+'</strong></td><td>'+esc(u.expedisi)+'</td><td>'+u.seq+'</td><td>'+esc(ranges(u.koli))+' ('+u.koli.length+')</td><td>'+esc(staffName(u.staff))+' ('+esc(u.staff)+')</td><td>'+hm(u.startAt)+' – '+hm(u.endAt)+'</td><td>'+u.intransitAfter+' / '+u.totalKoli+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada unloading.</p>')+'</div></div>';
- const po=$('iw-po');po.onchange=po.oninput=()=>{const p=S.pos[norm(po.value)];if(p){$('iw-vendor').value=p.vendor;$('iw-total').value=p.totalKoli;$('iw-total').disabled=true;$('iw-vendor').disabled=true}else{$('iw-total').disabled=false;$('iw-vendor').disabled=false}};
+ S.resi=S.resi||[];
+ const t=totals(),mine=S.resi.filter(r=>isAdm()||r.staff===myCode()).sort((a,c)=>(resiRemain(c)>0)-(resiRemain(a)>0)||c.createdAt.localeCompare(a.createdAt));
+ const poHint=poList();
+ let html=kpis([['STTB / resi terdaftar',S.resi.length],['Total koli terdaftar',t.total],['Sudah diterima & valid',t.rec],['Total in-transit (sisa)',t.intransit,t.intransit?'warn':'good']]);
+ if(isAdm())html+='<div class="card"><h3>Registrasi STTB / resi dari ekspedisi</h3><p class="sub">Admin memasukkan nomor resi atau STTB yang masuk (lihat manifest ekspedisi). Setelah disimpan, lembar kerja unloading langsung muncul untuk operator yang ditugaskan. Ekspedisi, operator, dan tanggal tetap terisi agar mudah menambah resi berikutnya.</p>'+
+ '<div class="form-grid"><div class="field"><label for="iw-r-no">No resi / STTB (AWB)</label><input id="iw-r-no" placeholder="Contoh: 12126"></div>'+
+ '<div class="field"><label for="iw-r-exp">Ekspedisi</label><input id="iw-r-exp" list="iw-exp-l" value="'+esc(uForm.exp)+'" placeholder="Contoh: JNE Trucking"><datalist id="iw-exp-l">'+[...new Set(S.resi.map(r=>r.expedisi))].map(e=>'<option value="'+esc(e)+'">').join('')+'</datalist></div>'+
+ '<div class="field"><label for="iw-r-po">Kode PO</label><input id="iw-r-po" list="iw-po-l" placeholder="Contoh: KK35"><datalist id="iw-po-l">'+poHint.map(p=>'<option value="'+esc(p.po)+'">').join('')+'</datalist></div>'+
+ '<div class="field"><label for="iw-r-vendor">Pengirim / vendor</label><input id="iw-r-vendor" list="iw-vendor-l" placeholder="Contoh: KOKO"><datalist id="iw-vendor-l">'+[...new Set(poHint.map(p=>p.vendor))].map(e=>'<option value="'+esc(e)+'">').join('')+'</datalist></div>'+
+ '<div class="field"><label for="iw-r-jml">Jumlah koli di resi</label><input id="iw-r-jml" type="number" min="1" placeholder="Contoh: 11"></div>'+
+ '<div class="field"><label for="iw-r-staff">Operator ditugaskan (penerima)</label><select id="iw-r-staff"><option value="">— pilih —</option>'+staffOpts(uForm.staff)+'</select></div>'+
+ '<div class="field"><label for="iw-r-date">Tanggal</label><input id="iw-r-date" type="date" value="'+esc(uForm.date||todayKey())+'"></div></div>'+
+ '<div class="filters iw-mt"><button class="button" data-act="r-add" type="button">Simpan &amp; buat lembar kerja</button></div></div>';
+ html+=msgHtml('u');
+ html+=mine.length?mine.map(resiSheet).join(''):'<div class="card iw-mt"><p class="sub">'+(isAdm()?'Belum ada STTB / resi. Daftarkan resi pertama di atas.':'Belum ada lembar kerja unloading untuk Anda. Menunggu admin mendaftarkan STTB / resi dan menugaskan Anda.')+'</p></div>';
+ b.innerHTML=html;
+ const po=$('iw-r-po');if(po)po.oninput=po.onchange=()=>{const p=S.pos[norm(po.value)];if(p&&!$('iw-r-vendor').value)$('iw-r-vendor').value=p.vendor};
 }
-function uStart(){const staff=$('iw-staff').value||(level()==='OPERATOR'?myCode():'');if(!staff){say('u','Pilih kode staff penerima dulu.','err');return render()}S.draft={startAt:nowIso(),staff};save();say('u','Unloading dimulai.','ok');render()}
-function uSave(){
- const exp=$('iw-exp').value.trim(),po=norm($('iw-po').value),existing=S.pos[po],vendor=existing?existing.vendor:$('iw-vendor').value.trim(),total=existing?existing.totalKoli:Math.floor(num($('iw-total').value)),staff=$('iw-staff').value||(level()==='OPERATOR'?myCode():''),dateIn=$('iw-date').value,kol=parseKoli($('iw-koli').value);
+function resiSheet(r){
+ const idx=S.resi.indexOf(r),ok=resiChecked(r),last=r.rounds[r.rounds.length-1],can=isAdm()||r.staff===myCode();
+ let h='<div class="card iw-mt"><div class="card-head"><div><h3>STTB '+esc(r.no)+' · PO '+esc(r.po)+'</h3><span class="sub">'+esc(r.vendor)+' · '+esc(r.expedisi)+' · '+dmy(r.date)+' · penerima '+esc(staffName(r.staff))+' ('+esc(r.staff)+')</span></div>'+(resiRemain(r)===0?tag('Lengkap','green'):tag(ok+' / '+r.jumlahKoli+' koli','amber'))+'</div>'+
+ '<div class="iw-scroll"><table class="iw-sj"><thead><tr><th>NO</th><th>PO CODE</th><th>PENGIRIM</th><th>NO AWB</th><th>JUMLAH KOLI</th><th>JUMLAH BARANG MASUK</th><th>AREA STAGING</th><th>KETERANGAN</th></tr></thead><tbody><tr><td>'+(idx+1)+'</td><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor)+'</td><td>'+esc(r.no)+'</td><td>'+r.jumlahKoli+'</td><td><strong>'+ok+'</strong></td><td><input type="text" class="iw-area" data-r="'+esc(r.id)+'" value="'+esc(r.area||'')+'"'+(can?'':' disabled')+' placeholder="Area"></td><td><input type="text" class="iw-note" data-r="'+esc(r.id)+'" value="'+esc(r.note||'')+'"'+(can?'':' disabled')+' placeholder="Keterangan"></td></tr></tbody></table></div>';
+ r.rounds.forEach((u,ui)=>{
+  const closed=!!u.endAt||!can;h+='<p class="sub iw-mt"><strong>TOTAL IN — UNLOADING '+u.seq+'</strong>'+(u.startAt?' · mulai '+hm(u.startAt):'')+(u.endAt?' · selesai '+hm(u.endAt):'')+'. Isi nomor koli saat menerima, centang bila barang aman / tervalidasi.</p><div class="iw-scroll"><table class="iw-sj">';
+  for(let g=0;g<u.slots.length;g+=10){const part=u.slots.slice(g,g+10);
+   h+='<tr>'+part.map((s,k)=>'<td><input type="number" min="1" class="iw-slot" data-r="'+esc(r.id)+'" data-u="'+ui+'" data-s="'+(g+k)+'" value="'+(s.koli??'')+'"'+(closed||s.ok?' disabled':'')+' style="width:64px;text-align:center"></td>').join('')+'</tr><tr>'+part.map((s,k)=>'<td style="text-align:center"><input type="checkbox" class="iw-chk" data-r="'+esc(r.id)+'" data-u="'+ui+'" data-s="'+(g+k)+'"'+(s.ok?' checked':'')+(closed&&!s.ok||!can?' disabled':'')+'></td>').join('')+'</tr>'}
+  h+='</table></div>';
+ });
+ if(can){const n=ok;h+='<div class="filters iw-mt">'+(!last.endAt?'<button class="button" data-act="r-finish" data-r="'+esc(r.id)+'" type="button"'+(last.slots.some(s=>s.ok)?'':' disabled')+'>Selesai unloading '+last.seq+'</button>':'')+(last.endAt&&resiRemain(r)>0?'<button class="button secondary" data-act="r-next" data-r="'+esc(r.id)+'" type="button">Tambah unloading '+(last.seq+1)+' (sisa '+resiRemain(r)+' koli)</button>':'')+'</div>'}
+ return h+'</div>';
+}
+const getR=id=>(S.resi||[]).find(r=>r.id===id);
+function rAdd(){
+ const v=id=>$(id).value.trim(),no=v('iw-r-no'),exp=v('iw-r-exp'),po=norm(v('iw-r-po')),jml=Math.floor(num(v('iw-r-jml'))),staff=$('iw-r-staff').value,date=$('iw-r-date').value;
+ uForm={exp,staff,date};const vendor=v('iw-r-vendor')||S.pos[po]?.vendor||'';
  const err=t=>{say('u',t,'err');render()};
- if(!exp)return err('Isi ekspedisi.');if(!po)return err('Isi kode PO.');if(!vendor)return err('Isi vendor.');if(!(total>=1))return err('Isi total koli di PO.');if(!sm()[staff])return err('Pilih kode staff penerima.');if(!dateIn)return err('Isi tanggal masuk.');if(!kol)return err('No koli tidak valid. Contoh: 1-10 atau 1-5, 8.');
- const over=kol.filter(k=>k>total);if(over.length)return err('Koli '+ranges(over)+' melebihi total koli PO ('+total+').');
- const dup=kol.filter(k=>S.koli[kKey(po,k)]);if(dup.length)return err('Koli '+ranges(dup)+' sudah pernah diterima untuk PO ini.');
- if(!existing)S.pos[po]={po,vendor,totalKoli:total,createdAt:nowIso()};
- const seq=S.unloads.filter(u=>u.po===po).length+1,id='UL-'+(S.unloads.length+1),endAt=nowIso(),startAt=S.draft&&S.draft.staff===staff?S.draft.startAt:endAt;
- kol.forEach(k=>{S.koli[kKey(po,k)]={po,koli:k,dateIn,unloadId:id,status:'staging',batchId:null}});
- const after=total-received(po).length;
- S.unloads.push({id,po,vendor,expedisi:exp,seq,staff,startAt,endAt,koli:kol,dateIn,totalKoli:total,intransitAfter:after});
- logAct(staff,'Unloading',po+' ke-'+seq+' · koli '+ranges(kol),kol.length);S.draft=null;
- if(save())say('u','Unloading ke-'+seq+' PO '+po+' tersimpan: '+kol.length+' koli. Sisa in-transit PO ini: '+after+' koli.','ok');
- render();
+ if(!no)return err('Isi nomor resi / STTB.');if(!exp)return err('Isi ekspedisi.');if(!po)return err('Isi kode PO.');if(!vendor)return err('Isi pengirim / vendor.');if(!(jml>=1))return err('Isi jumlah koli di resi.');if(!sm()[staff])return err('Pilih operator yang ditugaskan.');if(!date)return err('Isi tanggal.');
+ if((S.resi||[]).some(r=>norm(r.no)===norm(no)))return err('Nomor resi '+no+' sudah terdaftar.');
+ const r=addResi({no,po,vendor,expedisi:exp,jumlahKoli:jml,staff,date});
+ if(save())say('u','Resi '+no+' (PO '+po+', '+jml+' koli) terdaftar. Lembar kerja unloading untuk '+staffName(staff)+' sudah muncul.','ok');render();
 }
+function addResi(o){
+ S.resi=S.resi||[];const r={id:'RS-'+(S.resi.length+1),no:o.no,po:o.po,vendor:o.vendor,expedisi:o.expedisi,jumlahKoli:o.jumlahKoli,staff:o.staff,date:o.date,createdAt:nowIso(),area:'',note:'',rounds:[newRound(1,o.jumlahKoli)]};
+ S.resi.push(r);if(!S.pos[o.po])S.pos[o.po]={po:o.po,vendor:o.vendor,totalKoli:0,createdAt:nowIso()};S.pos[o.po].totalKoli+=o.jumlahKoli;
+ logAct(myCode()||o.staff,'Registrasi STTB',o.no+' · PO '+o.po,o.jumlahKoli);return r;
+}
+function slotOf(el){const r=getR(el.dataset.r),u=r?.rounds[Number(el.dataset.u)],s=u?.slots[Number(el.dataset.s)];return{r,u,s}}
+function onSlotInput(el){
+ const {r,u,s}=slotOf(el);if(!s||u.endAt)return;const raw=el.value.trim();
+ if(!raw){s.koli=null;save();return}
+ const n=Number(raw);if(!Number.isInteger(n)||n<1){el.value='';s.koli=null;save();return flash('Nomor koli harus bilangan bulat mulai 1.',true)}
+ const dup=S.resi.some(x=>x.po===r.po&&x.rounds.some(rr=>rr.slots.some(ss=>ss!==s&&ss.koli===n)))||S.koli[kKey(r.po,n)];
+ if(dup){el.value='';s.koli=null;save();return flash('Koli '+n+' PO '+r.po+' sudah tercatat di lembar kerja lain.',true)}
+ s.koli=n;save();
+}
+function onSlotCheck(el){
+ const {r,u,s}=slotOf(el);if(!s)return;
+ if(el.checked){
+  if(!s.koli){el.checked=false;return flash('Isi nomor koli dulu sebelum mencentang.',true)}
+  if(u.endAt){el.checked=false;return}
+  if(!u.startAt){u.startAt=nowIso();logAct(r.staff,'Mulai unloading',r.no+' ke-'+u.seq,0)}
+  s.ok=true;S.koli[kKey(r.po,s.koli)]={po:r.po,koli:s.koli,dateIn:r.date,unloadId:r.id+'-U'+u.seq,status:'staging',batchId:null,resi:r.no};
+ }else{
+  const k=S.koli[kKey(r.po,s.koli)];
+  if(k&&k.status!=='staging'){el.checked=true;return flash('Koli '+s.koli+' sudah masuk proses GR, tidak bisa dibatalkan.',true)}
+  delete S.koli[kKey(r.po,s.koli)];s.ok=false;
+ }
+ save();render();
+}
+function rFinish(id){const r=getR(id),u=r?.rounds[r.rounds.length-1];if(!u||u.endAt)return;const n=u.slots.filter(s=>s.ok).length;if(!n)return;u.endAt=nowIso();if(!u.startAt)u.startAt=u.endAt;logAct(r.staff,'Unloading',r.no+' ke-'+u.seq+' · PO '+r.po+' · '+n+' koli',n);save();say('u','Unloading '+u.seq+' STTB '+r.no+' selesai: '+n+' koli. Sisa '+resiRemain(r)+' koli.','ok');render()}
+function rNext(id){const r=getR(id),last=r?.rounds[r.rounds.length-1];if(!last?.endAt||!resiRemain(r))return;r.rounds.push(newRound(last.seq+1,resiRemain(r)));save();render()}
 
 // --- Staging In ---
 function rStaging(b){
@@ -2132,15 +2177,14 @@ function rRekap(b){
 function sample(){
  if(Object.keys(S.pos).length&&!confirm('Data inbound saat ini akan diganti data contoh. Lanjutkan?'))return;
  S=blank();const d=todayKey(),items=[['PINK SOFT 24S PDK L',40],['PINK SOFT 24S PDK XL',20],['COKLAT TUA 24S PDK L',140],['COKLAT TUA 24S PJG M',15],['HITAM MLS 24S PDK L',20],['BEIGE 24S PJG M',30]];
- S.pos.BY30={po:'BY30',vendor:'BAYU',totalKoli:30,createdAt:nowIso()};
- const kol=Array.from({length:10},(_,i)=>i+1);kol.forEach(k=>S.koli[kKey('BY30',k)]={po:'BY30',koli:k,dateIn:d,unloadId:'UL-1',status:'staging',batchId:null});
- S.unloads.push({id:'UL-1',po:'BY30',vendor:'BAYU',expedisi:'JNE Trucking',seq:1,staff:'W28',startAt:nowIso(),endAt:nowIso(),koli:kol,dateIn:d,totalKoli:30,intransitAfter:20});
- S.sj.BY30={rows:kol.flatMap(k=>items.slice(0,k%3===0?2:6).map(([item,qty])=>({koli:k,item,qty,type:'FINISH GOOD',tglKirim:'18/09/2026',awb:'11122',eta:'25-Sep'}))),importedAt:nowIso(),by:'W09'};
- S.hpp.BY30={rows:items.map(([item])=>({item,hpp:45000})),importedAt:nowIso(),by:'W09'};
- S.pos.RG12={po:'RG12',vendor:'RAYA GARMEN',totalKoli:12,createdAt:nowIso()};
- [1,2,3,4].forEach(k=>S.koli[kKey('RG12',k)]={po:'RG12',koli:k,dateIn:d,unloadId:'UL-2',status:'staging',batchId:null});
- S.unloads.push({id:'UL-2',po:'RG12',vendor:'RAYA GARMEN',expedisi:'Tiki Cargo',seq:1,staff:'W19',startAt:nowIso(),endAt:nowIso(),koli:[1,2,3,4],dateIn:d,totalKoli:12,intransitAfter:8});
- logAct('W28','Unloading','BY30 ke-1 · koli 1-10',10);logAct('W19','Unloading','RG12 ke-1 · koli 1-4',4);save();render();
+ const fill=(r,list,close)=>{const u=r.rounds[0];u.startAt=nowIso();list.forEach((k,i)=>{u.slots[i]={koli:k,ok:true};S.koli[kKey(r.po,k)]={po:r.po,koli:k,dateIn:d,unloadId:r.id+'-U1',status:'staging',batchId:null,resi:r.no}});if(close)u.endAt=nowIso()};
+ const by=addResi({no:'12128',po:'BY30',vendor:'BAYU',expedisi:'JNE Trucking',jumlahKoli:30,staff:'W28',date:d});
+ fill(by,[1,2,3,4,5,6,7,8,9,10],true);by.rounds.push(newRound(2,20));
+ const kk=addResi({no:'12126',po:'KK35',vendor:'KOKO',expedisi:'Tiki Cargo',jumlahKoli:11,staff:'W24',date:d});
+ fill(kk,[15,13,14,11,16,7,17],false);
+ S.sj.BY30={rows:Array.from({length:10},(_,i)=>i+1).flatMap(k=>items.slice(0,k%3===0?2:6).map(([item,qty])=>({koli:k,item,qty,type:'FINISH GOOD',tglKirim:'18/09/2026',awb:'12128',eta:'25-Sep'}))),importedAt:nowIso(),by:'W09'};
+ S.hpp.BY30={rows:items.map(([item])=>({item,hpp:45000,qty:null})),importedAt:nowIso(),by:'W09'};
+ logAct('W28','Unloading','12128 ke-1 · PO BY30 · 10 koli',10);save();render();
 }
 
 // ---------- navigasi & event ----------
@@ -2153,12 +2197,13 @@ $('inbound').addEventListener('click',e=>{
  const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;openBatch=null;return render()}
  const a=e.target.closest('[data-act]');if(!a)return;const act=a.dataset.act;
  ({sample,reset:()=>{if(confirm('Hapus semua data Inbound Web (simulasi)?')){S=blank();save();openBatch=null;render()}},
-  'u-start':uStart,'u-save':uSave,suggest,startgr:startGr,
+  'r-add':rAdd,'r-finish':()=>rFinish(a.dataset.r),'r-next':()=>rNext(a.dataset.r),suggest,startgr:startGr,
   open:()=>{openBatch=a.dataset.b;render()},back:()=>{openBatch=null;render()},
   'gr-start':()=>grStart(a.dataset.b),ok:()=>rowAct(a.dataset.b,Number(a.dataset.i),true),rep:()=>rowAct(a.dataset.b,Number(a.dataset.i),false),
   'count-done':()=>countDone(a.dataset.b),'put-done':()=>putDone(a.dataset.b),
   'sj-read':()=>readImport('sj'),'sj-save':()=>saveImport('sj'),'hpp-read':()=>readImport('hpp'),'hpp-save':()=>saveImport('hpp'),'moka-read':()=>readImport('moka'),'moka-save':()=>saveImport('moka'),dl:()=>downloadMoka(a.dataset.b,false),'dl-uc':()=>downloadMoka(a.dataset.b,true),'moka-mark':()=>{const x=getB(a.dataset.b);if(x){x.mokaAt=x.mokaAt?null:nowIso();save();render()}}}[act]||(()=>{}))();
 });
+$('inbound').addEventListener('change',e=>{const t=e.target;if(t.classList.contains('iw-slot'))onSlotInput(t);else if(t.classList.contains('iw-chk'))onSlotCheck(t);else if(t.classList.contains('iw-area')||t.classList.contains('iw-note')){const r=getR(t.dataset.r);if(r){r[t.classList.contains('iw-area')?'area':'note']=t.value.trim();save()}}});
 window.addEventListener('storage',e=>{if(e.key===KEY){S=load()}});
 })();
 </script>
