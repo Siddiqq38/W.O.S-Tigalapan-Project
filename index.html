@@ -1914,19 +1914,31 @@ function parseSj(m){
  if(!rows.length)throw Error('Tidak ada baris barang yang terbaca (butuh NO KOLI, ITEM NAME, QTY).');
  return{po,rows};
 }
+const money=v=>{let s=String(v??'').replace(/rp\.?/ig,'').replace(/\s/g,'');if(!s)return NaN;const hc=s.includes(','),hd=s.includes('.');if(hc&&hd){s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'')}else if(hc){s=/^\d{1,3}(,\d{3})+$/.test(s)?s.replace(/,/g,''):s.replace(',','.')}else if(hd&&/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');return Number(s)};
 function parseHpp(m){
- let h=-1;for(let i=0;i<Math.min(m.length,20);i++){const c=m[i].map(x=>String(x).toLowerCase());if(c.some(x=>/item|barang|sku/.test(x))&&c.some(x=>/hpp/.test(x))){h=i;break}}
- if(h<0)throw Error('Header kolom item dan HPP tidak ditemukan pada file HPP.');
+ let h=-1;for(let i=0;i<Math.min(m.length,25);i++){const c=m[i].map(x=>String(x).toLowerCase().trim());if(c.some(x=>/^(items?|barang|sku)\b/.test(x))&&c.some(x=>/hpp|cogs|unit\s*cost/.test(x))){h=i;break}}
+ if(h<0)throw Error('Header ITEM dan COGS / HPP tidak ditemukan pada file HPP.');
+ let top='';for(let i=0;i<h&&!top;i++){const r=m[i];for(let j=0;j<r.length;j++){if(/^(no\.?\s*po|kode\s*po|po)\s*:?$/i.test(String(r[j]).trim())){top=norm(r.slice(j+1).find(x=>String(x).trim())||'');break}}}
  const hd=m[h].map(x=>String(x).toLowerCase().trim()),col=re=>hd.findIndex(x=>re.test(x));
- const cI=col(/item|barang|sku/),cH=col(/hpp/),cP=col(/^po|no\.?\s*po|kode po/);
- const rows=[];for(let i=h+1;i<m.length;i++){const r=m[i],item=String(r[cI]??'').trim(),v=num(r[cH]);if(!item||!Number.isFinite(v))continue;rows.push({item,hpp:v,po:cP>=0?norm(r[cP]):''})}
+ const cI=col(/^(items?|barang|sku)\b/),cH=col(/hpp|cogs|unit\s*cost/),cQ=col(/^qty/),cP=col(/^(no\.?\s*po|kode\s*po|po)\b/);
+ const rows=[];for(let i=h+1;i<m.length;i++){const r=m[i],item=String(r[cI]??'').trim(),v=money(r[cH]);if(!item||/^items?(\s*name)?$/i.test(item)||!Number.isFinite(v))continue;const q=num(r[cQ]);rows.push({item,hpp:v,qty:Number.isFinite(q)?q:null,po:cP>=0?norm(r[cP]):''})}
  if(!rows.length)throw Error('Tidak ada baris HPP yang terbaca.');
- return rows;
+ return{po:top,rows};
+}
+function parseMoka(m){
+ let h=-1;for(let i=0;i<Math.min(m.length,10)&&h<0;i++){if(m[i].some(x=>/items?\s*name/i.test(String(x))))h=i}
+ if(h<0)throw Error('Header "Items Name" tidak ditemukan. Gunakan file template Import Items Purchase Order dari MOKA.');
+ const headers=m[h].map(x=>String(x).trim()),lc=headers.map(x=>x.toLowerCase()),f=re=>lc.findIndex(x=>re.test(x));
+ const idx={id:f(/internal id/),outlet:f(/outlet/),supplier:f(/supplier/),item:f(/items?\s*name/),variant:f(/variant/),category:f(/category/),sku:f(/sku/),stock:f(/in stock/),order:f(/^order/),cost:f(/unit cost/)};
+ const items={};let n=0;
+ for(let i=h+1;i<m.length;i++){const r=m[i],name=String(r[idx.item]??'').trim();if(!name)continue;const g=k=>idx[k]>=0?String(r[idx[k]]??'').trim():'';items[norm(name)]={name,id:g('id'),outlet:g('outlet'),supplier:g('supplier'),variant:g('variant'),category:g('category'),sku:g('sku'),stock:g('stock')};n++}
+ if(!n)throw Error('Tidak ada item pada template MOKA.');
+ return{headers,idx,items,count:n};
 }
 
 // ---------- UI ----------
 let tab='unload',openBatch=null,pending={sj:null,hpp:null},msg={};
-const TABS=[['unload','Unloading'],['staging','Staging In'],['ready','Ready GR & Rencana',1],['gr','GR (Surat Jalan)'],['stock','Stok per Lokasi'],['import','Impor HPP & Surat Jalan',1],['rekap','Rekap Aktivitas',1]];
+const TABS=[['unload','Unloading'],['staging','Staging In'],['ready','Ready GR & Rencana',1],['gr','GR (Surat Jalan)'],['stock','Stok per Lokasi'],['import','Impor HPP & Surat Jalan',1],['moka','PO MOKA',1],['rekap','Rekap Aktivitas',1]];
 const tabsFor=()=>TABS.filter(t=>!t[2]||isAdm());
 const say=(k,text,cls)=>{msg[k]={text,cls}};
 const msgHtml=k=>msg[k]?'<div class="iw-msg '+(msg[k].cls||'')+'" role="status">'+esc(msg[k].text)+'</div>':'<div class="iw-msg"></div>';
@@ -1935,7 +1947,7 @@ function render(){
  const root=$('inbound');if(!root)return;
  if(!tabsFor().some(t=>t[0]===tab))tab='unload';
  root.innerHTML='<div class="toolbar"><div><h2>Inbound Web</h2><span class="sub">Penerimaan barang langsung di web: unloading, staging in, GR berdasarkan surat jalan, put away</span></div>'+(isAdm()?'<div class="filters"><button class="filter" data-act="sample">Muat data contoh</button><button class="filter" data-act="reset">Reset data inbound</button></div>':'')+'</div><div class="note">Mode simulasi: data tersimpan di browser ini (belum Supabase). Alur: Unloading → Staging In → Ready GR (HPP dan surat jalan lengkap) → Admin menjadwalkan GR → tim GR menghitung sesuai surat jalan → Put away ke bin → stok per lokasi.</div><div class="iw-tabs" role="tablist">'+tabsFor().map(t=>'<button type="button" data-tab="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div><div id="iw-body"></div>';
- ({unload:rUnload,staging:rStaging,ready:rReady,gr:rGr,stock:rStock,import:rImport,rekap:rRekap}[tab])($('iw-body'));
+ ({unload:rUnload,staging:rStaging,ready:rReady,gr:rGr,stock:rStock,import:rImport,moka:rMoka,rekap:rRekap}[tab])($('iw-body'));
 }
 
 function kpis(items){return '<div class="iw-kpis">'+items.map(([l,v,c])=>'<div class="card"><span class="sub">'+esc(l)+'</span><div class="m '+(c||'')+'">'+esc(v)+'</div></div>').join('')+'</div>'}
@@ -2025,13 +2037,14 @@ function rWorksheet(b,x){
  const head='<div class="card"><div class="card-head"><div><h3>'+esc(x.id)+' · '+esc(x.rate)+'</h3><span class="sub">NO PO: <strong>'+esc(x.po)+'</strong> · Koli '+esc(ranges(x.koli))+' · Total '+tot+' pcs · PIC '+esc(x.pic.map(staffName).join(', '))+' · Mulai '+hm(x.startedAt)+' · Selesai counting '+hm(x.countDoneAt)+'</span></div><div class="filters"><button class="button secondary" data-act="back" type="button">← Daftar batch</button>'+(x.status==='planned'?'<button class="button" data-act="gr-start" data-b="'+esc(x.id)+'" type="button">Mulai GR</button>':'')+'</div></div>';
  const rowsHtml=x.rows.map((r,i)=>{const cls=r.status==='ok'?'iw-row-ok':r.status==='report'?'iw-row-rep':'';return '<tr class="'+cls+'"><td>'+r.koli+'</td><td>'+esc(r.item)+'</td><td>'+r.qty+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.tglKirim)+'</td><td>'+esc(r.awb)+'</td><td>'+esc(r.eta)+'</td><td>'+(canCount&&!r.status?'<input type="number" min="0" id="iw-c-'+i+'" placeholder="Qty hitung"><input type="text" id="iw-n-'+i+'" placeholder="Catatan (wajib bila Report)">':(r.status?r.counted+(r.note?' · '+esc(r.note):''):'-'))+'</td><td>'+(r.status==='ok'?tag('OK','green'):r.status==='report'?tag('Report','red'):canCount?'<button class="button secondary" data-act="ok" data-b="'+esc(x.id)+'" data-i="'+i+'" type="button">OK</button> <button class="button secondary" data-act="rep" data-b="'+esc(x.id)+'" data-i="'+i+'" type="button">Report</button>':'-')+'</td></tr>'}).join('');
  let html=head+'<div class="iw-scroll iw-mt"><table class="iw-sj"><thead><tr><th>NO KOLI</th><th>ITEM NAME</th><th>QTY</th><th>Type</th><th>Tgl Kirim</th><th>AWB</th><th>ETA</th><th>Hitung</th><th>Status</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+ if(isAdm()&&(x.status==='putaway'||x.status==='done'))html+='<div class="filters iw-mt"><button class="button secondary" data-act="dl" data-b="'+esc(x.id)+'" type="button">Download CSV MOKA</button>'+(hasHpp(x.po)?'<button class="button secondary" data-act="dl-uc" data-b="'+esc(x.id)+'" type="button">CSV + Unit Cost (HPP)</button>':'')+'<span class="sub">Hasil counting batch ini dalam format template MOKA'+(x.mokaAt?' · PO MOKA ditandai '+dmy(x.mokaAt):'')+'.</span></div>';
  if(canCount){const left=x.rows.filter(r=>!r.status).length;html+='<div class="filters iw-mt"><button class="button" data-act="count-done" data-b="'+esc(x.id)+'" type="button"'+(left?' disabled':'')+'>Selesai counting</button><span class="sub">'+(left?left+' baris belum dikonfirmasi.':'Semua baris sudah dikonfirmasi.')+'</span></div>'}
  html+=msgHtml('g')+'</div>';
  if(showPut){html+='<div class="card iw-mt"><h3>Put away — lokasi penyimpanan</h3><p class="sub">Isi bin tujuan untuk setiap item hasil GR (contoh: A1.1). Setelah disimpan, stok masuk ke rekap per lokasi.</p><div class="iw-scroll"><table><thead><tr><th>Koli</th><th>Item</th><th>Qty masuk</th><th>Bin</th></tr></thead><tbody>'+x.rows.map((r,i)=>r.counted>0?'<tr><td>'+r.koli+'</td><td>'+esc(r.item)+'</td><td>'+r.counted+'</td><td>'+(ro?esc(r.bin):'<input type="text" id="iw-b-'+i+'" value="'+esc(r.bin)+'" placeholder="A1.1">')+'</td></tr>':'').join('')+'</tbody></table></div>'+(ro?'<p class="sub">Put away selesai '+hm(x.doneAt)+'.</p>':'<div class="filters iw-mt"><button class="button" data-act="put-done" data-b="'+esc(x.id)+'" type="button">Simpan lokasi &amp; selesai put away</button></div>')+'</div>'}
  b.innerHTML=html;
 }
 function getB(id){return S.batches.find(x=>x.id===id)}
-function grStart(id){const x=getB(id);if(!x)return;x.status='counting';x.startedAt=nowIso();logAct(myCode(),'Mulai GR',x.id,x.koli.length);save();render()}
+function grStart(id){const x=getB(id);if(!x)return;if(!hasHpp(x.po)||!hasSj(x.po)||!x.koli.every(k=>S.koli[kKey(x.po,k)]&&koliItems(x.po,k).length)){say('g','GR hanya bisa dimulai bila koli sudah diterima, HPP PO ini ada, dan surat jalan PO ini ada.','err');return render()}x.status='counting';x.startedAt=nowIso();logAct(myCode(),'Mulai GR',x.id,x.koli.length);save();render()}
 function rowAct(id,i,ok){
  const x=getB(id),r=x?.rows[i];if(!r||x.status!=='counting')return;
  const c=$('iw-c-'+i)?.value,note=($('iw-n-'+i)?.value||'').trim();
@@ -2059,30 +2072,53 @@ function rStock(b){
 }
 
 // --- Impor HPP & surat jalan (admin) ---
-function rImport(b){
+function importCard(kind,title,hint,withPo){
  const poOpts='<option value="">— ikuti isi file —</option>'+poList().map(p=>'<option value="'+esc(p.po)+'">'+esc(p.po)+' · '+esc(p.vendor)+'</option>').join('');
- const card=(kind,title,hint)=>'<div class="card"><h3>'+title+'</h3><p class="sub">'+hint+'</p><div class="form-grid"><div class="field"><label for="iw-'+kind+'-po">Kode PO</label><select id="iw-'+kind+'-po">'+poOpts+'</select></div><div class="field"><label for="iw-'+kind+'-file">File Excel / CSV</label><input id="iw-'+kind+'-file" type="file" accept=".xlsx,.xls,.csv,.txt"></div></div><div class="field iw-mt"><label for="iw-'+kind+'-paste">Atau tempel isi dari Excel</label><textarea id="iw-'+kind+'-paste" rows="4" placeholder="Salin sel dari Excel lalu tempel di sini"></textarea></div><div class="filters iw-mt"><button class="button secondary" data-act="'+kind+'-read" type="button">Baca &amp; pratinjau</button><button class="button" data-act="'+kind+'-save" type="button">Simpan impor</button></div><div id="iw-'+kind+'-prev" class="iw-mt">'+(pending[kind]?pending[kind].html:'')+'</div>'+msgHtml(kind)+'</div>';
- b.innerHTML=card('sj','Impor Surat Jalan','Format seperti surat jalan: NO PO di bagian atas; kolom NO KOLI, ITEM NAME, QTY, Type, Tgl Kirim, AWB, ETA.')+'<div class="iw-mt"></div>'+card('hpp','Impor HPP (dari Finance)','Kolom ITEM NAME dan HPP. Bila ada kolom PO, satu file dapat memuat beberapa PO.')+
+ return '<div class="card"><h3>'+title+'</h3><p class="sub">'+hint+'</p><div class="form-grid">'+(withPo?'<div class="field"><label for="iw-'+kind+'-po">Kode PO</label><select id="iw-'+kind+'-po">'+poOpts+'</select></div>':'')+'<div class="field"><label for="iw-'+kind+'-file">File Excel / CSV</label><input id="iw-'+kind+'-file" type="file" accept=".xlsx,.xls,.csv,.txt"></div></div><div class="field iw-mt"><label for="iw-'+kind+'-paste">Atau tempel isi dari Excel</label><textarea id="iw-'+kind+'-paste" rows="4" placeholder="Salin sel dari Excel lalu tempel di sini"></textarea></div><div class="filters iw-mt"><button class="button secondary" data-act="'+kind+'-read" type="button">Baca &amp; pratinjau</button><button class="button" data-act="'+kind+'-save" type="button">Simpan impor</button></div><div class="iw-mt">'+(pending[kind]?pending[kind].html:'')+'</div>'+msgHtml(kind)+'</div>';
+}
+function rImport(b){
+ b.innerHTML=importCard('sj','Impor Surat Jalan','Format surat jalan: NO PO di bagian atas; kolom NO KOLI, ITEM NAME, QTY, Type, Tgl Kirim, AWB, ETA.',true)+'<div class="iw-mt"></div>'+importCard('hpp','Impor HPP (form dari Finance)','Format "KK alihan": kolom KATEGORI, ITEM, JENIS LENGAN DAN UKURAN, QTY, COGS. Tambahkan kode PO di bagian atas ("NO PO" lalu kodenya) atau sebagai kolom PO, atau pilih PO di bawah. HPP ini dipakai admin sebagai acuan unit cost (VLOOKUP manual ke template MOKA).',true)+
  '<div class="card iw-mt"><h3>Status dokumen per PO</h3><div class="iw-scroll">'+(poList().length?'<table><thead><tr><th>PO</th><th>Vendor</th><th>Surat jalan</th><th>HPP</th></tr></thead><tbody>'+poList().map(p=>'<tr><td>'+esc(p.po)+'</td><td>'+esc(p.vendor)+'</td><td>'+(hasSj(p.po)?tag(S.sj[p.po].rows.length+' baris · '+dmy(S.sj[p.po].importedAt),'green'):tag('Belum','red'))+'</td><td>'+(hasHpp(p.po)?tag(S.hpp[p.po].rows.length+' item · '+dmy(S.hpp[p.po].importedAt),'green'):tag('Belum','red'))+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada PO.</p>')+'</div></div>';
 }
 async function readImport(kind){
- const f=$('iw-'+kind+'-file').files[0],paste=$('iw-'+kind+'-paste').value.trim(),sel=$('iw-'+kind+'-po').value;
+ const f=$('iw-'+kind+'-file').files[0],paste=$('iw-'+kind+'-paste').value.trim(),sel=$('iw-'+kind+'-po')?.value||'';
  try{
   if(!f&&!paste)throw Error('Pilih file atau tempel isi dari Excel.');
   const m=f?await fileToMatrix(f):textToMatrix(paste);
   if(kind==='sj'){const r=parseSj(m),po=sel||r.po;if(!po)throw Error('Kode PO tidak terbaca dari file. Pilih PO pada isian Kode PO.');const koli=[...new Set(r.rows.map(x=>x.koli))].sort((a,c)=>a-c);
    pending.sj={po,rows:r.rows,html:'<div class="note">PO <strong>'+esc(po)+'</strong> · '+r.rows.length+' baris · koli '+esc(ranges(koli))+' ('+koli.length+' koli) · total '+r.rows.reduce((a,x)=>a+x.qty,0)+' pcs'+(S.pos[po]&&koli.some(k=>k>S.pos[po].totalKoli)?' · <strong>ada koli melebihi total koli PO</strong>':'')+'</div>'};}
-  else{const rows=parseHpp(m),by={};rows.forEach(r=>{const po=r.po||sel;if(!po)throw Error('Kode PO tidak ada di file. Pilih PO pada isian Kode PO.');(by[po]=by[po]||[]).push({item:r.item,hpp:r.hpp})});
-   pending.hpp={by,html:'<div class="note">'+Object.entries(by).map(([po,r])=>'PO <strong>'+esc(po)+'</strong>: '+r.length+' item').join(' · ')+'</div>'};}
+  else if(kind==='hpp'){const r=parseHpp(m),by={};r.rows.forEach(x=>{const po=x.po||sel||r.po;if(!po)throw Error('Kode PO tidak ada di file. Tambahkan "NO PO" di atas tabel, kolom PO, atau pilih PO pada isian Kode PO.');(by[po]=by[po]||[]).push({item:x.item,hpp:x.hpp,qty:x.qty})});
+   pending.hpp={by,html:'<div class="note">'+Object.entries(by).map(([po,rows])=>{const miss=hasSj(po)?missingHppIn(po,rows).length:null;return 'PO <strong>'+esc(po)+'</strong>: '+rows.length+' item · total qty '+rows.reduce((a,x)=>a+(x.qty||0),0)+(miss===null?' · surat jalan belum ada':miss?' · <strong>'+miss+' item surat jalan tanpa HPP</strong>':' · semua item surat jalan punya HPP')}).join('<br>')+'</div>'};}
+  else{const r=parseMoka(m);pending.moka={data:r,html:'<div class="note">Template MOKA terbaca: '+r.count+' item · '+r.headers.length+' kolom ('+esc(r.headers.slice(0,10).join(' | '))+')</div>'}}
   say(kind,'Pratinjau siap. Tekan Simpan impor untuk menerapkan.','ok');
  }catch(e){pending[kind]=null;say(kind,e.message||'Gagal membaca file.','err')}
  render();
 }
+const missingHppIn=(po,rows)=>{const have=new Set(rows.map(r=>norm(r.item)));return[...new Set((S.sj[po]?.rows||[]).map(r=>norm(r.item)))].filter(i=>!have.has(i))};
 function saveImport(kind){
  const p=pending[kind];if(!p){say(kind,'Baca dan pratinjau file dulu.','err');return render()}
  if(kind==='sj'){S.sj[p.po]={rows:p.rows,importedAt:nowIso(),by:myCode()};logAct(myCode(),'Impor surat jalan',p.po+' · '+p.rows.length+' baris',p.rows.length)}
- else{Object.entries(p.by).forEach(([po,rows])=>{S.hpp[po]={rows,importedAt:nowIso(),by:myCode()};logAct(myCode(),'Impor HPP',po+' · '+rows.length+' item',rows.length)})}
- pending[kind]=null;if(save())say(kind,'Impor tersimpan. Status Ready GR diperbarui otomatis.','ok');render();
+ else if(kind==='hpp'){Object.entries(p.by).forEach(([po,rows])=>{S.hpp[po]={rows,importedAt:nowIso(),by:myCode()};logAct(myCode(),'Impor HPP',po+' · '+rows.length+' item',rows.length)})}
+ else{S.moka={...p.data,importedAt:nowIso()};logAct(myCode(),'Impor template MOKA',p.data.count+' item',p.data.count)}
+ pending[kind]=null;if(save())say(kind,'Impor tersimpan.'+(kind==='moka'?'':' Status Ready GR diperbarui otomatis.'),'ok');render();
+}
+
+// --- PO MOKA (admin): unduh hasil counting / put away dalam format template MOKA ---
+const MOKA_DEF={headers:['Internal ID (Do Not Edit)','Outlet Name (Do Not Edit)','Supplier Email','Items Name (Do Not Edit)','Variant Name (Do Not Edit)','Category (Do Not Edit)','SKU (Do Not Edit)','In Stock (Do Not Edit)','Order','Unit Cost'],idx:{id:0,outlet:1,supplier:2,item:3,variant:4,category:5,sku:6,stock:7,order:8,cost:9}};
+const csvCell=v=>{const s=String(v??'');return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function batchItems(x){const m=new Map();x.rows.forEach(r=>{if(!(r.counted>0))return;const k=norm(r.item),e=m.get(k)||{item:r.item,qty:0};e.qty+=r.counted;m.set(k,e)});return[...m.values()].sort((a,c)=>a.item.localeCompare(c.item))}
+function downloadMoka(id,withCost){
+ const x=getB(id);if(!x||!['putaway','done'].includes(x.status))return;
+ const tpl=S.moka||MOKA_DEF,H=tpl.headers,I=tpl.idx,items=S.moka?.items||{},hpp=new Map((S.hpp[x.po]?.rows||[]).map(r=>[norm(r.item),r.hpp])),miss=[];
+ const rows=batchItems(x).map(it=>{const a=Array(H.length).fill(''),m=items[norm(it.item)];if(!m)miss.push(it.item);const set=(k,v)=>{if(I[k]>=0&&I[k]!=null)a[I[k]]=v};set('id',m?.id||'');set('outlet',m?.outlet||'927253 - DC TIGALAPAN');set('supplier',m?.supplier||'');set('item',m?.name||it.item);set('variant',m?.variant||'');set('category',m?.category||'');set('sku',m?.sku||'');set('stock',m?.stock||'');set('order',it.qty);if(withCost&&hpp.has(norm(it.item)))set('cost',hpp.get(norm(it.item)));return a});
+ const csv='﻿'+[H,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='MOKA-PO-'+x.po+'-'+x.id+(withCost?'-unitcost':'')+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+ logAct(myCode(),'Unduh CSV MOKA',x.id+' · '+rows.length+' item'+(withCost?' · unit cost dari HPP':''),rows.reduce((s,r)=>s+(Number(r[I.order])||0),0));save();
+ say('m','CSV '+x.id+' diunduh ('+rows.length+' item).'+(miss.length?' '+miss.length+' item tidak ditemukan di template MOKA (kolom ID/SKU kosong): '+miss.slice(0,3).join(', ')+(miss.length>3?'…':''):'')+(S.moka?'':' Template MOKA belum diimpor, memakai urutan kolom bawaan.'),miss.length||!S.moka?'err':'ok');render();
+}
+function rMoka(b){
+ const done=S.batches.filter(x=>['putaway','done'].includes(x.status)).sort((a,c)=>c.createdAt.localeCompare(a.createdAt));
+ b.innerHTML='<div class="card"><h3>PO MOKA</h3><p class="sub">Setelah counting selesai (put away boleh masih berjalan), admin mengunduh hasil GR batch dalam CSV format template MOKA. Kolom Order terisi qty hasil hitung. Unit Cost diisi admin dengan VLOOKUP dari form HPP, lalu file diunggah ke MOKA.</p>'+(S.moka?'<p class="sub">Template MOKA aktif: '+S.moka.count+' item · diimpor '+dmy(S.moka.importedAt)+'.</p>':'<p class="note">Template MOKA belum diimpor. Impor sekali di bawah agar Internal ID, SKU, Category, dan nama kolom sama persis dengan MOKA.</p>')+msgHtml('m')+'<div class="iw-scroll iw-mt">'+(done.length?'<table><thead><tr><th>Batch</th><th>PO</th><th>Koli</th><th>Status</th><th>Item</th><th>Total pcs hitung</th><th>PO MOKA</th><th></th></tr></thead><tbody>'+done.map(x=>{const it=batchItems(x);return '<tr><td><strong>'+esc(x.id)+'</strong></td><td>'+esc(x.po)+'</td><td>'+esc(ranges(x.koli))+'</td><td>'+stTag(x.status)+'</td><td>'+it.length+'</td><td>'+it.reduce((a,r)=>a+r.qty,0)+'</td><td>'+(x.mokaAt?tag('Sudah · '+dmy(x.mokaAt),'green'):tag('Belum','amber'))+'</td><td><button class="button secondary" data-act="dl" data-b="'+esc(x.id)+'" type="button">CSV MOKA</button> '+(hasHpp(x.po)?'<button class="button secondary" data-act="dl-uc" data-b="'+esc(x.id)+'" type="button">CSV + Unit Cost (HPP)</button> ':'')+'<button class="button secondary" data-act="moka-mark" data-b="'+esc(x.id)+'" type="button">'+(x.mokaAt?'Batalkan tanda':'Tandai sudah PO')+'</button></td></tr>'}).join('')+'</tbody></table>':'<p class="sub">Belum ada batch yang selesai counting.</p>')+'</div></div><div class="iw-mt"></div>'+importCard('moka','Template MOKA (Import Items Purchase Order)','Impor file template dari MOKA (kolom Internal ID, Outlet Name, Items Name, Category, SKU, In Stock, Order, Unit Cost). Dipakai untuk mengisi data item saat unduh CSV.',false);
 }
 
 // --- Rekap aktivitas ---
@@ -2121,7 +2157,7 @@ $('inbound').addEventListener('click',e=>{
   open:()=>{openBatch=a.dataset.b;render()},back:()=>{openBatch=null;render()},
   'gr-start':()=>grStart(a.dataset.b),ok:()=>rowAct(a.dataset.b,Number(a.dataset.i),true),rep:()=>rowAct(a.dataset.b,Number(a.dataset.i),false),
   'count-done':()=>countDone(a.dataset.b),'put-done':()=>putDone(a.dataset.b),
-  'sj-read':()=>readImport('sj'),'sj-save':()=>saveImport('sj'),'hpp-read':()=>readImport('hpp'),'hpp-save':()=>saveImport('hpp')}[act]||(()=>{}))();
+  'sj-read':()=>readImport('sj'),'sj-save':()=>saveImport('sj'),'hpp-read':()=>readImport('hpp'),'hpp-save':()=>saveImport('hpp'),'moka-read':()=>readImport('moka'),'moka-save':()=>saveImport('moka'),dl:()=>downloadMoka(a.dataset.b,false),'dl-uc':()=>downloadMoka(a.dataset.b,true),'moka-mark':()=>{const x=getB(a.dataset.b);if(x){x.mokaAt=x.mokaAt?null:nowIso();save();render()}}}[act]||(()=>{}))();
 });
 window.addEventListener('storage',e=>{if(e.key===KEY){S=load()}});
 })();
