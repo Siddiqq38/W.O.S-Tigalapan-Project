@@ -2252,6 +2252,8 @@ const ACCOUNTS={
  operator:{hash:'92dfe8bbe90dff167a22c42466463726e93274967867dbb770493d80e7160f27',level:'OPERATOR',label:'Operator',code:'W24'}
 };
 const ALL_PAGES=['dashboard','attendance','assignment','inbound','productivity','compliance','performance','coaching','reports','master','access'];
+// Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
+const HOLD_PAGES=['assignment','inbound'];
 const PAGES={SPV:ALL_PAGES,ADMIN:['dashboard','attendance','assignment','inbound','productivity','compliance']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
@@ -2268,7 +2270,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const allowed=new Set(account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleToday()?['assignment']:[]),...(attendanceState()==='in'&&roleToday()==='Inbound'?['inbound']:[])]:PAGES[account.level]);
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance']:PAGES[account.level]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -2336,9 +2338,7 @@ function operatorCard(){
  else if(st==='out'){html+='<p class="note">Anda sudah Attendance out hari ini. Peran dan akses tugas ditutup.</p>'}
  else if(!peran){html+='<p class="note good">Attendance in tercatat. Langkah 2: pilih peran Anda hari ini.</p><div class="row"><div class="field"><label for="wos-op-role">Peran</label><select id="wos-op-role"><option value="">— pilih peran —</option>'+PERAN.map(p=>'<option value="'+p[0]+'">'+p[1]+'</option>').join('')+'</select></div><button class="button" id="wos-op-save" type="button">Mulai bertugas</button></div>'}
  else{
-  let msg='Menunggu assignment dari Admin atau Supervisor.',cls='note';
-  if(peran==='Picker'){const n=pickerCount();if(n>0){msg='Ada '+n+' koli assignment untuk Anda hari ini. Buka menu Assignment.';cls='note good'}}
-  html+='<p class="'+cls+'"><strong>Peran: '+def[1]+'</strong><br>'+msg+'</p><div class="row"><button class="button" id="wos-op-open" type="button">Buka Assignment</button><button class="button secondary" id="wos-op-change" type="button">Ganti peran</button></div>'}
+  html+='<p class="note"><strong>Peran: '+def[1]+'</strong><br>Kehadiran dan peran Anda tercatat. Tugas kerja diterima dari WMS; hasil pekerjaan terekap otomatis di Productivity.</p><div class="row"><button class="button secondary" id="wos-op-change" type="button">Ganti peran</button></div>'}
  if(card.dataset.sig!==html){card.dataset.sig=html;card.innerHTML=html}
 }
 function lockAttendance(){if(account.level==='OPERATOR'){const el=$('attendance-code');if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}else{const el=$('attendance-code');if(el)el.disabled=false}}
