@@ -2612,5 +2612,26 @@ window.addEventListener('storage',tick);
 document.addEventListener('click',()=>setTimeout(tick,60));
 })();
 </script>
+<script>
+// TIME24 MODULE: ganti input jam bawaan browser (AM/PM) dengan pilihan jam dan menit 24 jam yang bisa di-scroll
+(()=>{
+const H=Array.from({length:24},(_,i)=>String(i).padStart(2,'0')),M=Array.from({length:60},(_,i)=>String(i).padStart(2,'0'));
+function enhance(inp){
+ if(inp.dataset.t24)return;inp.dataset.t24='1';
+ const wrap=document.createElement('span');wrap.style.cssText='display:inline-flex;align-items:center;gap:3px';
+ const h=document.createElement('select'),m=document.createElement('select');
+ h.innerHTML='<option value="">--</option>'+H.map(x=>'<option>'+x+'</option>').join('');
+ m.innerHTML='<option value="">--</option>'+M.map(x=>'<option>'+x+'</option>').join('');
+ [[h,'jam'],[m,'menit']].forEach(([s,n])=>{s.style.cssText='padding:5px 4px;font-size:12px;min-width:54px;max-width:70px';s.setAttribute('aria-label',n+' (24 jam)')});
+ wrap.append(h,document.createTextNode(':'),m);inp.style.display='none';inp.after(wrap);
+ let last=null;
+ const fromInput=()=>{h.disabled=m.disabled=inp.disabled;if(inp.value===last)return;last=inp.value;const v=/^(\d{1,2}):(\d{2})/.exec(inp.value||'');h.value=v?String(v[1]).padStart(2,'0'):'';m.value=v?v[2]:''};
+ const toInput=()=>{const v=h.value&&m.value?h.value+':'+m.value:'';last=v;if(inp.value!==v){inp.value=v;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}))}};
+ h.onchange=m.onchange=toInput;inp._t24=fromInput;fromInput();
+}
+function scan(){document.querySelectorAll('input[type=time]').forEach(i=>{enhance(i);i._t24&&i._t24()})}
+scan();setInterval(scan,400);
+})();
+</script>
 </body></html>
 
