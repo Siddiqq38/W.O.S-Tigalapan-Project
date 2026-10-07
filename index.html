@@ -680,8 +680,10 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  const stack=page.querySelector('.cp-stack');
  const fold=(id,title,nodes)=>{const box=document.createElement('details');box.className='card cp-fold';box.id=id;box.innerHTML='<summary>'+title+'</summary>';for(const node of nodes)if(node)box.append(node);stack.append(box);return box};
  const dutyPanel=$('duty-panel'),dailyPanel=$('daily').closest('section'),checkPanel=$('check-panel'),reportPanel=$('report-person').closest('section'),viewer=$('viewer'),incidentPanel=$('event-person').closest('section'),eventsPanel=$('events').closest('section'),monthlyPanel=$('monthly').closest('section'),auditPanel=$('audit').closest('details');
- const attendancePanel=document.createElement('section');attendancePanel.className='card';attendancePanel.innerHTML='<h2>DRM · daftar check-in</h2><p class="sub">Hanya staff yang mempunyai Attendance in pada tanggal terpilih di browser ini. SPV/Admin menandai ✓ ikut atau ✕ tidak ikut; tanda kosong berarti belum diperiksa. Belum sinkron lintas HP.</p><div id="cp-drm-attendance" class="cp-table"></div>';
+ const attendancePanel=document.createElement('section');attendancePanel.className='card';attendancePanel.innerHTML='<h2>DRM · daftar check-in</h2><p class="sub">Daftar kehadiran (otomatis dari Attendance in) dan penandaan ikut DRM oleh SPV.</p><div id="cp-drm-attendance" class="cp-table"></div>';
  fold('cp-drm-group','DRM · briefing harian',[attendancePanel,checkPanel]);
+ // DRM dipindah ke halaman Attendance (di bawah blok check-in) agar halaman Compliance lebih ramping.
+ {const g=document.getElementById('cp-drm-group'),a=document.getElementById('attendance');if(g&&a){g.open=true;(document.getElementById('attendance-code')?.closest('#attendance > *')||a.firstChild).after(g)}}
  const quick=document.createElement('div');quick.className='form-grid';quick.innerHTML='<div class="field"><label for="cp-report-code">Kode / nama staff</label><select id="cp-report-code"><option value="">Pilih staff</option></select></div><div class="field"><label for="cp-report-area-choice">Area 5R dari master</label><select id="cp-report-area-choice"><option value="">Pilih area</option></select></div>';
  reportPanel.querySelector('.form-grid').before(quick);
  $('report-person').closest('.field').hidden=true;
@@ -693,7 +695,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  const notice=(text,error=false)=>{$('message').textContent=text;$('message').style.color=error?'#b42318':'';};
  const actor=()=>staffMaster[$('actor').value]?.name||'Pengguna';
  const isAdmin=()=>['SPV','Manager','Admin'].includes($('role').value);
- const canMarkDrm=()=>['SPV','Admin'].includes($('role').value);
+ const canMarkDrm=()=>['SPV'].includes($('role').value);
  const isReviewer=()=>['SPV','Manager'].includes($('role').value);
  const canApproveFiveR=()=>$('role').value==='SPV';
  const audit=(s,text)=>s.audit.push({at:Date.now(),actor:actor(),text});
@@ -717,8 +719,19 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   $('revision-note').hidden=r?.report?.approval!=='rejected';
   $('revision-note').textContent=r?.report?.approval==='rejected'?'Revisi diminta SPV: '+(r.report.reviewNote||'Perbaiki area, rekam video baru, lalu kirim ulang.')+' · Laporan ini belum dihitung Done.':'';
  }
+ function queueHtml(){const p=state.days.filter(r=>r.report&&r.report.approval==='pending').sort((a,b)=>a.report.at-b.report.at);return p.length?'<div class="note"><strong>Antrean approval SPV ('+p.length+')</strong> - video 5R yang sudah dikirim dan menunggu diperiksa'+(isReviewer()?'':' (diperiksa oleh SPV)')+'<br>'+p.map(r=>esc(label(r.code))+' - '+esc(r.area)+' - '+esc(r.day)+' - '+esc(clock(r.report.at))+(r.reportHistory&&r.reportHistory.length?' (kiriman ke-'+(r.reportHistory.length+1)+')':'')+(isReviewer()?' <button class="button secondary" data-view="'+esc(r.id)+'">Periksa</button>':'')).join('<br>')+'</div>':''}
  function attendanceIns(day){try{const rows=JSON.parse(localStorage.getItem('wos-attendance-kpi-v1')||'[]');return Array.isArray(rows)?rows.filter(r=>r.day===day&&r.action==='Attendance in'&&staffMaster[r.code]):[]}catch{return[]}}
- function renderDrm(){const seen=new Map();for(const entry of attendanceIns($('date').value))if(!seen.has(entry.code)||String(entry.at)<String(seen.get(entry.code).at))seen.set(entry.code,entry);const rows=[...seen.values()].sort((a,b)=>a.code.localeCompare(b.code,'id',{numeric:true}));$('drm-attendance').innerHTML=rows.length?'<table><thead><tr><th>Staff check-in</th><th>Waktu check-in</th><th>Ikut DRM</th><th>Tidak ikut</th><th>Status</th></tr></thead><tbody>'+rows.map(e=>{const r=state.days.find(x=>x.id===rowId($('date').value,e.code)),status=r?.drm||'unknown';return '<tr><td>'+esc(label(e.code))+'</td><td>'+esc(clock(Date.parse(e.at)))+' WITA</td><td><button class="button secondary" type="button" data-drm-code="'+esc(e.code)+'" data-drm-value="yes" '+(!canMarkDrm()?'disabled':'')+' aria-label="'+esc('Tandai '+label(e.code)+' ikut DRM')+'">✓</button></td><td><button class="button secondary" type="button" data-drm-code="'+esc(e.code)+'" data-drm-value="no" '+(!canMarkDrm()?'disabled':'')+' aria-label="'+esc('Tandai '+label(e.code)+' tidak ikut DRM')+'">✕</button></td><td>'+tag(({yes:'Ikut DRM',no:'Tidak ikut',unknown:'Belum diperiksa'})[status],status==='yes'?'green':status==='no'?'red':'amber')+'</td></tr>'}).join('')+'</tbody></table>':'<p class="sub">Belum ada Attendance in yang tersimpan pada tanggal ini di browser ini. Check-in dari HP lain belum dapat terbaca sebelum database W.O.S aktif.</p>'}
+ function renderDrm(){
+  const day=$('date').value,seen=new Map();
+  for(const entry of attendanceIns(day))if(!seen.has(entry.code)||String(entry.at)<String(seen.get(entry.code).at))seen.set(entry.code,entry);
+  const codes=Object.keys(staffMaster).filter(c=>!staffMaster[c].out&&staffMaster[c].role!=='Supervisor').sort((a,b)=>a.localeCompare(b,'id',{numeric:true}));
+  const stat=c=>state.days.find(x=>x.id===rowId(day,c))?.drm||'unknown';
+  const present=codes.filter(c=>seen.has(c)).length,joined=codes.filter(c=>stat(c)==='yes').length,absentDrm=codes.filter(c=>stat(c)==='no').length;
+  const canMark=canMarkDrm();
+  const html=codes.length?'<p class="sub">Tanggal '+esc(day)+' · hadir (Attendance in) '+present+' dari '+codes.length+' staf · ikut DRM '+joined+' · tidak ikut DRM '+absentDrm+'. Kolom kiri terisi otomatis dari Attendance in. '+(canMark?'Saat briefing, SPV menandai ✓ ikut atau ✕ tidak ikut DRM; yang ✕ otomatis tercatat di Compliance.':'Penandaan DRM dilakukan SPV saat briefing.')+'</p><table><thead><tr><th></th><th>Staf</th><th>Kehadiran</th><th>Ikut DRM</th><th>Tidak ikut</th><th>Status DRM</th></tr></thead><tbody>'+codes.map(c=>{const e=seen.get(c),status=stat(c),dis=!canMark||!e;return '<tr><td style="font-size:20px;font-weight:700;color:'+(e?'#1b7a46':'#b3261e')+'" aria-label="'+(e?'Hadir':'Belum hadir')+'">'+(e?'✓':'✕')+'</td><td>'+esc(label(c))+'</td><td>'+(e?'Hadir · '+esc(clock(Date.parse(e.at)))+' WITA':'<span class="sub">Belum hadir</span>')+'</td><td><button class="button'+(status==='yes'?'':' secondary')+'" type="button" data-drm-code="'+esc(c)+'" data-drm-value="yes" '+(dis?'disabled':'')+' aria-label="'+esc('Tandai '+label(c)+' ikut DRM')+'">✓</button></td><td><button class="button'+(status==='no'?'':' secondary')+'" type="button" data-drm-code="'+esc(c)+'" data-drm-value="no" '+(dis?'disabled':'')+' aria-label="'+esc('Tandai '+label(c)+' tidak ikut DRM')+'">✕</button></td><td>'+(e||status!=='unknown'?tag(({yes:'Ikut DRM',no:'Tidak ikut DRM',unknown:'Belum diperiksa'})[status],status==='yes'?'green':status==='no'?'red':'amber'):'<span class="sub">-</span>')+'</td></tr>'}).join('')+'</tbody></table>':'<p class="sub">Belum ada data staf.</p>';
+  const box=$('drm-attendance');if(box.dataset.sig===html)return;box.dataset.sig=html;box.innerHTML=html;
+ }
+ window.__renderDrm=()=>{try{renderDrm()}catch(e){}};window.__complianceSnapshot=()=>({days:state.days||[],events:state.events||[]});
  function refreshReportChoices(){const current=$('report-code').value,profiles=window.getFiveRMaster?.()||[];$('report-code').innerHTML='<option value="">Pilih staff</option>'+profiles.map(r=>'<option value="'+esc(r.code)+'">'+esc(r.code+' · '+(staffMaster[r.code]?.name||r.name))+'</option>').join('');if(profiles.some(r=>r.code===current))$('report-code').value=current;refreshAreaChoices()}
  function refreshAreaChoices(){const code=$('report-code').value,profile=window.getFiveRProfile?.(code),area=$('report-area-choice');area.innerHTML='<option value="">Pilih area</option>'+(profile?'<option value="'+esc(profile.area)+'">'+esc(profile.area)+'</option>':'');area.value='';$('report-person').value='';reportArea();stopCamera()}
  function render(){
@@ -729,14 +742,21 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   $('totals').innerHTML=card('DRM hadir',working.filter(r=>r.drm==='yes'&&checkedIn.has(r.code)).length+'/'+checkedIn.size,'Dari check-in lokal; hanya checklist SPV/Admin dihitung')+card('5R disetujui SPV',required.filter(r=>r.report?.approval==='approved').length+'/'+required.length,'Upload / revisi tanpa ACC belum Done')+card('Kejadian terverifikasi',state.events.filter(e=>e.day===$('date').value&&e.status==='valid').length,'Termasuk 5R lewat batas; bukan skor akhir');
   renderDrm();
   $('daily').innerHTML=rows.length?'<table><thead><tr><th>Staff / tim</th><th>Area</th><th>DRM / Device</th><th>Status 5R</th><th>Bukti</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(label(r.code))+'<br><span class="sub">'+esc(r.team)+'</span></td><td>'+esc(r.area)+'</td><td>'+esc(({yes:'Hadir',no:'Tidak hadir',unknown:'Belum diperiksa'})[r.drm])+' / '+esc(({yes:'Dikumpulkan',no:'Tidak dikumpulkan',unknown:'Belum diperiksa'})[r.device])+'</td><td>'+tag(complianceReportStatus(r),r.exempt?'purple':r.report?.approval==='approved'?'green':r.report?.approval==='rejected'?'red':r.report?'amber':Date.now()>=complianceDue(r.day)?'red':'amber')+(r.exempt?'<br>'+esc(r.reason):'')+(r.report?.reviewNote?'<br><span class="sub">Catatan SPV: '+esc(r.report.reviewNote)+'</span>':'')+'</td><td>'+(r.report?'<button class="button secondary" data-view="'+esc(r.id)+'">Lihat '+esc(r.report.kind)+'</button><br><span class="sub">'+clock(r.report.at)+'</span>':'—')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada petugas untuk tanggal ini. Tetapkan area dan petugas terlebih dahulu; tidak ada pelanggaran otomatis bagi staf yang belum dijadwalkan.</p>';
-  selectRows('check-person',rows);selectRows('report-person',state.days.filter(r=>r.day===complianceDate()&&!r.exempt));reportArea();
+  $('daily').insertAdjacentHTML('afterbegin',queueHtml());selectRows('check-person',rows);selectRows('report-person',state.days.filter(r=>r.day===complianceDate()&&!r.exempt));reportArea();
   $('duty-panel').hidden=!isAdmin();$('check-panel').hidden=!canMarkDrm();
   if(!isReviewer()){$('review-panel').hidden=true;pendingReview=null;}
   if(!canApproveFiveR()){$('5r-review').hidden=true;fiveRReview=null;}
   const events=state.events.filter(e=>e.day===$('date').value);
   $('events').innerHTML=events.length?'<table><thead><tr><th>Staff / kategori</th><th>Fakta / sumber</th><th>Status</th><th>Tindak lanjut</th></tr></thead><tbody>'+events.map(e=>'<tr><td>'+esc(label(e.code))+'<br>'+esc(e.type)+'</td><td>'+esc(e.detail)+'<br><span class="sub">'+esc(e.source)+' · '+esc(e.actor)+'</span></td><td>'+tag(({pending:'Menunggu verifikasi',valid:'Terverifikasi',batal:'Dibatalkan'})[e.status],e.status==='valid'?'red':'amber')+'<br>'+esc(e.review||'')+'</td><td>'+ (e.resolved?'Selesai · '+esc(e.resolution||''):isReviewer()?'<button class="button secondary" data-review="'+esc(e.id)+'" data-status="valid">Verifikasi</button> <button class="button secondary" data-review="'+esc(e.id)+'" data-status="batal">Batalkan</button> '+(e.status==='valid'?'<button class="button secondary" data-resolve="'+esc(e.id)+'">Selesai ditindaklanjuti</button>':''):'Menunggu SPV / Manager')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada kejadian tercatat pada tanggal ini.</p>';
   const monthly=complianceMonthly(state,$('month').value);
-  $('monthly').innerHTML=monthly.length?'<table><thead><tr><th>Staff</th><th>Hari wajib</th><th>DRM hadir / device</th><th>5R ACC / menunggu / ditolak</th><th>5R lewat batas</th><th>SOP / komplain valid</th><th>Semua valid / menunggu</th></tr></thead><tbody>'+monthly.map(r=>'<tr><td>'+esc(label(r.code))+'</td><td>'+r.scheduled+'</td><td>'+r.briefing+' / '+r.device+'</td><td>'+r.reports+' / '+r.waitingReports+' / '+r.rejectedReports+'</td><td>'+r.fiveR+'</td><td>'+r.sop+' / '+r.complaints+'</td><td>'+r.valid+' / '+r.pending+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada data bulan ini. Tidak dianggap skor sempurna.</p>';
+  $('monthly').innerHTML=(()=>{
+   const bucket=t=>/^DRM/i.test(t)?'drm':/^(5R|Temuan 5R)$/i.test(t)?'fiver':/miss picking/i.test(t)?'mp':/miss put ?away/i.test(t)?'mpa':/main hp/i.test(t)?'hp':/tidur/i.test(t)?'tidur':'lain';
+   const BK=[['drm','Tidak ikut DRM'],['fiver','5R tidak lapor / ditolak'],['mp','Miss picking'],['mpa','Miss put away'],['hp','Main HP'],['tidur','Tidur di jam kerja'],['lain','SOP / komplain lain']];
+   const evs=state.events.filter(e=>e.day.startsWith($('month').value)&&e.status!=='batal'),by={};
+   evs.forEach(e=>{const o=by[e.code]=by[e.code]||{valid:{},pending:0,total:0};if(e.status==='valid'){const b=bucket(e.type);o.valid[b]=(o.valid[b]||0)+1;o.total++}else o.pending++});
+   const list=Object.entries(by).sort((a,b)=>b[1].total-a[1].total||b[1].pending-a[1].pending);
+   return list.length?'<p class="sub">Rekap otomatis dari input SOP dan komplain, ketidakikutan DRM, dan 5R. Hanya kejadian terverifikasi yang dihitung; yang menunggu verifikasi ditampilkan terpisah.</p><table><thead><tr><th>Staf</th>'+BK.map(b=>'<th>'+esc(b[1])+'</th>').join('')+'<th>Total terverifikasi</th><th>Menunggu verifikasi</th></tr></thead><tbody>'+list.map(([c,o])=>'<tr><td>'+esc(label(c))+'</td>'+BK.map(b=>'<td>'+(o.valid[b[0]]||0)+'</td>').join('')+'<td><strong>'+o.total+'</strong></td><td>'+o.pending+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada kejadian pada bulan ini. Rekap terisi otomatis dari laporan SOP dan komplain.</p>';
+  })();
   $('audit').innerHTML=state.audit.slice(-50).reverse().map(a=>'<p class="sub">'+esc(clock(a.at)+' · '+a.actor+' · '+a.text)+'</p>').join('')||'<p class="sub">Belum ada perubahan.</p>';
  }
  async function mutate(fn,file){
@@ -766,7 +786,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   const button=ev.target.closest('[data-drm-code]');if(!button||!canMarkDrm())return;
   const code=button.dataset.drmCode,value=button.dataset.drmValue,day=$('date').value;
   if(!attendanceIns(day).some(r=>r.code===code))return notice('Check-in staff tidak ditemukan di browser ini untuk tanggal tersebut.',true);
-  if(await mutate(s=>{const id=rowId(day,code),profile=window.getFiveRProfile?.(code),required=window.fiveRRequiredOn?.(profile,day)||false;let row=s.days.find(r=>r.id===id);if(!row){row={id,day,code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:required,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row);}row.drm=value;const eid='DRM:'+id,existing=s.events.find(e=>e.id===eid);if(value==='no'){if(existing){existing.status='pending';existing.resolved=false}else s.events.push({id:eid,day,code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+actor(),status:'pending',source:'Daftar check-in',actor:actor(),createdAt:Date.now(),resolved:false})}else if(existing){existing.status='batal';existing.review='Checklist dikoreksi: ikut DRM'}audit(s,'DRM '+code+' '+(value==='yes'?'ikut':'tidak ikut')+' · '+day);})){notice('Status DRM '+label(code)+' tersimpan lokal.');}
+  if(await mutate(s=>{const id=rowId(day,code),profile=window.getFiveRProfile?.(code),required=window.fiveRRequiredOn?.(profile,day)||false;let row=s.days.find(r=>r.id===id);if(!row){row={id,day,code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:required,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row);}row.drm=value;const eid='DRM:'+id,existing=s.events.find(e=>e.id===eid);if(value==='no'){if(existing){existing.status='valid';existing.resolved=false}else s.events.push({id:eid,day,code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+actor(),status:'valid',source:'Daftar check-in',actor:actor(),createdAt:Date.now(),resolved:false})}else if(existing){existing.status='batal';existing.review='Checklist dikoreksi: ikut DRM'}audit(s,'DRM '+code+' '+(value==='yes'?'ikut':'tidak ikut')+' · '+day);})){notice('Status DRM '+label(code)+' tersimpan lokal.');}
  };
  $('report-code').onchange=refreshAreaChoices;
  $('report-area-choice').onchange=()=>{stopCamera();$('report-area').value=$('report-area-choice').value;$('camera-status').textContent='Area dipilih. Buka kamera untuk memulai laporan 5R.'};
@@ -1758,7 +1778,8 @@ if(typeof document!=='undefined')(()=>{
   const pending=jotmRequests.length+annualLeaveRequests.length+otherLeaveRequests.length+lateRequests.length;
   count.innerHTML='<div class="card"><span class="metric-label">Check-in lokal hari ini</span><div class="metric good">'+ins.size+'</div><span class="sub">Hanya browser ini · '+day+'</span></div><div class="card"><span class="metric-label">Check-out lokal hari ini</span><div class="metric">'+outs.size+'</div><span class="sub">Belum tersinkron ke SPV</span></div><div class="card"><span class="metric-label">Pengajuan lokal menunggu</span><div class="metric warn">'+pending+'</div><span class="sub">Belum dikirim ke akun SPV</span></div>';
   const log=document.getElementById('attendance-log');
-  if(log)log.innerHTML=entries.sort((a,b)=>String(b.at).localeCompare(String(a.at))).map(e=>'<div class="mini"><div><strong>'+escape(staffMaster[e.code]?.name||e.code)+' ('+escape(e.code)+')</strong><br><span class="sub">'+escape(e.action)+' · '+escape(new Date(e.at).toLocaleString('id-ID',{timeZone:'Asia/Makassar',hour12:false}))+' WITA · browser ini</span></div><span class="tag green">Lokal</span></div>').join('')||'<p class="sub">Belum ada presensi lokal hari ini.</p>';
+  const outHintHtml=e=>{try{const i=window.__wosEarliestOut&&window.__wosEarliestOut(e.code,Date.parse(e.at));if(!i)return'';const t=new Date(i.out).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour12:false});return '<br><span class="sub"><strong>Attendance out paling cepat '+t+' WITA</strong>'+(i.released?' · dibuka SPV (kompensasi)':i.friday?' · Jumat mulai 16.00':' · 7 jam kerja dihitung mulai 08.00')+'</span>'}catch(x){return''}};
+  if(log)log.innerHTML=entries.sort((a,b)=>String(b.at).localeCompare(String(a.at))).map(e=>'<div class="mini"><div><strong>'+escape(staffMaster[e.code]?.name||e.code)+' ('+escape(e.code)+')</strong><br><span class="sub">'+escape(e.action)+' · '+escape(new Date(e.at).toLocaleString('id-ID',{timeZone:'Asia/Makassar',hour12:false}))+' WITA · browser ini</span>'+(e.action==='Attendance in'?outHintHtml(e):'')+'</div><span class="tag green">Lokal</span></div>').join('')||'<p class="sub">Belum ada presensi lokal hari ini.</p>';
  }
  function persistApplications(){try{localStorage.setItem(storageKey,JSON.stringify({changeOff:jotmRequests,annualLeave:annualLeaveRequests,used:jotmUsed,leaveBalances:annualLeaveMaster,changeOffHistory:jotmHistory,leaveHistory:annualLeaveHistory}))}catch{notice.textContent+=' Penyimpanan pengajuan di browser gagal; periksa kapasitas penyimpanan.'}renderSummary()}
  try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){if(Array.isArray(saved.changeOff))jotmRequests.push(...saved.changeOff);if(Array.isArray(saved.annualLeave))annualLeaveRequests.push(...saved.annualLeave);if(saved.used&&typeof saved.used==='object')Object.assign(jotmUsed,saved.used);if(saved.leaveBalances&&typeof saved.leaveBalances==='object')Object.assign(annualLeaveMaster,saved.leaveBalances);if(Array.isArray(saved.changeOffHistory))jotmHistory.push(...saved.changeOffHistory);if(Array.isArray(saved.leaveHistory))annualLeaveHistory.push(...saved.leaveHistory);renderUnifiedApproval()}}catch{}
@@ -2341,7 +2362,7 @@ const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return t
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||'').trim().toUpperCase();
 const ALL_PAGES=['dashboard','attendance','assignment','inbound','productivity','compliance','performance','coaching','reports','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
-const HOLD_PAGES=['assignment','inbound'];
+const HOLD_PAGES=['inbound'];
 const PAGES={SPV:ALL_PAGES,ADMIN:['dashboard','attendance','assignment','inbound','productivity','compliance']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
@@ -2360,7 +2381,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance']:PAGES[account.level]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['assignment']:[])]:PAGES[account.level]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -2368,22 +2389,25 @@ function navVisibility(){
  if(!active||!allowed.has(active.dataset.page)){const first=[...document.querySelectorAll('.nav')].find(b=>allowed.has(b.dataset.page));if(first)first.click()}
 }
 
+const ROLE_CAT={'adm-in':'inbound','opr-in':'inbound','adm-out':'outbound',picker:'outbound',checker:'outbound',packer:'outbound',driver:'outbound',loc:'storage',defect:'other',other:'other'};
+function roleIdsToday(){try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null');return((r&&r.plans&&r.plans[todayWita()]||{})[account.code]||[]).map(s=>s.roleId)}catch(e){return[]}}
+function roleCats(){return[...new Set(roleIdsToday().map(id=>ROLE_CAT[id]||'other'))]}
 function operatorContent(){
  if(account.level!=='OPERATOR')return;
  const att=$('attendance');
  if(att){[...att.children].forEach((c,i)=>{if(c.matches('.note')||c.id==='attendance-real-summary'||c.id==='spl-panel')c.classList.add('wos-hide');if(c.matches('.toolbar'))c.querySelector('button')?.classList.add('wos-hide')});att.querySelectorAll('.card').forEach(c=>{if(/Approval SPV/i.test(c.querySelector('h2,h3')?.textContent||''))c.classList.add('wos-hide')});
   const brs=att.querySelectorAll(':scope>br');brs.forEach(b=>b.classList.add('wos-hide'))}
- const peran=roleToday(),def=PERAN.find(p=>p[0]===peran),cat=def?def[2]:null;
- document.querySelectorAll('#assignment .assignment-category').forEach(d=>{const mine=d.id==='assignment-category-'+cat;d.classList.toggle('wos-hide',!mine);if(mine&&!d.dataset.wosOpened){d.open=true;d.dataset.wosOpened='1'}});
- const outbound=cat==='outbound';
+ const cats=roleCats(),hasRole=id=>roleIdsToday().includes(id);
+ document.querySelectorAll('#assignment .assignment-category').forEach(d=>{const mine=cats.some(c=>d.id==='assignment-category-'+c);d.classList.toggle('wos-hide',!mine);if(mine&&!d.dataset.wosOpened){d.open=true;d.dataset.wosOpened='1'}});
+ const outbound=cats.includes('outbound');
  ['ob-team-panel'].forEach(id=>$(id)?.classList.add('wos-hide'));
  document.querySelectorAll('#ob-board>details').forEach(d=>{if(/Kelola sumber SOQ/i.test(d.querySelector('summary')?.textContent||''))d.classList.add('wos-hide')});
- ['ob-findings','cp-drm-group','cp-incident-group','cp-recap-group','cp-totals','cp-duty-panel'].forEach(id=>$(id)?.classList.add('wos-hide'));
+ ['ob-findings','cp-drm-group','cp-recap-group','cp-totals','cp-duty-panel'].forEach(id=>$(id)?.classList.add('wos-hide'));$('cp-events')?.closest('section')?.classList.add('wos-hide');
  $('cp-role')?.closest('.field')?.classList.add('wos-hide');
  const fr=$('cp-five-r-group');if(fr&&!fr.dataset.wosOpened){fr.open=true;fr.dataset.wosOpened='1'}
  for(const id of ['cp-actor','cp-report-code']){const el=$(id);if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}
- $('ob-lp')?.classList.toggle('wos-hide',!(outbound&&peran==='Driver'));
- $('cpsl-workflow')?.classList.toggle('wos-hide',!(outbound&&peran!=='Picker'));
+ $('ob-lp')?.classList.toggle('wos-hide',!(outbound&&hasRole('driver')));
+ $('cpsl-workflow')?.classList.toggle('wos-hide',!(outbound&&(hasRole('checker')||hasRole('packer')||hasRole('driver'))));
 }
 let obRaw=null,obParsed=null;
 function obState(){try{const raw=localStorage.getItem(OBS);if(raw!==obRaw){obRaw=raw;obParsed=raw?JSON.parse(raw):null}return obParsed}catch(e){return null}}
@@ -2522,6 +2546,7 @@ const clock=ms=>{const d=new Date(ms+WITA);return String(d.getUTCHours()).padSta
 const isFri=ms=>new Date(ms+WITA).getUTCDay()===5,startOf=ms=>Math.max(ms,Date.parse(dayOf(ms)+'T08:00:00+08:00')),friOut=ms=>Date.parse(dayOf(ms)+'T16:00:00+08:00');
 function worked(inMs,nowMs){inMs=startOf(inMs);let total=(nowMs-inMs)/60000;const [b0,b1]=brk(inMs);if(dayOf(inMs)===dayOf(nowMs)){total-=Math.max(0,Math.min(minOfDay(nowMs),b1)-Math.max(minOfDay(inMs),b0))}else total-=(b1-b0);return total}
 function earliestOut(inMs){if(isFri(inMs))return friOut(inMs);let t=startOf(inMs);for(let i=0;i<1500;i++){if(worked(inMs,t)>=NEED)return t;t+=60000}return t}
+window.__wosEarliestOut=(code,inMs)=>({out:earliestOut(inMs),released:released(code),friday:isFri(inMs)});
 const rows=()=>{try{const r=JSON.parse(localStorage.getItem(ATT)||'[]');return Array.isArray(r)?r:[]}catch(e){return[]}};
 const readRel=()=>{try{return JSON.parse(localStorage.getItem(REL)||'{}')||{}}catch(e){return{}}};
 const writeRel=o=>{try{localStorage.setItem(REL,JSON.stringify(o))}catch(e){}};
@@ -2564,23 +2589,24 @@ function spvPanel(){
  if(!spv||!att){box?.remove();return}
  if(!box){box=document.createElement('div');box.id='wos-release';box.className='card';box.style.margin='14px 0';(document.getElementById('attendance-code')?.closest('#attendance > *')||att.querySelector('.toolbar')||att.firstChild).after(box);
   box.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;const r=readRel(),d=todayKey();
-   if(b.id==='wos-rel-grant'){const code=$('wos-rel-code').value,note=$('wos-rel-note').value.trim();if(!code)return;r[d]={...(r[d]||{}),[code]:{by:'SPV',at:new Date().toISOString(),note}};writeRel(r)}
+   if(b.id==='wos-rel-grant'){const code=$('wos-rel-code').value,note=$('wos-rel-note').value.trim(),reason=$('wos-rel-reason').value;if(!code)return;r[d]={...(r[d]||{}),[code]:{by:'SPV',at:new Date().toISOString(),note,reason}};writeRel(r)}
    if(b.dataset.revoke){if(r[d]){delete r[d][b.dataset.revoke];writeRel(r)}}
    box.dataset.sig='';panel()})}
  panel();
  function panel(){
-  const d=todayKey(),ins=[...new Set(rows().filter(r=>r.day===d&&r.action==='Attendance in').map(r=>r.code))].filter(c=>sm()[c]),rel=readRel()[d]||{};
+  const d=todayKey(),ins=Object.keys(sm()).filter(c=>!sm()[c].out).sort((a,b)=>a.localeCompare(b,'id',{numeric:true})),rel=readRel()[d]||{};
   const keep=$('wos-rel-code')?.value||'',noteKeep=$('wos-rel-note')?.value||'';
-  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Operator wajib 7 jam kerja (mulai 08.00 WITA; Jumat out mulai 16.00) sebelum Attendance out. Buka akses di sini agar operator tertentu boleh Attendance out lebih awal. Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staff yang sudah Attendance in</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · masuk '+clock(inTime(c))+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-note">Alasan kompensasi (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staff</th><th>Alasan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
+  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Operator wajib 7 jam kerja (mulai 08.00 WITA; Jumat out mulai 16.00) sebelum Attendance out. Buka akses di sini agar operator tertentu boleh Attendance out lebih awal. Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staf (semua nama)</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · '+(inTime(c)?'masuk '+clock(inTime(c)):'belum Attendance in')+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-reason">Jenis kompensasi</label><select id="wos-rel-reason"><option>Sakit</option><option>Disuruh pulang (keperluan kerja)</option><option>Keperluan pribadi</option><option>Lainnya</option></select></div><div class="field"><label for="wos-rel-note">Keterangan (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staf</th><th>Jenis</th><th>Keterangan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.reason||'-')+'</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
   if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html;const c=$('wos-rel-code'),n=$('wos-rel-note');if(c&&keep)c.value=keep;if(n)n.value=noteKeep}
  }
 }
-function tick(){info();spvPanel()}
+function decorateLog(){const box=$('attendance-log');if(!box)return;box.querySelectorAll('.mini').forEach(m=>{if(m.innerHTML.includes('paling cepat'))return;const t=m.textContent;if(!/Attendance in ·/.test(t))return;const mm=/\((W\d+)\)/.exec(t);if(!mm)return;const inMs=inTime(mm[1]);if(!inMs)return;const i=window.__wosEarliestOut(mm[1],inMs),s=new Date(i.out).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour12:false}),div=m.querySelector('div');if(div)div.insertAdjacentHTML('beforeend','<br><span class="sub"><strong>Attendance out paling cepat '+s+' WITA</strong>'+(i.released?' · dibuka SPV (kompensasi)':i.friday?' · Jumat mulai 16.00':' · 7 jam kerja dihitung mulai 08.00')+'</span>')})}
+function tick(){info();spvPanel();decorateLog()}
 tick();setInterval(()=>{if(!document.hidden)tick()},5000);
 ['input','change'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target.id==='attendance-code'||e.target.id==='attendance-action')info()}));
 })();
 </script>
-<style id="rl-css">
+<style id="rl-css">#cp-duty-panel{display:none!important}
 .rl-chip{display:inline-flex;align-items:center;gap:6px;margin:2px 6px 2px 0;padding:3px 8px;border-radius:999px;background:#FBE5D6;border:1px solid #C55A11;font-size:12px}
 .rl-chip.now{background:#C6E0B4;border-color:#548235;font-weight:700}
 .rl-chip button{border:0;background:transparent;cursor:pointer;color:#b3261e;font-size:13px;padding:0}
@@ -2676,7 +2702,7 @@ function addForm(c){const opts=eligible(c);return '<div class="rl-row"><select i
 function planner(){
  const att=$('attendance');let box=$('rl-planner');
  if(!user()||!att){box?.remove();return}
- if(!box){box=document.createElement('div');box.id='rl-planner';box.className='card';box.style.margin='14px 0';(document.getElementById('wos-release')||(document.getElementById('attendance-code')?.closest('#attendance > *')||att.querySelector('.toolbar')||att.firstChild)).after(box);
+ if(!box){box=document.createElement('div');box.id='rl-planner';box.className='card';box.style.margin='14px 0';(document.getElementById('cp-drm-group')||document.getElementById('wos-release')||(document.getElementById('attendance-code')?.closest('#attendance > *')||att.querySelector('.toolbar')||att.firstChild)).after(box);
   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;R=load();const c=b.dataset.code;
    if(b.dataset.act==='add'){const err=addSlot(c,$('rl-r-'+c).value,$('rl-f-'+c).value,$('rl-t-'+c).value,$('rl-l-'+c).value);say('p',err||('Role ditambahkan untuk '+nameOf(c)+'.'),err?'err':'ok')}
    if(b.dataset.act==='del'){removeSlot(c,b.dataset.id);say('p','Role dihapus.','ok')}
@@ -2684,7 +2710,7 @@ function planner(){
  let html;
  if(isSpv()){
   const staff=Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor'&&!p.out).sort();
-  html='<h2>DRM - Alokasi role harian (SPV)</h2><p class="sub">Setelah briefing, SPV membagikan role beserta rentang jam untuk semua tim. Satu staf boleh punya beberapa role pada jam berbeda (contoh: 08:00-12:00 Picker, 13:00-16:00 Other: Tempel barcode MAMU). Staf juga bisa memilih role untuk dirinya sendiri.</p><div style="overflow:auto"><table><thead><tr><th>Staf</th><th>Hadir</th><th>Role hari ini</th><th>Tambah role</th></tr></thead><tbody>'+staff.map(([c,p])=>{const h=hadirAt(c);return '<tr><td><strong>'+esc(p.name)+'</strong><br><span class="sub">'+esc(c)+' · '+esc(p.role)+'</span></td><td>'+(h?'<span class="tag green">'+hmOf(new Date(h).toISOString())+'</span>':'<span class="tag amber">belum</span>')+'</td><td>'+chips(c,true)+'</td><td>'+addForm(c)+'</td></tr>'}).join('')+'</tbody></table></div>'+msgH('p');
+  html='<h2>Alokasi role harian (SPV)</h2><p class="sub">Setelah briefing, SPV membagikan role beserta rentang jam untuk semua tim. Satu staf boleh punya beberapa role pada jam berbeda (contoh: 08:00-12:00 Picker, 13:00-16:00 Other: Tempel barcode MAMU). Staf juga bisa memilih role untuk dirinya sendiri.</p><div style="overflow:auto"><table><thead><tr><th>Staf</th><th>Hadir</th><th>Role hari ini</th><th>Tambah role</th></tr></thead><tbody>'+staff.map(([c,p])=>{const h=hadirAt(c);return '<tr><td><strong>'+esc(p.name)+'</strong><br><span class="sub">'+esc(c)+' · '+esc(p.role)+'</span></td><td>'+(h?'<span class="tag green">'+hmOf(new Date(h).toISOString())+'</span>':'<span class="tag amber">belum</span>')+'</td><td>'+chips(c,true)+'</td><td>'+addForm(c)+'</td></tr>'}).join('')+'</tbody></table></div>'+msgH('p');
  }else{
   const c=me(),h=hadirAt(c);
   html='<h2>Pilih role hari ini</h2><p class="sub">'+esc(nameOf(c))+' ('+esc(c)+'). Pilih role sesuai arahan SPV pada DRM, lengkap dengan rentang jam. Anda hanya bisa memilih untuk akun sendiri.</p>'+(h?chips(c,true)+'<div style="margin-top:8px">'+addForm(c)+'</div>':'<p class="note">Lakukan <strong>Attendance in</strong> dulu pada panel check-in di bawah, lalu pilih role.</p>')+msgH('p');
@@ -2738,7 +2764,7 @@ function notify(){
  try{document.title='(!) '+text}catch(e){}
 }
 
-function tick(){R=load();masterCard();planner();standby();taskSender();notify()}
+function tick(){R=load();masterCard();planner();standby();taskSender();notify();if(document.getElementById('attendance')?.classList.contains('active'))window.__renderDrm?.()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&document.title.startsWith('(!)'))document.title='W.O.S TIGALAPAN INDONESIA'});
 tick();setInterval(()=>{if(!document.hidden)tick()},3000);
 window.addEventListener('storage',tick);
@@ -2767,6 +2793,255 @@ function enhance(inp){
 }
 function scan(){document.querySelectorAll('input[type=time]').forEach(i=>{enhance(i);i._t24&&i._t24()})}
 scan();setInterval(()=>{if(!document.hidden)scan()},1200);
+})();
+</script>
+<script>
+// COMPLAINT MODULE: SOP dan Komplain - semua temuan (miss picking, miss put away, main HP, tidur, SOP lain) dilaporkan di sini oleh semua staf.
+(()=>{
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TYPES=[['mp','Miss picking'],['mpa','Miss put away'],['hp','Main HP di jam kerja'],['tidur','Tidur di jam kerja'],['sop','Pelanggaran SOP lainnya'],['komplain','Komplain lainnya']];
+const EVENT_TYPE={mp:'Miss picking',mpa:'Miss put away',hp:'Main HP',tidur:'Tidur',sop:'SOP',komplain:'Komplain · lainnya'};
+const sm=()=>{try{return staffMaster}catch(e){return{}}};
+let outlets=null;
+const outletNames=()=>{if(outlets)return outlets;try{const s=JSON.parse(localStorage.getItem('wos-outbound-v1')||'{}');outlets=(s.sources||[]).map(x=>x.name).filter(Boolean)}catch(e){outlets=[]}return outlets};
+const staffOptions=()=>'<option value="">- pilih staf -</option>'+Object.entries(sm()).filter(([,p])=>!p.out).sort((a,b)=>a[0].localeCompare(b[0],'id',{numeric:true})).map(([c,p])=>'<option value="'+esc(c)+'">'+esc(p.name)+' ('+esc(c)+')</option>').join('');
+const F=(id,label,input)=>'<div class="field"><label for="'+id+'">'+label+'</label>'+input+'</div>';
+const inp=(id,ph,extra)=>'<input id="'+id+'" maxlength="120" placeholder="'+esc(ph||'')+'" '+(extra||'')+'>';
+const area=(id,ph)=>'<textarea id="'+id+'" maxlength="1500" placeholder="'+esc(ph||'')+'"></textarea>';
+function fieldsFor(t){
+ const who=F('cx-who','Staf yang miss / terlibat','<select id="cx-who">'+staffOptions()+'</select>');
+ if(t==='mp')return '<div class="form-grid">'+who+F('cx-outlet','Toko / outlet','<input id="cx-outlet" list="cx-outlet-l" maxlength="60" placeholder="Contoh: UPG-01"><datalist id="cx-outlet-l">'+outletNames().map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>')+F('cx-koli','No koli (opsional)',inp('cx-koli','Contoh: 5'))+F('cx-sku','Item / SKU yang salah',inp('cx-sku','Nama item'))+F('cx-qty','Qty (pcs)',inp('cx-qty','Contoh: 12','type="number" min="1"'))+F('cx-kind','Jenis kesalahan','<select id="cx-kind"><option>SKU salah</option><option>Qty kurang</option><option>Qty lebih</option><option>Bin / lokasi salah</option><option>Lainnya</option></select>')+'</div>'+F('cx-story','Bagaimana kejadiannya',area('cx-story','Kronologi singkat: apa yang terjadi, ditemukan oleh siapa / di mana.'));
+ if(t==='mpa')return '<div class="form-grid">'+who+F('cx-sku','Item / SKU',inp('cx-sku','Nama item'))+F('cx-qty','Qty (pcs)',inp('cx-qty','Contoh: 12','type="number" min="1"'))+F('cx-from','Lokasi seharusnya',inp('cx-from','Contoh: A1.1'))+F('cx-to','Lokasi aktual (salah)',inp('cx-to','Contoh: B2.3'))+'</div>'+F('cx-story','Bagaimana kejadiannya',area('cx-story','Kronologi singkat dan siapa yang melakukan put away.'));
+ if(t==='hp'||t==='tidur')return '<div class="form-grid">'+who+F('cx-place','Area / lokasi',inp('cx-place','Contoh: Storage P3'))+F('cx-time','Jam kejadian','<input id="cx-time" type="time">')+'</div>'+F('cx-story','Kejadian / bukti',area('cx-story','Apa yang terlihat, berapa lama, siapa saksinya. Hindari dugaan tanpa bukti.'));
+ return '<div class="form-grid">'+who+F('cx-source','Sumber / referensi',inp('cx-source','Toko, QC, nomor PO, atau saksi'))+'</div>'+F('cx-story','Kejadian',area('cx-story','Fakta kejadian dan bukti / klarifikasi.'));
+}
+function build(sec){
+ const box=document.createElement('div');box.id='cx-form';
+ box.innerHTML='<div class="form-grid"><div class="field"><label for="cx-type">Jenis temuan</label><select id="cx-type">'+TYPES.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join('')+'</select></div></div><div id="cx-fields" style="margin-top:12px"></div><p class="sub">Dilaporkan oleh akun yang sedang login. Tanggal kejadian mengikuti tanggal pemantauan di bagian atas Compliance. Laporan masuk sebagai Menunggu verifikasi dan dicek SPV.</p><button class="button" id="cx-save" type="button">Catat temuan</button><div id="cx-msg" class="sub" style="min-height:18px;margin-top:8px"></div>';
+ sec.append(box);
+ const draw=()=>{$('cx-fields').innerHTML=fieldsFor($('cx-type').value);$('cx-msg').textContent=''};
+ $('cx-type').onchange=draw;draw();
+ $('cx-save').onclick=()=>submit();
+}
+function say(t,err){const m=$('cx-msg');m.textContent=t;m.style.color=err?'#b3261e':'#1b7a46'}
+async function submit(){
+ const t=$('cx-type').value,v=id=>($(id)?.value||'').trim(),who=v('cx-who'),story=v('cx-story');
+ if(!who)return say('Pilih staf yang terlibat.',true);
+ let source='',lines=[];
+ if(t==='mp'){if(!v('cx-sku')||!v('cx-qty'))return say('Isi item dan qty.',true);if(!story)return say('Isi bagaimana kejadiannya.',true);source=(v('cx-outlet')||'Outbound')+(v('cx-koli')?' · koli '+v('cx-koli'):'');lines=['Miss picking','Item: '+v('cx-sku'),'Qty: '+v('cx-qty')+' pcs','Jenis: '+v('cx-kind'),'Kejadian: '+story]}
+ else if(t==='mpa'){if(!v('cx-sku')||!v('cx-qty'))return say('Isi item dan qty.',true);if(!story)return say('Isi bagaimana kejadiannya.',true);source='Put away'+(v('cx-to')?' · '+v('cx-to'):'');lines=['Miss put away','Item: '+v('cx-sku'),'Qty: '+v('cx-qty')+' pcs','Lokasi seharusnya: '+(v('cx-from')||'-'),'Lokasi aktual: '+(v('cx-to')||'-'),'Kejadian: '+story]}
+ else if(t==='hp'||t==='tidur'){if(!story)return say('Isi kejadian atau bukti.',true);source=(v('cx-place')||'Area kerja')+(v('cx-time')?' · '+v('cx-time'):'');lines=[t==='hp'?'Main HP di jam kerja':'Tidur di jam kerja','Area: '+(v('cx-place')||'-'),'Jam: '+(v('cx-time')||'-'),'Kejadian: '+story]}
+ else{if(!story)return say('Isi kejadian.',true);source=v('cx-source')||'Laporan staf';lines=[t==='sop'?'Pelanggaran SOP':'Komplain','Kejadian: '+story]}
+ const sel=$('cp-event-type');const name=EVENT_TYPE[t];if(![...sel.options].some(o=>o.value===name||o.text===name))sel.add(new Option(name,name));sel.value=name;
+ if(![...$('cp-event-person').options].some(o=>o.value===who))return say('Staf tidak ada di daftar Compliance.',true);
+ $('cp-event-person').value=who;$('cp-event-source').value=source;$('cp-event-detail').value=lines.join(' | ');
+ $('cp-event-save').click();
+ await new Promise(r=>setTimeout(r,700));
+ if($('cp-event-detail').value===''){
+  say('Temuan tercatat dan menunggu verifikasi SPV.');
+  if(t==='mp')bridgeOutbound(who,v);
+  $('cx-fields').innerHTML=fieldsFor(t);
+ }else say(($('cp-message')?.textContent)||'Gagal mencatat temuan. Periksa isian dan tanggal.',true);
+}
+// Miss picking juga dicatat di data temuan Outbound agar rekap picker (Productivity) tetap terisi.
+function bridgeOutbound(who,v){
+ const al=window.alert;window.alert=()=>{};
+ try{const set=(id,val)=>{const el=$(id);if(!el||val==null)return false;if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===val))return false;el.value=val;return true};
+  const kind=v('cx-kind');
+  if(set('ob-find-date',$('cp-date')?.value)&&set('ob-find-picker',who)&&set('ob-find-by','SPV')){
+   set('ob-find-outlet',v('cx-outlet'));set('ob-find-koli',v('cx-koli'));
+   const ty=$('ob-find-type');if(ty){const o=[...ty.options].find(x=>new RegExp(kind.split(' ')[0],'i').test(x.text))||ty.options[0];if(o)ty.value=o.value}
+   const n=$('ob-find-note');if(n)n.value='Dilaporkan lewat SOP & Komplain: '+v('cx-sku')+' · '+v('cx-qty')+' pcs · '+v('cx-story');
+   $('ob-find-save')?.click()}
+ }catch(e){}finally{window.alert=al}
+}
+function init(){
+ const person=$('cp-event-person');if(!person)return;
+ const sec=person.closest('section');if(!sec||sec.dataset.cx)return;sec.dataset.cx='1';
+ [...sec.children].forEach(c=>{if(c.tagName!=='H2'&&c.tagName!=='P')c.classList.add('wos-hide')});
+ const h=sec.querySelector('h2');if(h)h.textContent='SOP dan Komplain - laporan temuan';
+ const p=sec.querySelector('p.sub');if(p)p.textContent='Semua staf yang mendapati temuan dapat melapor di sini: miss picking, miss put away, main HP, tidur di jam kerja, atau pelanggaran lain. Hanya kejadian terverifikasi yang masuk rekap.';
+ build(sec);
+ const f=$('ob-findings');if(f){f.hidden=true;document.body.append(f)}
+}
+init();
+})();
+</script>
+<style id="fold-css">
+.card.wos-collapsed>*:not(.wos-head){display:none!important}
+.wos-head{cursor:pointer;position:relative}
+.wos-fold-btn{border:0;background:transparent;font-size:15px;cursor:pointer;color:inherit;opacity:.7;padding:0 6px;margin-left:6px;vertical-align:middle;transition:transform .15s}
+.card.wos-collapsed .wos-fold-btn{transform:rotate(-90deg)}
+</style>
+<script>
+// COLLAPSE MODULE: setiap kartu / jobdesk di semua halaman bisa dibuka-tutup dengan klik judulnya (status diingat per browser).
+(()=>{
+ const KEY='wos-folds-v1';let st={};try{st=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){}
+ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+ const keyOf=(c,head)=>((c.closest('.page')||{}).id||'x')+'|'+(head.textContent||'').trim().replace(/[▾\s]+$/,'').slice(0,60);
+ function headOf(c){return c.querySelector(':scope > .card-head')||c.querySelector(':scope > h2')||c.querySelector(':scope > h3')}
+ function scan(){
+  document.querySelectorAll('.page .card').forEach(c=>{
+   if(c.querySelector(':scope > .metric-label')||c.querySelector(':scope > .metric')||c.id==='wos-login')return;
+   const parentCard=c.parentElement&&c.parentElement.closest('.card');if(parentCard&&!parentCard.matches('details'))return;
+   const head=headOf(c);if(!head||c.children.length<2)return;
+   if(head.classList.contains('wos-head')&&head.querySelector('.wos-fold-btn'))return;
+   head.classList.add('wos-head');
+   if(!head.querySelector('.wos-fold-btn')){const b=document.createElement('button');b.type='button';b.className='wos-fold-btn';b.setAttribute('aria-label','Buka atau tutup bagian');b.textContent='▾';(head.querySelector('h2,h3')||head).append(b)}
+   if(!c.dataset.foldInit){c.dataset.foldInit='1';if(st[keyOf(c,head)])c.classList.add('wos-collapsed')}
+  });
+ }
+ document.addEventListener('click',e=>{
+  const head=e.target.closest&&e.target.closest('.wos-head');if(!head)return;
+  if(e.target.closest('input,select,textarea,a,summary')||(e.target.closest('button')&&!e.target.closest('.wos-fold-btn')))return;
+  const c=head.parentElement;if(!c||!c.classList.contains('card'))return;
+  c.classList.toggle('wos-collapsed');const k=keyOf(c,head);if(c.classList.contains('wos-collapsed'))st[k]=1;else delete st[k];save();
+ });
+ scan();setInterval(()=>{if(!document.hidden)scan()},1500);
+ document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>setTimeout(scan,80)));
+})();
+</script>
+<script>
+// COACHING MODULE: kompilasi staf bermasalah (tidak hadir, terlambat, sakit, tidak DRM, tidak lapor 5R, temuan) + catatan coaching.
+(()=>{
+ const $=id=>document.getElementById(id),WITA=8*3600e3;
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const readJ=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
+ const writeJ=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+ const todayK=()=>new Date(Date.now()+WITA).toISOString().slice(0,10);
+ const sm=()=>{try{return staffMaster}catch(e){return{}}};
+ const TH_DEF={absent:2,late:3,sick:3,drm:2,fiver:2,events:1};
+ const COLS=[['absent','Tidak hadir'],['late','Terlambat (>08.10)'],['sick','Sakit / pulang awal'],['drm','Tidak ikut DRM'],['fiver','Tidak lapor 5R'],['events','Temuan SOP / komplain']];
+ let from=todayK().slice(0,8)+'01',to=todayK(),mark={};
+ const staffList=()=>Object.entries(sm()).filter(([,p])=>!p.out&&p.role!=='Supervisor').sort((a,b)=>a[0].localeCompare(b[0],'id',{numeric:true}));
+ function compute(){
+  const att=readJ('wos-attendance-kpi-v1',[]).filter(r=>r.day>=from&&r.day<=to&&r.action==='Attendance in');
+  const ins={};att.forEach(r=>{const o=ins[r.code]=ins[r.code]||{},t=Date.parse(r.at);if(!(r.day in o)||t<o[r.day])o[r.day]=t});
+  const workdays=[...new Set(att.map(r=>r.day))].length;
+  const rel=readJ('wos-attendance-release-v1',{}),snap=(window.__complianceSnapshot&&window.__complianceSnapshot())||{days:[],events:[]};
+  const evs=snap.events.filter(e=>e.day>=from&&e.day<=to&&e.status==='valid'),th={...TH_DEF,...readJ('wos-coaching-th-v1',{})};
+  return staffList().map(([code,p])=>{
+   const days=ins[code]||{},present=Object.keys(days).length;
+   const m={absent:Math.max(0,workdays-present),late:Object.values(days).filter(t=>(((t+WITA)%86400000)/60000)>490).length,
+    sick:Object.entries(rel).filter(([d,o])=>d>=from&&d<=to&&o&&o[code]&&/sakit/i.test(o[code].reason||'')).length,
+    drm:evs.filter(e=>e.code===code&&e.type==='DRM').length,fiver:evs.filter(e=>e.code===code&&/^(5R|Temuan 5R)$/.test(e.type)).length,
+    events:evs.filter(e=>e.code===code&&!/^(DRM|5R|Temuan 5R)$/.test(e.type)).length};
+   const flags=COLS.filter(([k])=>m[k]>=th[k]&&m[k]>0).map(([,l])=>l);
+   return{code,name:p.name,m,flags,workdays,present};
+  }).sort((a,b)=>b.flags.length-a.flags.length||Object.values(b.m).reduce((x,y)=>x+y,0)-Object.values(a.m).reduce((x,y)=>x+y,0));
+ }
+ function render(){
+  const host=$('wos-coaching');if(!host)return;
+  const rows=compute(),th={...TH_DEF,...readJ('wos-coaching-th-v1',{})},notes=readJ('wos-coaching-v1',[]);
+  const problem=rows.filter(r=>r.flags.length);
+  const html='<div class="card"><div class="card-head"><div><h2>Staf perlu coaching (otomatis)</h2><span class="sub">Dikompilasi dari presensi, DRM, laporan 5R, serta temuan SOP dan komplain. Staf ditandai bila salah satu indikator mencapai batasnya.</span></div></div>'+
+  '<div class="form-grid"><div class="field"><label for="co-from">Dari</label><input id="co-from" type="date" value="'+from+'"></div><div class="field"><label for="co-to">Sampai</label><input id="co-to" type="date" value="'+to+'"></div></div>'+
+  '<details style="margin-top:8px"><summary>Batas indikator</summary><div class="form-grid" style="margin-top:8px">'+COLS.map(([k,l])=>'<div class="field"><label for="co-th-'+k+'">'+l+' (min.)</label><input id="co-th-'+k+'" type="number" min="1" value="'+th[k]+'"></div>').join('')+'</div></details>'+
+  '<p class="sub" style="margin-top:8px">Hari kerja pada periode: '+(rows[0]?rows[0].workdays:0)+' hari (hari dengan minimal satu Attendance in). "Tidak hadir" = hari kerja tanpa Attendance in; cuti dan izin yang belum tercatat sebagai data presensi belum terhitung. Data hanya dari browser ini.</p>'+
+  '<div style="overflow:auto"><table><thead><tr><th>Staf</th>'+COLS.map(c=>'<th>'+c[1]+'</th>').join('')+'<th>Status</th><th></th></tr></thead><tbody>'+rows.map(r=>'<tr'+(r.flags.length?' style="background:rgba(220,80,60,.07)"':'')+'><td><strong>'+esc(r.name)+'</strong><br><span class="sub">'+esc(r.code)+'</span></td>'+COLS.map(([k])=>'<td'+(r.flags.includes(COLS.find(c=>c[0]===k)[1])?' style="font-weight:700;color:#b3261e"':'')+'>'+r.m[k]+'</td>').join('')+'<td>'+(r.flags.length?'<span class="tag red">Perlu coaching</span><br><span class="sub">'+esc(r.flags.join(', '))+'</span>':'<span class="tag green">Aman</span>')+'</td><td><button class="button secondary" type="button" data-co-add="'+esc(r.code)+'">Catat coaching</button></td></tr>').join('')+'</tbody></table></div><p class="sub">Staf perlu coaching: '+problem.length+' dari '+rows.length+'.</p></div>'+
+  '<div class="card" id="co-form-card" style="margin-top:14px"><div class="card-head"><h2>Catat coaching</h2></div><div class="form-grid"><div class="field"><label for="co-who">Staf</label><select id="co-who"><option value="">- pilih staf -</option>'+rows.map(r=>'<option value="'+esc(r.code)+'">'+esc(r.name)+' ('+esc(r.code)+')</option>').join('')+'</select></div><div class="field"><label for="co-topic">Fokus perbaikan</label><input id="co-topic" maxlength="100" placeholder="Contoh: sering terlambat"></div><div class="field"><label for="co-target">Target improvement</label><input id="co-target" maxlength="100" placeholder="Contoh: maksimal 1 terlambat / bulan"></div><div class="field"><label for="co-fu">Tanggal follow-up</label><input id="co-fu" type="date"></div></div><div class="field" style="margin-top:10px"><label for="co-note">Catatan coaching</label><textarea id="co-note" maxlength="800"></textarea></div><button class="button" id="co-save" type="button" style="margin-top:10px">Simpan catatan</button><span id="co-msg" class="sub"></span></div>'+
+  '<div class="card" style="margin-top:14px"><div class="card-head"><h2>Follow-up coaching</h2></div>'+(notes.length?'<div style="overflow:auto"><table><thead><tr><th>Staf</th><th>Fokus</th><th>Target</th><th>Follow-up</th><th>Catatan</th><th>Status</th><th></th></tr></thead><tbody>'+notes.slice().reverse().map((n,i)=>'<tr><td>'+esc(sm()[n.code]?.name||n.code)+'</td><td>'+esc(n.topic)+'</td><td>'+esc(n.target||'-')+'</td><td>'+esc(n.fu||'-')+'</td><td>'+esc(n.note||'-')+'</td><td>'+(n.done?'<span class="tag green">Selesai</span>':'<span class="tag amber">Terbuka</span>')+'</td><td>'+(n.done?'':'<button class="button secondary" type="button" data-co-done="'+esc(n.id)+'">Selesai</button>')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada catatan coaching.</p>')+'</div>';
+  if(host.dataset.sig!==html){const keep={who:$('co-who')?.value,topic:$('co-topic')?.value,target:$('co-target')?.value,fu:$('co-fu')?.value,note:$('co-note')?.value};host.dataset.sig=html;host.innerHTML=html;for(const k of Object.keys(keep))if(keep[k]&&$('co-'+k))$('co-'+k).value=keep[k]}
+ }
+ function init(){
+  const page=$('coaching');if(!page||$('wos-coaching'))return;
+  [...page.children].forEach(c=>{if(!c.classList.contains('toolbar')&&!c.querySelector('.toolbar')&&!(c.querySelector('h2')&&c.querySelector('h2').textContent==='Coaching'))c.classList.add('wos-hide')});
+  const sub=page.querySelector('.toolbar .sub');if(sub)sub.textContent='Staf bermasalah dikompilasi otomatis: sering tidak hadir, terlambat, sakit, tidak DRM, tidak lapor 5R, dan temuan';
+  const btn=page.querySelector('.toolbar button');if(btn)btn.classList.add('wos-hide');
+  const host=document.createElement('div');host.id='wos-coaching';page.append(host);
+  host.addEventListener('change',e=>{const t=e.target;if(t.id==='co-from'){from=t.value||from;render()}else if(t.id==='co-to'){to=t.value||to;render()}else if(t.id&&t.id.startsWith('co-th-')){const th=readJ('wos-coaching-th-v1',{});th[t.id.slice(6)]=Math.max(1,Number(t.value)||1);writeJ('wos-coaching-th-v1',th);host.dataset.sig='';render()}});
+  host.addEventListener('click',e=>{
+   const add=e.target.closest('[data-co-add]');
+   if(add){const r=compute().find(x=>x.code===add.dataset.coAdd);$('co-who').value=add.dataset.coAdd;$('co-topic').value=r&&r.flags.length?r.flags.join(', '):'';$('co-form-card').scrollIntoView({block:'nearest'});return}
+   const done=e.target.closest('[data-co-done]');
+   if(done){const n=readJ('wos-coaching-v1',[]),x=n.find(i=>i.id===done.dataset.coDone);if(x){x.done=true;x.doneAt=new Date().toISOString();writeJ('wos-coaching-v1',n);host.dataset.sig='';render()}return}
+   if(e.target.id==='co-save'){const who=$('co-who').value,topic=$('co-topic').value.trim();if(!who||!topic){$('co-msg').textContent=' Pilih staf dan isi fokus perbaikan.';return}
+    const n=readJ('wos-coaching-v1',[]);n.push({id:'C'+Date.now(),code:who,topic,target:$('co-target').value.trim(),fu:$('co-fu').value,note:$('co-note').value.trim(),at:new Date().toISOString(),done:false});writeJ('wos-coaching-v1',n);
+    ['topic','target','fu','note'].forEach(k=>$('co-'+k).value='');host.dataset.sig='';render();$('co-msg').textContent=' Catatan tersimpan.'}
+  });
+  render();
+ }
+ init();
+ document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='coaching')setTimeout(()=>{const h=$('wos-coaching');if(h){h.dataset.sig='';render()}},60)}));
+})();
+</script>
+<script>
+// REPORT MODULE: Report Produk (in/out barang) dan Report Man Power (siapa kerja apa, berapa, berapa lama).
+(()=>{
+ const $=id=>document.getElementById(id),WITA=8*3600e3;
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const readJ=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
+ const todayK=()=>new Date(Date.now()+WITA).toISOString().slice(0,10);
+ const sm=()=>{try{return staffMaster}catch(e){return{}}};
+ const n=v=>Number(v||0).toLocaleString('id-ID');
+ const hm=ms=>new Date(ms+WITA).toISOString().slice(11,16).replace(':','.');
+ const dur=min=>min>0?(Math.floor(min/60)?Math.floor(min/60)+' j ':'')+(min%60)+' m':'-';
+ const toMin=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?Number(m[1])*60+Number(m[2]):NaN};
+ let day=todayK(),tab='produk';
+ const sameDay=(dmy,iso)=>{const p=String(dmy||'').split('/').map(Number);if(p.length!==3)return false;const[y,m,d]=iso.split('-').map(Number);return p[0]===d&&p[1]===m&&p[2]===y};
+ function outbound(){
+  const s=readJ('wos-outbound-v1',{}),names=Object.fromEntries((s.sources||[]).map(x=>[x.id,x.name])),by={},pickers={};
+  Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date!==day)return;
+   const o=by[r.source]=by[r.source]||{name:names[r.source]||r.outlet||r.source,koli:new Set(),soq:0,act:0,soo:0,lines:0};
+   o.lines++;o.soq+=Number(r.soq)||0;o.act+=Number(r.actual)||0;o.soo+=Number(r.shortage)||0;if(r.koli)o.koli.add(r.koli);
+   if(r.picker){const p=pickers[r.picker]=pickers[r.picker]||{koli:new Set(),pcs:0,lines:0,t:[]};p.koli.add(r.source+'|'+r.koli);p.pcs+=Number(r.actual)||0;p.lines++;if(r.vpAt)p.t.push(Number(r.vpAt)||Date.parse(r.vpAt))}}));
+  return{stores:Object.values(by).sort((a,b)=>a.name.localeCompare(b.name)),pickers};
+ }
+ function inbound(){
+  const list=(typeof goodReceiptBatches!=='undefined'?goodReceiptBatches:[]).filter(b=>sameDay(b.date,day)),by={};
+  list.forEach(b=>{const o=by[b.po]=by[b.po]||{po:b.po,batches:0,koli:0,pcs:0,done:0};o.batches++;o.koli+=Array.isArray(b.koli)?b.koli.length:Number(b.totalKoli)||0;o.pcs+=Number(String(b.totalPcs).replace(/\D/g,''))||(b.items||[]).reduce((a,i)=>a+(Number(i.pcs)||0),0);if(b.putAway&&b.counting)o.done++});
+  return{pos:Object.values(by),batches:list};
+ }
+ function produk(){
+  const ob=outbound(),ib=inbound();
+  const ti={koli:ib.pos.reduce((a,x)=>a+x.koli,0),pcs:ib.pos.reduce((a,x)=>a+x.pcs,0)};
+  const to={koli:ob.stores.reduce((a,x)=>a+x.koli.size,0),soq:ob.stores.reduce((a,x)=>a+x.soq,0),act:ob.stores.reduce((a,x)=>a+x.act,0),soo:ob.stores.reduce((a,x)=>a+x.soo,0)};
+  const card=(l,v,c)=>'<div class="card"><span class="metric-label">'+l+'</span><div class="metric '+(c||'')+'">'+v+'</div></div>';
+  return '<div class="grid three">'+card('Inbound (GR) hari ini',n(ti.pcs)+' pcs','good')+card('Inbound koli / PO',n(ti.koli)+' koli · '+ib.pos.length+' PO')+card('Outbound ke toko',ob.stores.length+' toko · '+n(to.koli)+' koli')+'</div><div class="grid three" style="margin-top:12px">'+card('Outbound SOQ',n(to.soq)+' pcs')+card('Outbound ACT (picking)',n(to.act)+' pcs','good')+card('SOO (selisih)',n(to.soo)+' pcs',to.soo?'warn':'good')+'</div>'+
+  '<h3 style="margin-top:16px">Inbound dari vendor (data Form GR)</h3><div style="overflow:auto">'+(ib.pos.length?'<table><thead><tr><th>PO / vendor</th><th>Batch GR</th><th>Koli</th><th>Pcs</th><th>Counting + put away selesai</th></tr></thead><tbody>'+ib.pos.map(x=>'<tr><td>'+esc(x.po)+'</td><td>'+x.batches+'</td><td>'+x.koli+'</td><td>'+n(x.pcs)+'</td><td>'+x.done+' / '+x.batches+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada GR pada tanggal ini.</p>')+'</div>'+
+  '<h3 style="margin-top:16px">Outbound per toko (data SOQ)</h3><div style="overflow:auto">'+(ob.stores.length?'<table><thead><tr><th>Toko</th><th>Koli</th><th>Baris SKU</th><th>SOQ (pcs)</th><th>ACT (pcs)</th><th>SOO (pcs)</th></tr></thead><tbody>'+ob.stores.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.koli.size+'</td><td>'+x.lines+'</td><td>'+n(x.soq)+'</td><td>'+n(x.act)+'</td><td>'+n(x.soo)+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada SOQ pada tanggal ini.</p>')+'</div>';
+ }
+ function manpower(){
+  const ob=outbound(),ib=inbound(),att=readJ('wos-attendance-kpi-v1',[]).filter(r=>r.day===day),plans=(readJ('wos-roles-v1',{plans:{}}).plans||{})[day]||{},master=readJ('wos-roles-v1',{master:[]}).master||[],tasks=readJ('wos-tasks-v1',[]).filter(t=>t.day===day&&t.status==='selesai');
+  const roleName=id=>(master.find(r=>r.id===id)||{}).name||id;
+  const rows=Object.entries(sm()).filter(([,p])=>!p.out&&p.role!=='Supervisor').sort((a,b)=>a[0].localeCompare(b[0],'id',{numeric:true})).map(([code,p])=>{
+   const ins=att.filter(r=>r.code===code&&r.action==='Attendance in').map(r=>Date.parse(r.at)),outs=att.filter(r=>r.code===code&&r.action==='Attendance out').map(r=>Date.parse(r.at));
+   const slots=(plans[code]||[]).slice().sort((a,b)=>toMin(a.from)-toMin(b.from)),roleMin=slots.reduce((a,s)=>a+Math.max(0,toMin(s.to)-toMin(s.from)),0);
+   const work=[];let workMin=0;
+   const pk=ob.pickers[code];if(pk){const t=pk.t.filter(Number.isFinite),d0=t.length>1?Math.round((Math.max(...t)-Math.min(...t))/60000):0,d=d0>0&&d0<=600?d0:0;workMin+=d;work.push('Picker: '+pk.koli.size+' koli · '+n(pk.pcs)+' pcs · '+pk.lines+' baris SKU'+(d?' · ±'+dur(d)+' (VP pertama-terakhir)':''))}
+   const gb=ib.batches.filter(b=>String(b.pic||'').split(/[,\s]+/).includes(code));if(gb.length){let m=0;gb.forEach(b=>{const l=String(b.leadTime||'').split(':').map(Number);if(l.length>=2&&l.every(Number.isFinite))m+=l[0]*60+l[1]});workMin+=m;work.push('GR: '+gb.length+' batch · '+gb.reduce((a,b)=>a+(Array.isArray(b.koli)?b.koli.length:0),0)+' koli'+(m?' · '+dur(m):''))}
+   const tk=tasks.filter(t=>t.by2===code);if(tk.length){const m=tk.reduce((a,t)=>a+(t.ackAt&&t.doneAt?Math.round((Date.parse(t.doneAt)-Date.parse(t.ackAt))/60000):0),0);workMin+=m;work.push('Task: '+tk.length+' selesai'+(m?' · '+dur(m):''))}
+   const inT=ins.length?Math.min(...ins):null,outT=outs.length?Math.max(...outs):null;
+   return{code,name:p.name,inT,outT,slots,roleMin,work,workMin,roleName};
+  });
+  const hadir=rows.filter(r=>r.inT).length;
+  return '<p class="sub">Siapa mengerjakan apa, berapa, dan berapa lama pada '+esc(day)+'. Sumber: Attendance, role harian (DRM), data picking / GR, dan task. Hadir '+hadir+' dari '+rows.length+' staf.</p><div style="overflow:auto"><table><thead><tr><th>Staf</th><th>Hadir</th><th>Role dan jam (durasi)</th><th>Pekerjaan tercatat (apa dan berapa)</th><th>Lama kerja tercatat</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.name)+'</strong><br><span class="sub">'+esc(r.code)+'</span></td><td>'+(r.inT?hm(r.inT)+' - '+(r.outT?hm(r.outT):'belum out'):'<span class="tag red">Belum hadir</span>')+'</td><td>'+(r.slots.length?r.slots.map(s=>esc(s.from)+'-'+esc(s.to)+' '+esc(r.roleName(s.roleId)+(s.label?': '+s.label:''))).join('<br>')+'<br><span class="sub">Total role '+dur(r.roleMin)+'</span>':'<span class="sub">-</span>')+'</td><td>'+(r.work.length?r.work.map(esc).join('<br>'):'<span class="sub">-</span>')+'</td><td>'+dur(r.workMin)+'</td></tr>').join('')+'</tbody></table></div>';
+ }
+ function render(){
+  const host=$('wos-report-main');if(!host)return;
+  const html='<div class="card"><div class="card-head"><div><h2>Report operasional</h2><span class="sub">Dua sudut pandang: produk (barang masuk dan keluar) dan man power (siapa, apa, berapa, berapa lama).</span></div></div><div class="form-grid"><div class="field"><label for="rp-day">Tanggal</label><input id="rp-day" type="date" value="'+day+'"></div></div><div class="filters" style="margin:10px 0"><button type="button" class="filter'+(tab==='produk'?' active':'')+'" data-rp-tab="produk" style="'+(tab==='produk'?'font-weight:700;border-color:#b5532a':'')+'">Report Produk</button><button type="button" class="filter" data-rp-tab="mp" style="'+(tab==='mp'?'font-weight:700;border-color:#b5532a':'')+'">Report Man Power</button><button type="button" class="button secondary" data-rp-csv="1">Unduh CSV</button></div><div id="rp-body">'+(tab==='produk'?produk():manpower())+'</div></div>';
+  if(host.dataset.sig!==html){host.dataset.sig=html;host.innerHTML=html}
+ }
+ function csv(){
+  const rows=[];const t=document.querySelectorAll('#rp-body table');
+  t.forEach(tb=>{tb.querySelectorAll('tr').forEach(tr=>rows.push([...tr.children].map(c=>c.innerText.replace(/\s+/g,' ').trim())));rows.push([])});
+  const body=rows.map(r=>r.map(c=>/[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c).join(',')).join('\r\n');
+  const url=URL.createObjectURL(new Blob(['﻿'+body],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='report-'+(tab==='produk'?'produk':'manpower')+'-'+day+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+ }
+ function init(){
+  const page=$('reports');if(!page||$('wos-report-main'))return;
+  [...page.children].forEach(c=>{if(!c.id&&/Buka laporan/.test(c.textContent))c.classList.add('wos-hide')});
+  const host=document.createElement('div');host.id='wos-report-main';
+  const tb=page.querySelector('.toolbar');(tb||page.firstChild).after(host);
+  const sub=page.querySelector('.toolbar .sub');if(sub)sub.textContent='Report produk (in dan out barang) dan report man power (siapa kerja apa)';
+  const eb=page.querySelector('.toolbar button');if(eb)eb.classList.add('wos-hide');
+  host.addEventListener('change',e=>{if(e.target.id==='rp-day'&&e.target.value){day=e.target.value;host.dataset.sig='';render()}});
+  host.addEventListener('click',e=>{const t=e.target.closest('[data-rp-tab]');if(t){tab=t.dataset.rpTab;host.dataset.sig='';render();return}if(e.target.closest('[data-rp-csv]'))csv()});
+  render();
+ }
+ init();
+ document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='reports')setTimeout(()=>{const h=$('wos-report-main');if(h){h.dataset.sig='';render()}},60)}));
 })();
 </script>
 </body></html>
