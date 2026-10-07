@@ -14,7 +14,7 @@ body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba
 .brand{border:0;margin:0;text-align:left}
 .brand-logo img{width:auto;height:38px;max-width:none}.nav{white-space:nowrap;width:auto;padding:8px}.page{padding:18px 16px}.topbar{padding:0 16px}.metric-grid,.two,.three{grid-template-columns:1fr 1fr}.assignment-row{grid-template-columns:1fr 1fr}}@media(max-width:560px){.metric-grid,.two,.three,.form-grid{grid-template-columns:1fr}.topbar{height:auto;padding:12px 16px}.topbar p{display:none}.assignment-row{grid-template-columns:1fr}.toolbar{align-items:flex-start}.metric{font-size:23px}th:nth-child(4),td:nth-child(4){display:none}}
 </style>
-<style id="wos-auth-lock">#wos-login{display:none}html.wos-locked #wos-login{display:flex}html.wos-locked .app{display:none!important}</style><script>try{if(!sessionStorage.getItem('wos-session-v1'))document.documentElement.classList.add('wos-locked')}catch(e){document.documentElement.classList.add('wos-locked')}</script>
+<style id="wos-auth-lock">#wos-login{display:none}html.wos-locked #wos-login{display:flex}html.wos-locked .app{display:none!important}</style><script>try{if(!sessionStorage.getItem('wos-session-code'))document.documentElement.classList.add('wos-locked')}catch(e){document.documentElement.classList.add('wos-locked')}</script>
 </head>
 <body><div class="app"><aside class="sidebar"><div class="brand"><div class="brand-logo"><img src="assets/logo-tigalapan.png" alt="Tigalapan Indonesia" width="1080" height="436"></div><div class="brand-sub">W.O.S · Warehouse Operation System</div></div><div class="nav-group">OPERASIONAL</div><button class="nav active" data-page="dashboard">Dashboard</button><button class="nav" data-page="attendance">Attendance</button><button class="nav" data-page="assignment">Assignment</button><button class="nav" data-page="productivity">Productivity</button><button class="nav" data-page="compliance">Compliance</button><div class="nav-group">PEOPLE DEVELOPMENT</div><button class="nav" data-page="performance">Performance</button><button class="nav" data-page="coaching">Coaching</button><div class="nav-group">KONTROL</div><button class="nav" data-page="reports">Report</button><button class="nav" data-page="master">Master Data</button><div class="profile"><strong>Ahmad Assidiq</strong><br>Supervisor DC</div></aside><main><header class="topbar"><div><h1 id="title">Dashboard operasional</h1><p id="subtitle">Distribusi Center 38 · Minggu, 20 September 2026</p></div><div class="userdot">AA</div></header>
 
@@ -896,10 +896,10 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  $('report-send').onclick=async()=>{
   try{
    const row=captureRow(),capture=draft;if(!capture||capture.id!==row.id||capture.area!==row.area)throw Error('Bukti harus diambil untuk petugas dan area yang dipilih.');
-   if(row.report&&row.report.approval!=='rejected')throw Error('Laporan sedang menunggu approval atau sudah disetujui. Kirim ulang hanya setelah ditolak.');
+   if(row.report&&row.report.approval==='approved')throw Error('Laporan 5R ini sudah disetujui SPV.');
    $('report-send').disabled=true;
    const at=Date.now(),fileId=crypto.randomUUID();
-   if(await mutate(s=>{const current=s.days.find(r=>r.id===capture.id);if(!current||current.exempt||(current.report&&current.report.approval!=='rejected')||current.area!==capture.area)throw Error('Penugasan berubah atau laporan sudah ada. Muat ulang data.');
+   if(await mutate(s=>{const current=s.days.find(r=>r.id===capture.id);if(!current||current.exempt||(current.report&&current.report.approval==='approved')||current.area!==capture.area)throw Error('Penugasan berubah atau laporan sudah ada. Muat ulang data.');
     if(current.report){current.reportHistory=current.reportHistory||[];current.reportHistory.push(current.report);}
     current.report={at,kind:capture.kind,fileId,capturedAt:capture.capturedAt,size:capture.blob.size,approval:'pending'};audit(s,'Laporan 5R '+current.id+' tersimpan ('+capture.kind+'), menunggu approval SPV');
    },{id:fileId,blob:capture.blob})){stopCamera();$('camera-status').textContent=label(row.code)+' — Menunggu approval SPV (tersimpan lokal).';notice('Bukti tersimpan, belum dihitung Done. Gunakan simulasi SPV untuk melihat bukti dan mengisi checklist approval.');}
@@ -1790,6 +1790,7 @@ if(typeof document!=='undefined')(()=>{
  const initials=s=>String(s||'').trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('')||'-';
  const eff=code=>{const s=SEED[code]||[],d=drafts[code]||{};return{idStaff:d.idStaff??s[0]??'',category:d.category??s[1]??'',fullName:d.fullName??s[2]??'',department:d.department||DEPT,team:d.team||''}};
  for(const code of codes){const name=String(drafts[code]?.name||'').trim();if(name&&drafts[code]?.nameEdited)staffMaster[code].name=name}
+ window.getEmployeeProfile=code=>staffMaster[code]?{...eff(code),name:staffMaster[code].name,role:staffMaster[code].role,out:!!staffMaster[code].out}:null;
  const ST='wos-employee-status-v1',loadSt=()=>{try{const s=JSON.parse(localStorage.getItem(ST)||'{}')||{};return{removed:Array.isArray(s.removed)?s.removed:[],out:s.out&&typeof s.out==='object'?s.out:{}}}catch{return{removed:[],out:{}}}};
  const saveSt=s=>{try{localStorage.setItem(ST,JSON.stringify(s));return true}catch{alert('Penyimpanan browser penuh / tidak tersedia.');return false}};
  const dmy=iso=>iso?String(iso).slice(0,10).split('-').reverse().join('/'):'';
@@ -1949,7 +1950,7 @@ const sm=()=>{try{return staffMaster}catch(e){return{}}};
 const CODES={supervisor:'W999',admin:'W09',operator:'W24'};
 const sess=()=>{try{return sessionStorage.getItem(SESS)||'supervisor'}catch(e){return'supervisor'}};
 const level=()=>({supervisor:'SPV',admin:'ADMIN',operator:'OPERATOR'}[sess()]||'SPV');
-const myCode=()=>CODES[sess()]||'';
+const myCode=()=>{try{return sessionStorage.getItem('wos-session-code')||CODES[sess()]||''}catch(e){return CODES[sess()]||''}};
 const isAdm=()=>level()!=='OPERATOR';
 const staffOpts=sel=>Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor'&&!p.out).sort().map(([c,p])=>'<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+esc(c)+' · '+esc(p.name)+'</option>').join('');
 const staffName=c=>sm()[c]?.name||c;
@@ -2312,24 +2313,29 @@ window.addEventListener('storage',e=>{if(e.key===KEY){S=load()}});
  <form class="box" id="wos-login-form" autocomplete="off">
   <img src="assets/logo-tigalapan.png" alt="Tigalapan Indonesia" width="1080" height="436">
   <h1 id="wos-login-title">W.O.S · Warehouse Operation System</h1>
-  <span class="sub">Masuk dengan akun simulasi (belum terhubung ke database)</span>
-  <label for="wos-user">Username</label><input id="wos-user" name="wos-user" autocomplete="username" autocapitalize="none" spellcheck="false">
+  <span class="sub">Masuk dengan Kode Staff dan password (password awal = ID Staff)</span>
+  <label for="wos-user">Kode Staff (username)</label><input id="wos-user" name="wos-user" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="Contoh: W28">
   <label for="wos-pass">Password</label>
   <div class="row"><input id="wos-pass" name="wos-pass" type="password" autocomplete="current-password"><button type="button" class="show" id="wos-show">Lihat</button></div>
   <div class="err" id="wos-login-err" role="alert"></div>
   <button class="go" id="wos-login-go" type="submit">Masuk</button>
-  <div class="hint">Mode simulasi lokal. Login ini hanya membatasi tampilan di browser dan bukan pengganti login asli.</div>
+  <div class="hint">Mode simulasi: data tersimpan di browser ini. Satu akun boleh dipakai di beberapa perangkat. Login ini bukan pengganti keamanan sebenarnya (menunggu Supabase).</div>
  </form>
 </div>
 <script>
 (()=>{
 const SALT=':wos-sim-v1',KEY='wos-session-v1',ROLEKEY='wos-op-role-v1',ATT='wos-attendance-kpi-v1',OBS='wos-outbound-v1';
 const sm=()=>{try{return staffMaster}catch(e){return{}}};
-const ACCOUNTS={
- supervisor:{hash:'f8f83405f4b975412db5fd937d5896eadb1c31c07ed81d782a406e3b3a64c700',level:'SPV',label:'Supervisor',code:'W999'},
- admin:{hash:'52eaba08c3af1bd9e72bf3205b1eb5f2b565205e8cd0418deeb0380aabdfc525',level:'ADMIN',label:'Admin',code:'W09'},
- operator:{hash:'92dfe8bbe90dff167a22c42466463726e93274967867dbb770493d80e7160f27',level:'OPERATOR',label:'Operator',code:'W24'}
-};
+// Login: username = kode staff, password awal = ID staff (dapat diubah pengguna). Akun supervisor (W999) = akun master:
+// bisa mereset password, masuk sebagai staf untuk maintenance, dan punya kunci pemulihan. Data akun disimpan di browser ini (simulasi).
+const MASTER_HASH='f8f83405f4b975412db5fd937d5896eadb1c31c07ed81d782a406e3b3a64c700',MASTER_CODE='W999';
+const CODEKEY='wos-session-code',IMPKEY='wos-impersonator',CREDKEY='wos-credentials-v1';
+const LEVEL_OF=role=>role==='Supervisor'?'SPV':role==='Admin'?'ADMIN':'OPERATOR';
+const ALIAS={SPV:'supervisor',ADMIN:'admin',OPERATOR:'operator'};
+const buildAccount=code=>{const p=sm()[code];if(!p||p.out)return null;const level=LEVEL_OF(p.role);return{code,level,label:level==='SPV'?'Supervisor':level==='ADMIN'?'Admin':'Operator'}};
+const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')||{}}catch(e){return{}}};
+const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
+const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||'').trim().toUpperCase();
 const ALL_PAGES=['dashboard','attendance','assignment','inbound','productivity','compliance','performance','coaching','reports','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 const HOLD_PAGES=['assignment','inbound'];
@@ -2339,7 +2345,9 @@ const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
 const hex=buf=>[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
 async function hash(p){if(!window.crypto?.subtle)throw Error('Browser perlu HTTPS atau localhost untuk login.');return hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p+SALT)))}
-const getSession=()=>{try{const u=sessionStorage.getItem(KEY);return u&&ACCOUNTS[u]?u:null}catch(e){return null}};
+const credHash=(code,p)=>hash(code+'|'+p);
+async function passwordOk(code,pass){const cred=readCreds()[code];if(cred)return cred.hash===await credHash(code,pass);const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id}
+const getSession=()=>{try{const c=sessionStorage.getItem(CODEKEY);return c&&buildAccount(c)?c:null}catch(e){return null}};
 const displayName=a=>sm()[a.code]?.name||a.label;
 let me=null,account=null;
 
@@ -2420,13 +2428,53 @@ function operatorCard(){
   html+='<p class="note"><strong>Peran: '+def[1]+'</strong><br>Kehadiran dan peran Anda tercatat. Tugas kerja diterima dari WMS; hasil pekerjaan terekap otomatis di Productivity.</p><div class="row"><button class="button secondary" id="wos-op-change" type="button">Ganti peran</button></div>'}
  if(card.dataset.sig!==html){card.dataset.sig=html;card.innerHTML=html}
 }
-function lockAttendance(){if(account.level==='OPERATOR'){const el=$('attendance-code');if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}else{const el=$('attendance-code');if(el)el.disabled=false}}
+function lockAttendance(){if(account.level!=='SPV'){const el=$('attendance-code');if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}else{const el=$('attendance-code');if(el)el.disabled=false}}
 
+const impersonating=()=>{try{return sessionStorage.getItem(IMPKEY)}catch(e){return null}};
+function endSession(){try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(CODEKEY);sessionStorage.removeItem(IMPKEY)}catch(x){}location.reload()}
+function switchTo(code,imp){try{sessionStorage.setItem(CODEKEY,code);if(imp)sessionStorage.setItem(IMPKEY,imp);else sessionStorage.removeItem(IMPKEY)}catch(x){}location.reload()}
 function accountBox(){
- let box=$('wos-account');if(!box){box=document.createElement('div');box.id='wos-account';box.className='wos-account';document.querySelector('.sidebar')?.append(box);box.addEventListener('click',e=>{if(e.target.closest('#wos-logout')){try{sessionStorage.removeItem(KEY)}catch(x){}location.reload()}})}
- box.innerHTML='<strong></strong><span></span><button id="wos-logout" type="button">Keluar</button>';
- box.querySelector('strong').textContent=displayName(account);box.querySelector('span').textContent=account.label+(account.level==='OPERATOR'?' · operasional':account.level==='ADMIN'?' · operasional (semua modul operasional)':' · semua modul & master');
+ let box=$('wos-account');if(!box){box=document.createElement('div');box.id='wos-account';box.className='wos-account';document.querySelector('.sidebar')?.append(box);box.addEventListener('click',e=>{
+  if(e.target.closest('#wos-logout'))endSession();
+  if(e.target.closest('#wos-chpass'))openPassModal();
+  if(e.target.closest('#wos-back'))switchTo(impersonating()||MASTER_CODE,null)})}
+ const imp=impersonating();
+ box.innerHTML='<strong></strong><span></span>'+(imp?'<div style="margin-top:8px;padding:6px 8px;border-radius:8px;background:rgba(255,230,150,.9);color:#5c4300;font-size:11px">Mode maintenance: masuk sebagai staf. <button id="wos-back" type="button" style="margin-top:4px">Kembali ke Supervisor</button></div>':'')+'<button id="wos-chpass" type="button">Ubah password</button><button id="wos-logout" type="button">Keluar</button>';
+ box.querySelector('strong').textContent=displayName(account)+' ('+account.code+')';box.querySelector('span').textContent=account.label+(account.level==='OPERATOR'?' · operasional':account.level==='ADMIN'?' · operasional (semua modul operasional)':' · akun master, semua modul');
 }
+function openPassModal(){
+ let m=$('wos-pass-modal');if(m)m.remove();
+ m=document.createElement('div');m.id='wos-pass-modal';m.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px';
+ m.innerHTML='<form style="background:#fff;color:#222;border-radius:12px;padding:20px;max-width:360px;width:100%" autocomplete="off"><h3 style="margin:0 0 6px">Ubah password</h3><p style="font-size:12px;color:#666;margin:0 0 10px">Akun '+esc(account.code)+'. Password tersimpan di browser ini (simulasi); perangkat lain tetap memakai password awal sampai database bersama aktif.</p><label style="font-size:12px;font-weight:600">Password saat ini</label><input id="pw-old" type="password" style="width:100%;box-sizing:border-box;padding:8px;margin:4px 0 8px"><label style="font-size:12px;font-weight:600">Password baru (min. 6 karakter)</label><input id="pw-new" type="password" style="width:100%;box-sizing:border-box;padding:8px;margin:4px 0 8px"><label style="font-size:12px;font-weight:600">Ulangi password baru</label><input id="pw-new2" type="password" style="width:100%;box-sizing:border-box;padding:8px;margin:4px 0 8px"><div id="pw-msg" style="min-height:18px;font-size:12px;color:#b3261e"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="button" type="submit">Simpan</button><button class="button secondary" type="button" id="pw-cancel">Batal</button></div></form>';
+ document.body.append(m);
+ m.querySelector('#pw-cancel').onclick=()=>m.remove();
+ m.querySelector('form').onsubmit=async ev=>{ev.preventDefault();const msg=m.querySelector('#pw-msg'),o=m.querySelector('#pw-old').value,n=m.querySelector('#pw-new').value,n2=m.querySelector('#pw-new2').value;msg.style.color='#b3261e';
+  try{if(!await passwordOk(account.code,o)){msg.textContent='Password saat ini salah.';return}
+   if(n.length<6){msg.textContent='Password baru minimal 6 karakter.';return}if(n!==n2){msg.textContent='Ulangi password baru dengan sama.';return}if(n===o){msg.textContent='Password baru harus berbeda.';return}
+   const c=readCreds();c[account.code]={hash:await credHash(account.code,n),changedAt:new Date().toISOString()};if(!saveCreds(c)){msg.textContent='Gagal menyimpan di browser ini.';return}
+   msg.style.color='#1b7a46';msg.textContent='Password diubah. Gunakan password baru saat login berikutnya.';setTimeout(()=>m.remove(),1400)}
+  catch(e){msg.textContent=e.message||'Gagal mengubah password.'}};
+ m.querySelector('#pw-old').focus();
+}
+
+// ---------- panel akun master (hanya supervisor, halaman Settings) ----------
+const dmyIso=iso=>iso?String(iso).slice(0,10).split('-').reverse().join('/'):'';
+function masterPanel(){
+ const host=$('access');let box=$('wos-master-accounts');
+ if(!account||account.level!=='SPV'||impersonating()||!host){box?.remove();return}
+ if(!box){box=document.createElement('div');box.id='wos-master-accounts';box.className='card';box.style.margin='14px 0';(host.querySelector('.toolbar')||host.firstChild).after(box);
+  box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const act=b.dataset.act,code=b.dataset.code;
+   if(act==='reset'){if(!confirm('Reset password '+code+' ke password awal (ID staff)?'))return;const c=readCreds();delete c[code];saveCreds(c);box.dataset.sig='';masterPanel()}
+   if(act==='as'){if(!confirm('Masuk sebagai '+displayName({code,label:''})+' ('+code+') untuk maintenance? Anda bisa kembali ke Supervisor dari sidebar.'))return;switchTo(code,account.code)}
+   if(act==='sim-day'){if(!confirm('Hapus presensi, role, dan task HARI INI di browser ini?'))return;resetToday();box.dataset.sig='';masterPanel();alert('Data simulasi hari ini dihapus.')}
+   if(act==='sim-all'){if(!confirm('Hapus SEMUA data simulasi (presensi, role, task, SPL, laporan 5R)? Master karyawan dan password tidak ikut dihapus.'))return;resetAll()}})}
+ const staff=Object.entries(sm()).sort((a,b)=>a[0].localeCompare(b[0],'id',{numeric:true})),creds=readCreds();
+ const html='<h2>Akun dan maintenance (akun master)</h2><p class="sub">Login memakai kode staff; password awal = ID staff. Satu akun boleh dipakai di beberapa perangkat sekaligus, jadi staf bisa meminjam HP teman untuk presensi. Supervisor dapat mereset password dan masuk sebagai staf bila ada gagal login. Data simulasi tersimpan di browser ini.</p><div style="overflow:auto"><table><thead><tr><th>Kode</th><th>Nama</th><th>Level</th><th>ID staff (password awal)</th><th>Password</th><th>Kelola</th></tr></thead><tbody>'+staff.map(([c,p])=>{const lv=LEVEL_OF(p.role),id=idStaffOf(c);return '<tr'+(p.out?' style="opacity:.6"':'')+'><td><strong>'+esc(c)+'</strong></td><td>'+esc(p.name)+(p.out?' <span class="tag red">Out</span>':'')+'</td><td>'+esc(lv==='SPV'?'Supervisor (master)':lv==='ADMIN'?'Admin':'Operator')+'</td><td>'+(id?esc(id):'<span class="tag red">Belum ada ID staff</span>')+'</td><td>'+(creds[c]?'<span class="tag purple">Diubah '+dmyIso(creds[c].changedAt)+'</span>':'<span class="tag amber">Password awal</span>')+'</td><td>'+(p.out?'-':'<button class="button secondary" data-act="reset" data-code="'+esc(c)+'" type="button">Reset password</button> '+(c===account.code?'':'<button class="button secondary" data-act="as" data-code="'+esc(c)+'" type="button">Masuk sebagai</button>'))+'</td></tr>'}).join('')+'</tbody></table></div><h3 style="margin-top:16px">Simulasi dan maintenance</h3><div class="rl-row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="button secondary" data-act="sim-day" type="button">Reset data simulasi hari ini</button><button class="button secondary" data-act="sim-all" type="button">Reset semua data simulasi</button></div><p class="sub">Dipakai untuk mengulang simulasi dari awal. Master karyawan, master role, master 5R, dan password tidak ikut dihapus.</p>';
+ if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html}
+}
+function resetToday(){const d=todayWita();try{const a=JSON.parse(localStorage.getItem(ATT)||'[]');if(Array.isArray(a))localStorage.setItem(ATT,JSON.stringify(a.filter(r=>r.day!==d)))}catch(e){}try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null');if(r&&r.plans){delete r.plans[d];localStorage.setItem('wos-roles-v1',JSON.stringify(r))}}catch(e){}try{const t=JSON.parse(localStorage.getItem('wos-tasks-v1')||'[]');if(Array.isArray(t))localStorage.setItem('wos-tasks-v1',JSON.stringify(t.filter(x=>x.day!==d)))}catch(e){}try{localStorage.removeItem('wos-attendance-release-v1')}catch(e){}try{Object.keys(localStorage).filter(k=>k.startsWith('wos-task-seen-v1-')).forEach(k=>localStorage.removeItem(k))}catch(e){}}
+function resetAll(){['wos-attendance-kpi-v1','wos-tasks-v1','wos-attendance-release-v1','wos-spl-v1','wos-op-role-v1'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null');if(r){r.plans={};localStorage.setItem('wos-roles-v1',JSON.stringify(r))}}catch(e){}try{Object.keys(localStorage).filter(k=>k.startsWith('wos-task-seen-v1-')).forEach(k=>localStorage.removeItem(k))}catch(e){}
+ try{const rq=indexedDB.deleteDatabase('wos-compliance-v1');rq.onsuccess=rq.onerror=rq.onblocked=()=>{};}catch(e){}setTimeout(()=>location.reload(),600)}
 
 function applyModes(){
  const L=account.level;
@@ -2436,8 +2484,8 @@ function applyModes(){
 }
 function refresh(){if(!account)return;navVisibility();operatorContent();lockAttendance()}
 function start(u){
- me=u;account=ACCOUNTS[u];document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
- accountBox();applyModes();refresh();
+ me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
+ accountBox();applyModes();refresh();masterPanel();setInterval(()=>{if(!document.hidden)masterPanel()},3000);
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
  setInterval(()=>{if(!document.hidden)refresh()},3000);
@@ -2446,12 +2494,15 @@ function start(u){
 
 const form=$('wos-login-form');
 $('wos-show').onclick=()=>{const p=$('wos-pass');p.type=p.type==='password'?'text':'password';$('wos-show').textContent=p.type==='password'?'Lihat':'Sembunyi'};
-form.onsubmit=async ev=>{ev.preventDefault();const u=$('wos-user').value.trim().toLowerCase(),err=$('wos-login-err'),btn=$('wos-login-go');err.textContent='';btn.disabled=true;
- try{const a=ACCOUNTS[u],h=await hash($('wos-pass').value);if(!a||a.hash!==h){err.textContent='Username atau password salah.';return}
-  sessionStorage.setItem(KEY,u);$('wos-pass').value='';start(u)}
+form.onsubmit=async ev=>{ev.preventDefault();const code=$('wos-user').value.trim().toUpperCase(),pass=$('wos-pass').value,err=$('wos-login-err'),btn=$('wos-login-go');err.textContent='';btn.disabled=true;
+ try{if(!buildAccount(code)){err.textContent='Kode staff tidak ditemukan atau sudah tidak aktif (Out).';return}
+  let ok=await passwordOk(code,pass);
+  if(!ok&&code===MASTER_CODE&&await hash(pass)===MASTER_HASH)ok=true;
+  if(!ok){err.textContent='Kode staff atau password salah. Password awal adalah ID staff Anda.';return}
+  sessionStorage.setItem(CODEKEY,code);sessionStorage.removeItem(IMPKEY);$('wos-pass').value='';start(code)}
  catch(e){err.textContent=e.message||'Login gagal.'}
  finally{btn.disabled=false}};
-const saved=getSession();if(saved)start(saved);else setTimeout(()=>$('wos-user')?.focus(),50);
+const saved=getSession();if(saved)start(saved);else{document.documentElement.classList.add('wos-locked');setTimeout(()=>$('wos-user')?.focus(),50)}
 })();
 </script>
 <script>
@@ -2552,7 +2603,7 @@ const toMin=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec(t||'');return m?Number(m[1])*
 const hmOf=iso=>new Date(Date.parse(iso)+WITA).toISOString().slice(11,16);
 const sm=()=>{try{return staffMaster}catch(e){return{}}};
 const user=()=>{try{return sessionStorage.getItem(SESS)}catch(e){return null}};
-const me=()=>CODES[user()]||'';
+const me=()=>{try{return sessionStorage.getItem('wos-session-code')||CODES[user()]||''}catch(e){return CODES[user()]||''}};
 const isSpv=()=>user()==='supervisor';
 const canSend=()=>user()==='supervisor'||user()==='admin';
 const grp=c=>sm()[c]?.role||'';
