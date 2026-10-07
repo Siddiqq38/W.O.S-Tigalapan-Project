@@ -4,8 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>W.O.S TIGALAPAN INDONESIA</title><link rel="icon" type="image/png" href="assets/logo-tigalapan.png">
 <style>
-:root{--navy:#b5532a;--blue:#1675bd;--blue-pale:#e8f4fd;--ink:#18334b;--muted:#63788b;--line:#dbe5ed;--bg:#f4f7fa;--white:#fff;--green:#087e5b;--green-bg:#e2f5ec;--amber:#a95f00;--amber-bg:#fff1d7;--red:#b83a33;--red-bg:#fae7e5;--purple:#6853b9;--purple-bg:#eeeaff}*{box-sizing:border-box}body{margin:0;background:linear-gradient(155deg,#ffffff 0%,#f6d9c8 18%,#d9774a 42%,#b5532a 62%,#4a2a1c 86%,#0e0b0a 100%) fixed,var(--bg);color:var(--ink);font:14px Inter,Segoe UI,Arial,sans-serif}
-body.dark{background:linear-gradient(155deg,#2b1a12 0%,#7a3519 40%,#3a1f14 70%,#070504 100%) fixed,var(--bg)}
+:root{--navy:#b5532a;--blue:#1675bd;--blue-pale:#e8f4fd;--ink:#18334b;--muted:#63788b;--line:#dbe5ed;--bg:#f4f7fa;--white:#fff;--green:#087e5b;--green-bg:#e2f5ec;--amber:#a95f00;--amber-bg:#fff1d7;--red:#b83a33;--red-bg:#fae7e5;--purple:#6853b9;--purple-bg:#eeeaff}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px Inter,Segoe UI,Arial,sans-serif}
+body.dark{background:var(--bg)}body::before{content:"";position:fixed;left:0;top:0;right:0;bottom:0;z-index:-1;pointer-events:none;background:linear-gradient(155deg,#ffffff 0%,#f6d9c8 18%,#d9774a 42%,#b5532a 62%,#4a2a1c 86%,#0e0b0a 100%);transform:translateZ(0)}body.dark::before{background:linear-gradient(155deg,#2b1a12 0%,#7a3519 40%,#3a1f14 70%,#070504 100%)}
 .page .toolbar:not(.card *),.page>.form-grid{background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba(23,40,56,.94)}.app{min-height:100vh;display:grid;grid-template-columns:252px 1fr}.sidebar{background:var(--navy);color:#fbe6d9;padding:18px 12px}.brand{padding:4px 8px 16px;color:#fff;text-align:center;border-bottom:1px solid rgba(255,255,255,.22);margin-bottom:6px}
 .brand-logo{display:flex;justify-content:center;align-items:center}
@@ -1233,7 +1233,11 @@ if(typeof document!=='undefined')(()=>{
  window.getOutboundKpiData=()=>({...window.getOutboundSuggestionData(),logistics:structuredClone(state.cpslTasks||{}),operations:structuredClone(state.operations||{}),findings:structuredClone(state.findings||[])});
  const table=(heads,rows)=>'<table><thead><tr>'+heads.map(h=>'<th>'+E(h)+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(cells=>'<tr class="'+(cells.critical?'ob-critical':'')+'">'+cells.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+heads.length+'">Belum ada data pada periode ini.</td></tr>')+'</tbody></table>';
  const tag=(label,color)=>'<span class="tag '+color+'">'+E(label)+'</span>',metrics=(t,rows)=>{const by=[...new Set(rows.map(r=>r.outlet))].map(o=>[o,C.totals(rows.filter(r=>r.outlet===o))]);return [['Target teralokasi',x=>n(x.allocated)+' pcs'],['ACT Picking',x=>n(x.actual)+' pcs'],['VP terverifikasi',x=>n(x.verified)+' pcs'],['Koli selesai VP',x=>x.doneKoli+' / '+x.koli],['Picker ditugaskan',x=>x.pickers+' orang'],['SOO terkonfirmasi',x=>n(x.shortage)+' pcs']].map(([l,f])=>'<div class="card"><span class="sub">'+l+'</span><div class="metric">'+f(t)+'</div>'+by.map(([o,x])=>'<div class="sub" style="font-size:11px;margin-top:3px">'+E(o)+' '+f(x)+'</div>').join('')+'</div>').join('');};
- const details=g=>'<details><summary>'+g.rows.length+' baris SKU</summary>'+table(['SKU','SOQ','ACT','Bin','SOO','VP','KET'],g.rows.map(r=>[E(r.sku),n(r.soq),r.actual===null?'Belum diisi':n(r.actual),E(r.location||'—'),r.shortage?n(r.shortage):'—',tag(r.verified?'Terverifikasi':r.issue||'Menunggu',r.verified?'green':'amber'),E(r.notes||'—')]))+'</details>';
+ const detailTable=g=>table(['SKU','SOQ','ACT','Bin','SOO','VP','KET'],g.rows.map(r=>[E(r.sku),n(r.soq),r.actual===null?'Belum diisi':n(r.actual),E(r.location||'—'),r.shortage?n(r.shortage):'—',tag(r.verified?'Terverifikasi':r.issue||'Menunggu',r.verified?'green':'amber'),E(r.notes||'—')]))
+ // Tabel SKU per koli baru dibuat saat baris dibuka (menghemat ribuan elemen DOM).
+ const details=g=>'<details data-ob-g="'+E(g.id)+'"><summary>'+g.rows.length+' baris SKU</summary><div></div></details>'
+ var obGroupMap=new Map(),obOpen=new Set();
+ const fillDetail=d=>{const g=obGroupMap.get(d.dataset.obG);if(g&&!d.dataset.filled){d.dataset.filled='1';d.querySelector('div').innerHTML=detailTable(g)}};
  const steps=[['transfer','Transfer MOKA'],['document','Surat jalan / STTB']];
  let dateTouched=false,selectedChain=[],editPackage=null,editLoad=null,directoryStatus='Jadwal SOQ belum disinkronkan sesi ini.';state.loadPlans=state.loadPlans||{};
  const directoryPanel=card('directory','Master outlet & Jadwal SOQ','master');directoryPanel.insertAdjacentHTML('beforeend','<p id="ob-directory-status" class="sub"></p><div id="ob-directory-table" class="ob-table"></div>');
@@ -1256,7 +1260,7 @@ if(typeof document!=='undefined')(()=>{
  $('load-save').onclick=()=>{if(!editLoad||!loadReady(editLoad))return $('load-error').textContent='SOQ belum siap: periksa VP, transfer stok, dan sinkronisasi.';const items=readLoadItems();if(!$('departure').value||!$('expedition').value.trim())return $('load-error').textContent='Isi rencana berangkat dan ekspedisi.';if(Object.values(items).some(x=>!Number.isFinite(x.length*x.width*x.height)||x.length<=0||x.width<=0||x.height<=0))return $('load-error').textContent='Isi P × L × T positif untuk setiap koli.';if(Object.values(items).some(x=>x.length>470||x.width>193.5||x.height>205))return $('load-error').textContent='Ada ukuran koli melebihi salah satu sisi bak; periksa ulang dimensi.';const previous=state.loadPlans[editLoad.id];state.loadPlans[editLoad.id]={departure:$('departure').value,expedition:$('expedition').value.trim(),vehicle:$('vehicle').value.trim(),items,updatedAt:new Date().toISOString()};if(!save()){state.loadPlans[editLoad.id]=previous;return $('load-error').textContent='Gagal menyimpan pada browser.';}$('load-editor').hidden=true;editLoad=null;renderLoadPlans();};$('load-cancel').onclick=()=>{$('load-editor').hidden=true;editLoad=null;};
  const cpsl=CpslWorkflow.mount({host:ops,getState:()=>state,getRows:all,save,isFresh:id=>!!live[id]&&!alerts[id]&&Date.now()-live[id]<120000,staff:staffMaster,escape:E});
  document.getElementById('cpsl-workflow').style.display='none';
- var obPageSet=null;function obActive(){if(!obPageSet)obPageSet=[...new Set([...document.querySelectorAll('[id^="ob-"]')].map(e=>e.closest('.page')).filter(Boolean))];return !obPageSet.length||obPageSet.some(p=>p.classList.contains('active'))}var obStale=false,obLazyMiss=false;
+ var obPageSet=null;function obActive(){if(!obPageSet)obPageSet=[...new Set([...document.querySelectorAll('[id^="ob-"]')].map(e=>e.closest('.page')).filter(Boolean))];return !obPageSet.length||obPageSet.some(p=>p.classList.contains('active'))}var obStale=false,obLazyMiss=false,obAll=false;
  function render(){if(document.hidden||!obActive()){obStale=true;buildChains();return}obStale=false;renderNow()}
  function renderNow(){obLazyMiss=false;
   if(!dateTouched&&$('date').value!==today())$('date').value=today();
@@ -1273,9 +1277,11 @@ if(typeof document!=='undefined')(()=>{
   const syncNote='<p class="sub">'+E($('message').textContent)+'</p>';
   $('dashboard-data').insertAdjacentHTML('beforeend',syncNote);
   if(!rows.length){const sources=state.sources.filter(s=>!$('source-filter').value||s.id===$('source-filter').value),fresh=sources.length&&sources.every(s=>live[s.id]&&!alerts[s.id]);$('summary').innerHTML='<p class="sub">'+(fresh?'SOQ belum tersedia untuk tanggal '+E($('date').value)+' pada outlet terpilih. Belum muncul pada data yang dipublikasikan Admin.':'Data SOQ belum dapat dipastikan. Tunggu sinkronisasi atau tekan Refresh SOQ; bukan berarti SOQ belum diupload.')+'</p>';$('dashboard-data').innerHTML=$('summary').innerHTML+syncNote;}
-  var lazyHeavy=function(el){var v=!!el.offsetParent;if(!v)obLazyMiss=true;return v};if(lazyHeavy($('assignments')))$('assignments').innerHTML=table(['Tanggal / toko / batch','Picker','Target','Jadwal & status','Kelola'],groups.map((g,i)=>{const s=sch(g),status=st(g),cells=[E(g.date)+'<br>'+E(g.outlet)+'<br>'+E(g.batch)+'<br><span class="sub">Pertama terbaca: '+E(state.firstSeen[C.key([g.source,g.date,g.batch])]?new Date(state.firstSeen[C.key([g.source,g.date,g.batch])]).toLocaleString('id-ID',{timeZone:'Asia/Makassar'}):'belum diketahui')+'</span>',person(g.picker),'Koli '+E(g.koli)+' · '+n(g.target)+' pcs'+(g.critical?'<br>'+tag('CRITICAL','red'):''),E(s?s.start+'–'+s.finish+' WITA':'Belum dijadwalkan')+'<br>'+tag(...status)+(s?.vpDoneAt?'<br><span class="sub">Selesai VP '+fmtClock(Date.parse(s.vpDoneAt))+'</span>':s?.vpStartAt?'<br><span class="sub">Picking selesai '+fmtClock(Date.parse(s.vpStartAt))+'</span>':''),'<button class="button secondary" data-ob-schedule="'+i+'">'+(s?.auto?'Ubah jadwal':'Atur jadwal')+'</button><br><span class="sub">ACT '+n(g.actual)+' / '+n(g.target)+' pcs · '+(g.target?Math.round(g.actual/g.target*100):0)+'%</span>'+details(g)];cells.critical=g.critical;return cells;}));
-  var progShown=lazyHeavy($('progress-data'));if(progShown)$('progress-data').innerHTML=table(['Toko / batch / koli','Picker','ACT / target pcs','VP / total SKU','Status'],groups.map(g=>[E(g.outlet)+'<br>'+E(g.batch)+' · koli '+E(g.koli),person(g.picker),n(g.actual)+' / '+n(g.target)+'<br>'+g.filled+'/'+g.rows.length+' SKU selesai dicatat',g.checked+'/'+g.rows.length+' · '+n(g.verified)+' pcs',tag(...st(g))+details(g)]));
+  obGroupMap=new Map(groups.map(g=>[g.id,g]));var obCap=obAll?groups:groups.slice(0,40);var lazyHeavy=function(el){var v=!!el.offsetParent;if(!v)obLazyMiss=true;return v};if(lazyHeavy($('assignments')))$('assignments').innerHTML=table(['Tanggal / toko / batch','Picker','Target','Jadwal & status','Kelola'],obCap.map((g,i)=>{const s=sch(g),status=st(g),cells=[E(g.date)+'<br>'+E(g.outlet)+'<br>'+E(g.batch)+'<br><span class="sub">Pertama terbaca: '+E(state.firstSeen[C.key([g.source,g.date,g.batch])]?new Date(state.firstSeen[C.key([g.source,g.date,g.batch])]).toLocaleString('id-ID',{timeZone:'Asia/Makassar'}):'belum diketahui')+'</span>',person(g.picker),'Koli '+E(g.koli)+' · '+n(g.target)+' pcs'+(g.critical?'<br>'+tag('CRITICAL','red'):''),E(s?s.start+'–'+s.finish+' WITA':'Belum dijadwalkan')+'<br>'+tag(...status)+(s?.vpDoneAt?'<br><span class="sub">Selesai VP '+fmtClock(Date.parse(s.vpDoneAt))+'</span>':s?.vpStartAt?'<br><span class="sub">Picking selesai '+fmtClock(Date.parse(s.vpStartAt))+'</span>':''),'<button class="button secondary" data-ob-schedule="'+i+'">'+(s?.auto?'Ubah jadwal':'Atur jadwal')+'</button><br><span class="sub">ACT '+n(g.actual)+' / '+n(g.target)+' pcs · '+(g.target?Math.round(g.actual/g.target*100):0)+'%</span>'+details(g)];cells.critical=g.critical;return cells;}));
+  var progShown=lazyHeavy($('progress-data'));if(progShown)$('progress-data').innerHTML=table(['Toko / batch / koli','Picker','ACT / target pcs','VP / total SKU','Status'],obCap.map(g=>[E(g.outlet)+'<br>'+E(g.batch)+' · koli '+E(g.koli),person(g.picker),n(g.actual)+' / '+n(g.target)+'<br>'+g.filled+'/'+g.rows.length+' SKU selesai dicatat',g.checked+'/'+g.rows.length+' · '+n(g.verified)+' pcs',tag(...st(g))+details(g)]));
   if(progShown)$('progress-data').insertAdjacentHTML('beforeend',syncNote+'<p class="sub">Delay pada baris yang ACT-nya lengkap berarti menunggu VP/checker melewati jadwal, bukan otomatis kesalahan picker. SOQ tidak memuat waktu selesai aktual; waktu refresh bukan waktu selesai picking.</p>');
+  document.querySelectorAll('#ob-assignments details[data-ob-g],#ob-progress-data details[data-ob-g]').forEach(d=>{if(obOpen.has(d.dataset.obG)){d.open=true;fillDetail(d)}});
+  if(groups.length>40&&!obAll){const mk='<p><button class="button secondary" data-ob-showall type="button">Tampilkan semua '+groups.length+' koli (sekarang 40 teratas)</button></p>';if(progShown)$('progress-data').insertAdjacentHTML('beforeend',mk);if($('assignments').offsetParent)$('assignments').insertAdjacentHTML('beforeend',mk)}
   $('exceptions').innerHTML=table(['Baris','Toko / tanggal','SKU / picker','SOQ / SOO','Keterangan'],rows.filter(r=>!r.allocated||r.issue).map(r=>{const cells=[r.line,E(r.outlet)+'<br>'+E(r.date||'Tanggal tidak valid'),E(r.sku)+'<br>'+E(r.picker),n(r.soq||0)+' / '+n(r.shortage),E(!r.allocated&&r.shortage>0?'SOO: permintaan '+n(r.soq)+' − ACT '+n(r.actual||0)+' = '+n(r.shortage)+' pcs':(r.issue||r.notes||'Lengkapi tanggal, No. koli, dan picker pada SOQ'))];cells.critical=r.critical;return cells;}));
   const packages=[...new Set(groups.map(g=>g.package))].map(k=>({key:k,groups:groups.filter(g=>g.package===k)})).filter(p=>p.groups.every(g=>g.done));
   $('ops-data').innerHTML=table(['Toko / batch / koli','Admin','Transfer & dokumen','CPSL / Driver','Kelola'],packages.map((p,i)=>{const g=p.groups[0],o=state.operations[p.key]||{},t=state.cpslTasks?.[p.key];return [E(g.outlet)+'<br>'+E(g.batch)+' · '+E(g.koli),person(o.admin||'W14'),tag(o.transfer&&o.document?'Done admin':'Assignment transfer stok',o.transfer&&o.document?'green':'amber')+'<br>'+E(o.reference||'Belum dicatat'),t?.checkpoints?.unloading?'Unloading dikonfirmasi driver (bukan GR toko)':t?.checkpoints?.loading?'Sudah loading / shipment':'Lihat antrean CPSL & Driver','<button class="button secondary" data-ob-ops="'+i+'">Catat administrasi</button>']}));
@@ -1487,7 +1493,7 @@ if(typeof document!=='undefined')(()=>{
   for(let i=0;i<state.sources.length;i+=3)await Promise.all(state.sources.slice(i,i+3).map(async s=>{try{const parsed=C.parse(await readCsv(s.url),s,parsePublishedCsv);C.markSeen(parsed,state.firstSeen,cycleStamp);state.archive[s.id]=C.merge(state.archive[s.id]||[],parsed).filter(r=>(r.date!==today()||parsed.some(p=>p.date===today()))&&(!/^\d{4}-\d{2}-\d{2}$/.test(r.date||'')||r.date>=retainFrom()));live[s.id]=Date.now();delete alerts[s.id];}catch(e){alerts[s.id]='Gagal sinkron ('+e.message+'); data terakhir mungkin usang'}}));
   await directoryTask;busy=false;save();cpsl.sync();render();window.dispatchEvent(new Event('outbound-snapshot-updated'));
  }
- $('refresh').onclick=load;$('date').onchange=$('source-filter').onchange=render;$('date').addEventListener('change',()=>{dateTouched=true});renderSources();render();load();document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{if(obStale)render()},0)));document.addEventListener('visibilitychange',()=>{if(!document.hidden&&obStale)render()});['click','toggle'].forEach(ev=>document.addEventListener(ev,()=>setTimeout(()=>{if(obLazyMiss&&!document.hidden&&obActive())render()},0),true));setInterval(load,60000);setInterval(()=>{if(!$('schedule').hidden||!$('ops-editor').hidden)return;render()},15000);
+ $('refresh').onclick=load;$('date').onchange=$('source-filter').onchange=render;$('date').addEventListener('change',()=>{dateTouched=true});renderSources();render();load();document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{if(obStale)render()},0)));document.addEventListener('visibilitychange',()=>{if(!document.hidden&&obStale)render()});document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('[data-ob-showall]')){obAll=true;render()}});document.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset&&d.dataset.obG!==undefined){if(d.open){obOpen.add(d.dataset.obG);fillDetail(d)}else obOpen.delete(d.dataset.obG)}},true);['click','toggle'].forEach(ev=>document.addEventListener(ev,()=>setTimeout(()=>{if(obLazyMiss&&!document.hidden&&obActive())render()},0),true));setInterval(load,60000);setInterval(()=>{if(!$('schedule').hidden||!$('ops-editor').hidden)return;render()},15000);
 })();
 // END OUTBOUND MODULE
 // Assignment categories: keep existing nodes and listeners alive while collapsed.
@@ -2400,7 +2406,7 @@ function start(u){
  accountBox();applyModes();refresh();
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
- setInterval(refresh,3000);
+ setInterval(()=>{if(!document.hidden)refresh()},3000);
  document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>setTimeout(refresh,50)));
 }
 
@@ -2482,7 +2488,7 @@ function spvPanel(){
  }
 }
 function tick(){info();spvPanel()}
-tick();setInterval(tick,5000);
+tick();setInterval(()=>{if(!document.hidden)tick()},5000);
 ['input','change'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target.id==='attendance-code'||e.target.id==='attendance-action')info()}));
 })();
 </script>
@@ -2646,7 +2652,7 @@ function notify(){
 
 function tick(){R=load();masterCard();planner();standby();taskSender();notify()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&document.title.startsWith('(!)'))document.title='W.O.S TIGALAPAN INDONESIA'});
-tick();setInterval(tick,3000);
+tick();setInterval(()=>{if(!document.hidden)tick()},3000);
 window.addEventListener('storage',tick);
 document.addEventListener('click',()=>setTimeout(tick,60));
 })();
@@ -2659,17 +2665,20 @@ function enhance(inp){
  if(inp.dataset.t24)return;inp.dataset.t24='1';
  const wrap=document.createElement('span');wrap.style.cssText='display:inline-flex;align-items:center;gap:3px';
  const h=document.createElement('select'),m=document.createElement('select');
- h.innerHTML='<option value="">--</option>'+H.map(x=>'<option>'+x+'</option>').join('');
- m.innerHTML='<option value="">--</option>'+M.map(x=>'<option>'+x+'</option>').join('');
+ // Opsi lengkap baru dibuat saat dropdown dibuka (menghemat ribuan elemen di halaman dengan banyak kolom jam).
+ h.innerHTML='<option value="">--</option>';m.innerHTML='<option value="">--</option>';
+ const full=(s,list)=>{if(s.dataset.full)return;s.dataset.full='1';const v=s.value;s.innerHTML='<option value="">--</option>'+list.map(x=>'<option>'+x+'</option>').join('');s.value=v};
+ const setv=(s,v)=>{if(v&&!s.dataset.full&&![...s.options].some(o=>o.value===v))s.add(new Option(v,v));s.value=v};
+ ['mousedown','focus','keydown'].forEach(ev=>{h.addEventListener(ev,()=>full(h,H));m.addEventListener(ev,()=>full(m,M))});
  [[h,'jam'],[m,'menit']].forEach(([s,n])=>{s.style.cssText='padding:5px 4px;font-size:12px;min-width:54px;max-width:70px';s.setAttribute('aria-label',n+' (24 jam)')});
  wrap.append(h,document.createTextNode(':'),m);inp.style.display='none';inp.after(wrap);
  let last=null;
- const fromInput=()=>{h.disabled=m.disabled=inp.disabled;if(inp.value===last)return;last=inp.value;const v=/^(\d{1,2}):(\d{2})/.exec(inp.value||'');h.value=v?String(v[1]).padStart(2,'0'):'';m.value=v?v[2]:''};
+ const fromInput=()=>{h.disabled=m.disabled=inp.disabled;if(inp.value===last)return;last=inp.value;const v=/^(\d{1,2}):(\d{2})/.exec(inp.value||'');setv(h,v?String(v[1]).padStart(2,'0'):'');setv(m,v?v[2]:'')};
  const toInput=()=>{const v=h.value&&m.value?h.value+':'+m.value:'';last=v;if(inp.value!==v){inp.value=v;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}))}};
  h.onchange=m.onchange=toInput;inp._t24=fromInput;fromInput();
 }
 function scan(){document.querySelectorAll('input[type=time]').forEach(i=>{enhance(i);i._t24&&i._t24()})}
-scan();setInterval(scan,400);
+scan();setInterval(()=>{if(!document.hidden)scan()},1200);
 })();
 </script>
 </body></html>
