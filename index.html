@@ -2429,7 +2429,7 @@ function spvPanel(){
  let spv=false;try{spv=sessionStorage.getItem(SESS)==='supervisor'}catch(e){}
  const att=$('attendance');let box=$('wos-release');
  if(!spv||!att){box?.remove();return}
- if(!box){box=document.createElement('div');box.id='wos-release';box.className='card';box.style.margin='14px 0';(att.querySelector('.toolbar')||att.firstChild).after(box);
+ if(!box){box=document.createElement('div');box.id='wos-release';box.className='card';box.style.margin='14px 0';(document.getElementById('attendance-code')?.closest('#attendance > *')||att.querySelector('.toolbar')||att.firstChild).after(box);
   box.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;const r=readRel(),d=todayKey();
    if(b.id==='wos-rel-grant'){const code=$('wos-rel-code').value,note=$('wos-rel-note').value.trim();if(!code)return;r[d]={...(r[d]||{}),[code]:{by:'SPV',at:new Date().toISOString(),note}};writeRel(r)}
    if(b.dataset.revoke){if(r[d]){delete r[d][b.dataset.revoke];writeRel(r)}}
@@ -2543,7 +2543,7 @@ function addForm(c){const opts=eligible(c);return '<div class="rl-row"><select i
 function planner(){
  const att=$('attendance');let box=$('rl-planner');
  if(!user()||!att){box?.remove();return}
- if(!box){box=document.createElement('div');box.id='rl-planner';box.className='card';box.style.margin='14px 0';(att.querySelector('.toolbar')||att.firstChild).after(box);
+ if(!box){box=document.createElement('div');box.id='rl-planner';box.className='card';box.style.margin='14px 0';(document.getElementById('wos-release')||(document.getElementById('attendance-code')?.closest('#attendance > *')||att.querySelector('.toolbar')||att.firstChild)).after(box);
   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;R=load();const c=b.dataset.code;
    if(b.dataset.act==='add'){const err=addSlot(c,$('rl-r-'+c).value,$('rl-f-'+c).value,$('rl-t-'+c).value,$('rl-l-'+c).value);say('p',err||('Role ditambahkan untuk '+nameOf(c)+'.'),err?'err':'ok')}
    if(b.dataset.act==='del'){removeSlot(c,b.dataset.id);say('p','Role dihapus.','ok')}
