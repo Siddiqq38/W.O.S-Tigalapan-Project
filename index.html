@@ -2355,7 +2355,7 @@ function applyModes(){
  else if(L==='ADMIN'){setSel('ob-account','ADMIN',true);setSel('cpsl-account','ADMIN',true);setSel('simulation-role','STAFF',true);setSel('cp-role','Admin',true)}
  else{setSel('ob-account',account.code,true);setSel('cpsl-account',account.code,true);setSel('simulation-role','STAFF',true);setSel('cp-role','Staff',true)}
 }
-function refresh(){if(!account)return;navVisibility();operatorContent();operatorCard();taskPanel();lockAttendance()}
+function refresh(){if(!account)return;navVisibility();operatorContent();lockAttendance()}
 function start(u){
  me=u;account=ACCOUNTS[u];document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
  accountBox();applyModes();refresh();
@@ -2445,6 +2445,171 @@ function spvPanel(){
 function tick(){info();spvPanel()}
 tick();setInterval(tick,5000);
 ['input','change'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target.id==='attendance-code'||e.target.id==='attendance-action')info()}));
+})();
+</script>
+<style id="rl-css">
+.rl-chip{display:inline-flex;align-items:center;gap:6px;margin:2px 6px 2px 0;padding:3px 8px;border-radius:999px;background:#FBE5D6;border:1px solid #C55A11;font-size:12px}
+.rl-chip.now{background:#C6E0B4;border-color:#548235;font-weight:700}
+.rl-chip button{border:0;background:transparent;cursor:pointer;color:#b3261e;font-size:13px;padding:0}
+.rl-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rl-row input,.rl-row select{padding:5px 6px;font-size:12px;max-width:160px}
+.rl-msg{min-height:16px;font-size:12px;margin-top:6px}
+.rl-msg.err{color:#b3261e}.rl-msg.ok{color:#1b7a46}
+#rl-toast{position:fixed;top:14px;right:14px;z-index:10000;max-width:340px;display:none;padding:12px 14px;border-radius:10px;background:#b5532a;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:13px}
+.rl-status{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:700;font-size:13px}
+.rl-status.standby{background:#C6E0B4;color:#27501a}.rl-status.work{background:#FFE699;color:#6b4e00}.rl-status.idle{background:#E7E6E6;color:#444}
+</style>
+<div id="rl-toast" role="alert"></div>
+<script>
+// ROLE MODULE: master data role, pilih role per rentang jam, standby + notifikasi task (simulasi sebelum WMS)
+(()=>{
+const KEY='wos-roles-v1',TASKS='wos-tasks-v1',SESS='wos-session-v1',ATT='wos-attendance-kpi-v1',SEEN='wos-task-seen-v1-',WITA=8*3600e3;
+const CODES={supervisor:'W999',admin:'W09',operator:'W24'};
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>new Date(Date.now()+WITA).toISOString().slice(0,10);
+const nowMin=()=>{const d=new Date(Date.now()+WITA);return d.getUTCHours()*60+d.getUTCMinutes()};
+const toMin=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec(t||'');return m?Number(m[1])*60+Number(m[2]):NaN};
+const hmOf=iso=>new Date(Date.parse(iso)+WITA).toISOString().slice(11,16);
+const sm=()=>{try{return staffMaster}catch(e){return{}}};
+const user=()=>{try{return sessionStorage.getItem(SESS)}catch(e){return null}};
+const me=()=>CODES[user()]||'';
+const isSpv=()=>user()==='supervisor';
+const canSend=()=>user()==='supervisor'||user()==='admin';
+const grp=c=>sm()[c]?.role||'';
+const nameOf=c=>sm()[c]?.name||c;
+const DEF=[
+ {id:'adm-in',name:'Admin Inbound',groups:['Admin'],active:true},
+ {id:'adm-out',name:'Admin Outbound',groups:['Admin'],active:true},
+ {id:'opr-in',name:'Operator Inbound',groups:['Operator'],active:true},
+ {id:'picker',name:'Picker',groups:['Operator'],active:true},
+ {id:'checker',name:'Checker Outbound',groups:['Operator'],active:true},
+ {id:'packer',name:'Packer',groups:['Operator'],active:true},
+ {id:'driver',name:'Driver',groups:['Driver','Operator'],active:true},
+ {id:'loc',name:'Location Control',groups:['Operator'],active:true},
+ {id:'defect',name:'Defect Handling',groups:['Operator'],active:true},
+ {id:'other',name:'Other',groups:['Admin','Operator','Driver'],active:true,free:true}
+];
+const GROUPS=['Admin','Operator','Driver'];
+let R=load();
+function load(){try{const r=JSON.parse(localStorage.getItem(KEY)||'null');if(r&&Array.isArray(r.master))return{master:r.master,plans:r.plans||{}}}catch(e){}return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:{}}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(R))}catch(e){}}
+const roleById=id=>R.master.find(r=>r.id===id);
+const eligible=c=>R.master.filter(r=>r.active&&r.groups.includes(grp(c)));
+const attRows=()=>{try{const a=JSON.parse(localStorage.getItem(ATT)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}};
+const hadirAt=c=>{const t=attRows().filter(r=>r.day===today()&&r.code===c&&r.action==='Attendance in').map(r=>Date.parse(r.at)).filter(Number.isFinite);return t.length?Math.min(...t):null};
+const slotsOf=c=>((R.plans[today()]||{})[c]||[]).slice().sort((a,b)=>toMin(a.from)-toMin(b.from));
+const slotName=s=>{const r=roleById(s.roleId);const n=r?r.name:s.roleId;return s.label?n+': '+s.label:n};
+const activeSlots=c=>slotsOf(c).filter(s=>nowMin()>=toMin(s.from)&&nowMin()<toMin(s.to));
+const tasks=()=>{try{const t=JSON.parse(localStorage.getItem(TASKS)||'[]');return Array.isArray(t)?t:[]}catch(e){return[]}};
+const saveTasks=t=>{try{localStorage.setItem(TASKS,JSON.stringify(t.slice(-300)))}catch(e){}};
+const myTasks=c=>{const act=new Set(activeSlots(c).map(s=>s.roleId));return tasks().filter(t=>t.day===today()&&(t.to===c||(t.roleId&&act.has(t.roleId)))).sort((a,b)=>b.at.localeCompare(a.at))};
+let msg={};const say=(k,t,c)=>{msg[k]={t,c}};const msgH=k=>'<div class="rl-msg '+(msg[k]?.c||'')+'">'+esc(msg[k]?.t||'')+'</div>';
+
+// ---------- aksi data ----------
+function addSlot(code,roleId,from,to,label){
+ if(!user())return'Login dulu.';
+ if(!isSpv()&&code!==me())return'Anda hanya bisa memilih role untuk akun sendiri.';
+ if(!isSpv()&&!hadirAt(code))return'Lakukan Attendance in dulu sebelum memilih role.';
+ const r=roleById(roleId);if(!r||!r.active)return'Pilih role.';
+ if(!eligible(code).some(x=>x.id===roleId))return'Role ini tidak berlaku untuk '+nameOf(code)+'.';
+ const a=toMin(from),b=toMin(to);if(!(a>=0)||!(b>0)||a>=b)return'Jam mulai harus lebih awal dari jam selesai.';
+ if(r.free&&!String(label||'').trim())return'Isi keterangan untuk role Other.';
+ if(slotsOf(code).some(s=>a<toMin(s.to)&&toMin(s.from)<b))return'Jam bertabrakan dengan role lain milik '+nameOf(code)+'.';
+ const d=today();R.plans[d]=R.plans[d]||{};(R.plans[d][code]=R.plans[d][code]||[]).push({id:'S'+Date.now()+Math.floor(Math.random()*999),roleId,label:r.free?String(label).trim():'',from,to,by:isSpv()?'SPV':'sendiri',at:new Date().toISOString()});
+ save();return null;
+}
+function removeSlot(code,id){if(!isSpv()&&code!==me())return;const d=today();if(R.plans[d]?.[code]){R.plans[d][code]=R.plans[d][code].filter(s=>s.id!==id);save()}}
+
+// ---------- master role (SPV, halaman Master Data) ----------
+function masterCard(){
+ const host=$('master');let box=$('rl-master');
+ if(!isSpv()||!host){box?.remove();return}
+ if(!box){box=document.createElement('section');box.id='rl-master';box.className='card';box.style.margin='14px 0';host.prepend(box);
+  box.addEventListener('change',e=>{R=load();const t=e.target;if(t.dataset.act==='act'){const r=roleById(t.dataset.id);if(r){r.active=t.checked;save();masterCard()}}
+   else if(t.dataset.act==='grp'){const r=roleById(t.dataset.id);if(r){r.groups=t.checked?[...new Set([...r.groups,t.dataset.g])]:r.groups.filter(g=>g!==t.dataset.g);save()}}
+   else if(t.dataset.act==='name'){const r=roleById(t.dataset.id),v=t.value.trim();if(r&&v){r.name=v;save()}}});
+  box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.act!=='add')return;R=load();const n=$('rl-new-name').value.trim(),g=GROUPS.filter(x=>$('rl-new-g-'+x).checked);
+   if(!n){say('m','Isi nama role.','err')}else if(!g.length){say('m','Pilih minimal satu kelompok staf.','err')}else if(R.master.some(r=>r.name.toLowerCase()===n.toLowerCase())){say('m','Nama role sudah ada.','err')}
+   else{R.master.push({id:'r'+Date.now(),name:n,groups:g,active:true});save();say('m','Role "'+n+'" ditambahkan.','ok')}
+   box.dataset.sig='';masterCard()});}
+ const html='<h2>Master Role</h2><p class="sub">Daftar role kerja harian. Role dipilih staf (atau dialokasikan SPV saat DRM) dengan rentang jam. Role yang dinonaktifkan tidak muncul sebagai pilihan baru. Role "Other" meminta keterangan manual saat dipilih.</p><div style="overflow:auto"><table><thead><tr><th>No</th><th>Nama role</th>'+GROUPS.map(g=>'<th>Untuk '+g+'</th>').join('')+'<th>Aktif</th></tr></thead><tbody>'+R.master.map((r,i)=>'<tr><td>'+(i+1)+'</td><td><input data-act="name" data-id="'+esc(r.id)+'" value="'+esc(r.name)+'"'+(r.free?' title="Role Other: keterangan diisi manual saat dipilih"':'')+'>'+(r.free?' <span class="sub">(isi manual)</span>':'')+'</td>'+GROUPS.map(g=>'<td style="text-align:center"><input type="checkbox" data-act="grp" data-id="'+esc(r.id)+'" data-g="'+g+'"'+(r.groups.includes(g)?' checked':'')+'></td>').join('')+'<td style="text-align:center"><input type="checkbox" data-act="act" data-id="'+esc(r.id)+'"'+(r.active?' checked':'')+'></td></tr>').join('')+'</tbody></table></div><div class="rl-row" style="margin-top:12px"><input id="rl-new-name" placeholder="Nama role baru"> '+GROUPS.map(g=>'<label class="sub"><input type="checkbox" id="rl-new-g-'+g+'"> '+g+'</label>').join(' ')+'<button class="button secondary" data-act="add" type="button">Tambah role</button></div>'+msgH('m');
+ if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html}
+}
+
+// ---------- planner role harian (DRM) ----------
+function chips(c,editable){const now=activeSlots(c).map(s=>s.id);return slotsOf(c).map(s=>'<span class="rl-chip'+(now.includes(s.id)?' now':'')+'" title="dipilih oleh '+esc(s.by)+'">'+esc(s.from)+' - '+esc(s.to)+' '+esc(slotName(s))+(editable?' <button data-act="del" data-code="'+esc(c)+'" data-id="'+esc(s.id)+'" type="button" aria-label="Hapus">x</button>':'')+'</span>').join('')||'<span class="sub">belum ada role</span>'}
+function addForm(c){const opts=eligible(c);return '<div class="rl-row"><select id="rl-r-'+esc(c)+'"><option value="">- role -</option>'+opts.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.name)+'</option>').join('')+'</select><input id="rl-f-'+esc(c)+'" type="time" value="08:00"><span class="sub">s/d</span><input id="rl-t-'+esc(c)+'" type="time" value="12:00"><input id="rl-l-'+esc(c)+'" placeholder="Keterangan (untuk Other)"><button class="button secondary" data-act="add" data-code="'+esc(c)+'" type="button">Tambah</button></div>'}
+function planner(){
+ const att=$('attendance');let box=$('rl-planner');
+ if(!user()||!att){box?.remove();return}
+ if(!box){box=document.createElement('div');box.id='rl-planner';box.className='card';box.style.margin='14px 0';(att.querySelector('.toolbar')||att.firstChild).after(box);
+  box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;R=load();const c=b.dataset.code;
+   if(b.dataset.act==='add'){const err=addSlot(c,$('rl-r-'+c).value,$('rl-f-'+c).value,$('rl-t-'+c).value,$('rl-l-'+c).value);say('p',err||('Role ditambahkan untuk '+nameOf(c)+'.'),err?'err':'ok')}
+   if(b.dataset.act==='del'){removeSlot(c,b.dataset.id);say('p','Role dihapus.','ok')}
+   box.dataset.sig='';planner();standby()})}
+ let html;
+ if(isSpv()){
+  const staff=Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor').sort();
+  html='<h2>DRM - Alokasi role harian (SPV)</h2><p class="sub">Setelah briefing, SPV membagikan role beserta rentang jam untuk semua tim. Satu staf boleh punya beberapa role pada jam berbeda (contoh: 08:00-12:00 Picker, 13:00-16:00 Other: Tempel barcode MAMU). Staf juga bisa memilih role untuk dirinya sendiri.</p><div style="overflow:auto"><table><thead><tr><th>Staf</th><th>Hadir</th><th>Role hari ini</th><th>Tambah role</th></tr></thead><tbody>'+staff.map(([c,p])=>{const h=hadirAt(c);return '<tr><td><strong>'+esc(p.name)+'</strong><br><span class="sub">'+esc(c)+' · '+esc(p.role)+'</span></td><td>'+(h?'<span class="tag green">'+hmOf(new Date(h).toISOString())+'</span>':'<span class="tag amber">belum</span>')+'</td><td>'+chips(c,true)+'</td><td>'+addForm(c)+'</td></tr>'}).join('')+'</tbody></table></div>'+msgH('p');
+ }else{
+  const c=me(),h=hadirAt(c);
+  html='<h2>Pilih role hari ini</h2><p class="sub">'+esc(nameOf(c))+' ('+esc(c)+'). Pilih role sesuai arahan SPV pada DRM, lengkap dengan rentang jam. Anda hanya bisa memilih untuk akun sendiri.</p>'+(h?chips(c,true)+'<div style="margin-top:8px">'+addForm(c)+'</div>':'<p class="note">Lakukan <strong>Attendance in</strong> dulu pada panel check-in di bawah, lalu pilih role.</p>')+msgH('p');
+ }
+ if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html}
+}
+
+// ---------- dashboard standby + task ----------
+function standby(){
+ const att=$('attendance');let box=$('rl-standby');
+ if(!user()||isSpv()||!att){box?.remove();return}
+ if(!box){box=document.createElement('div');box.id='rl-standby';box.className='card';box.style.margin='14px 0';$('rl-planner')?.after(box);
+  box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+   if(b.dataset.act==='notif'){try{Notification.requestPermission().then(()=>{box.dataset.sig='';standby()})}catch(x){}return}
+   const all=tasks(),t=all.find(x=>x.id===b.dataset.id);if(!t)return;
+   if(b.dataset.act==='accept'){t.status='diterima';t.by2=me();t.ackAt=new Date().toISOString()}
+   if(b.dataset.act==='done'){t.status='selesai';t.doneAt=new Date().toISOString()}
+   saveTasks(all);box.dataset.sig='';standby()})}
+ if(!box.previousElementSibling&&$('rl-planner'))$('rl-planner').after(box);
+ const c=me(),act=activeSlots(c),next=slotsOf(c).find(s=>toMin(s.from)>nowMin()),mine=myTasks(c),working=mine.some(t=>t.status==='diterima'&&t.by2===c);
+ let st,cls;
+ if(!hadirAt(c)){st='Belum Attendance in';cls='idle'}else if(working){st='BEKERJA';cls='work'}else if(act.length){st='STANDBY - menunggu assignment';cls='standby'}else if(slotsOf(c).length){st='Di luar jam role';cls='idle'}else{st='Belum ada role';cls='idle'}
+ const perm=typeof Notification!=='undefined'?Notification.permission:'denied';
+ const html='<h2>Dashboard standby</h2><p><span class="rl-status '+cls+'">'+esc(st)+'</span></p>'+(act.length?'<p class="sub">Role aktif sekarang: <strong>'+act.map(s=>esc(slotName(s))+' ('+esc(s.from)+'-'+esc(s.to)+')').join(', ')+'</strong></p>':'')+(next?'<p class="sub">Role berikutnya: '+esc(next.from)+' '+esc(slotName(next))+'</p>':'')+
+  (perm==='default'?'<p><button class="button secondary" data-act="notif" type="button">Aktifkan notifikasi di perangkat ini</button></p>':perm==='denied'?'<p class="sub">Notifikasi sistem diblokir; notifikasi tetap muncul di layar aplikasi.</p>':'')+
+  '<h3 style="margin-top:10px">Task untuk Anda</h3>'+(mine.length?'<table><thead><tr><th>Jam</th><th>Task</th><th>Qty</th><th>Status</th><th></th></tr></thead><tbody>'+mine.map(t=>'<tr><td>'+hmOf(t.at)+'</td><td>'+esc(t.title)+'</td><td>'+esc(t.qty||'-')+'</td><td>'+esc(t.status)+'</td><td>'+(t.status==='baru'?'<button class="button secondary" data-act="accept" data-id="'+esc(t.id)+'" type="button">Terima</button>':t.status==='diterima'&&t.by2===c?'<button class="button secondary" data-act="done" data-id="'+esc(t.id)+'" type="button">Selesai</button>':'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada task. Layar ini menunggu assignment; notifikasi muncul saat task masuk.</p>')+'<p class="sub">Task masuk dari WMS setelah integrasi; sementara dikirim SPV / Admin lewat panel simulasi.</p>';
+ if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html}
+}
+function taskSender(){
+ const att=$('attendance');let box=$('rl-sender');
+ if(!canSend()||!att){box?.remove();return}
+ if(!box){box=document.createElement('div');box.id='rl-sender';box.className='card';box.style.margin='14px 0';($('rl-standby')||$('rl-planner'))?.after(box);
+  box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.act!=='send')return;const v=$('rl-tg').value,title=$('rl-tt').value.trim(),qty=$('rl-tq').value.trim();
+   if(!v||!title){say('s','Pilih tujuan dan isi judul task.','err')}else{const all=tasks(),t={id:'T'+Date.now(),day:today(),at:new Date().toISOString(),title,qty,by:user(),status:'baru'};if(v.startsWith('r:'))t.roleId=v.slice(2);else t.to=v.slice(2);all.push(t);saveTasks(all);say('s','Task dikirim.','ok');$('rl-tt').value='';$('rl-tq').value=''}
+   box.dataset.sig='';taskSender()})}
+ const staff=Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor').sort(),list=tasks().filter(t=>t.day===today()).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,15);
+ const html='<h2>Kirim task (simulasi sebelum WMS)</h2><p class="sub">Task dikirim ke staf yang sedang memegang role tertentu (rentang jamnya aktif) atau ke satu staf. Staf menerima notifikasi di layarnya.</p><div class="rl-row"><select id="rl-tg"><option value="">- tujuan -</option><optgroup label="Semua staf dengan role aktif">'+R.master.filter(r=>r.active).map(r=>'<option value="r:'+esc(r.id)+'">'+esc(r.name)+'</option>').join('')+'</optgroup><optgroup label="Staf tertentu">'+staff.map(([c,p])=>'<option value="s:'+esc(c)+'">'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</optgroup></select><input id="rl-tt" placeholder="Judul task, contoh: Picking UPG-01 koli 3"><input id="rl-tq" type="number" min="1" placeholder="Qty" style="max-width:90px"><button class="button" data-act="send" type="button">Kirim task</button></div>'+msgH('s')+(list.length?'<table style="margin-top:10px"><thead><tr><th>Jam</th><th>Tujuan</th><th>Task</th><th>Qty</th><th>Status</th></tr></thead><tbody>'+list.map(t=>'<tr><td>'+hmOf(t.at)+'</td><td>'+esc(t.to?nameOf(t.to):(roleById(t.roleId)?.name||t.roleId))+'</td><td>'+esc(t.title)+'</td><td>'+esc(t.qty||'-')+'</td><td>'+esc(t.status)+(t.by2?' · '+esc(nameOf(t.by2)):'')+'</td></tr>').join('')+'</tbody></table>':'');
+ if(box.dataset.sig!==html){box.dataset.sig=html;const keep=[$('rl-tg')?.value,$('rl-tt')?.value,$('rl-tq')?.value];box.innerHTML=html;if(keep[0])$('rl-tg').value=keep[0];if(keep[1])$('rl-tt').value=keep[1];if(keep[2])$('rl-tq').value=keep[2]}
+}
+
+// ---------- notifikasi ----------
+function toast(text){const t=$('rl-toast');t.textContent=text;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',9000)}
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();setTimeout(()=>{o.stop();a.close()},250)}catch(e){}}
+function notify(){
+ if(!user()||isSpv())return;const c=me(),k=SEEN+c;let seen=[];try{seen=JSON.parse(localStorage.getItem(k)||'[]')}catch(e){}
+ const fresh=myTasks(c).filter(t=>t.status==='baru'&&!seen.includes(t.id));if(!fresh.length)return;
+ localStorage.setItem(k,JSON.stringify([...seen,...fresh.map(t=>t.id)].slice(-300)));
+ const text='Task baru: '+fresh[0].title+(fresh.length>1?' (+'+(fresh.length-1)+' lainnya)':'');
+ toast(text);beep();try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+ try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification('W.O.S - '+nameOf(c),{body:text})}catch(e){}
+ try{document.title='(!) '+text}catch(e){}
+}
+
+function tick(){R=load();masterCard();planner();standby();taskSender();notify()}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&document.title.startsWith('(!)'))document.title='W.O.S TIGALAPAN INDONESIA'});
+tick();setInterval(tick,3000);
+window.addEventListener('storage',tick);
+document.addEventListener('click',()=>setTimeout(tick,60));
 })();
 </script>
 </body></html>
