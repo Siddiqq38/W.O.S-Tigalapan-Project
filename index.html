@@ -1839,39 +1839,73 @@ if(typeof document!=='undefined')(()=>{
 // BEGIN FIVE R MASTER MODULE
 (()=>{
  const master=document.getElementById('master');if(!master)return;
- const key='wos-5r-area-master-v1';
+ const key='wos-5r-area-master-v2',INFO='wos-employee-info-v1';
+ // Data dari daftar area 5R terbaru (kolom: kode operator, kategori, area 5R, JBS). ket = zona di layout gudang.
  const seed=[
-  ['W09','Rezky Novita','Kontrak','P7','Office DC','Daily'],
-  ['W28','Zuhdi','Kontrak','P1','Inbound (Intransit & Good Receipt)','Senin'],
-  ['W17','Sulqadri','Kontrak','P1','Inbound (Intransit & Good Receipt)','Senin'],
-  ['W07','Ardi Wahidin','Kontrak','P2','Storage','Selasa'],
-  ['W08','Yusri','Kontrak','P2','Parkiran 2, toilet urinoir','Selasa'],
-  ['W04','Abd. Halik','Kontrak','P3','Storage','Rabu'],
-  ['W24','Suldeni','Kontrak','P3','Storage','Rabu'],
-  ['W14','Riang indra pratiwi','Kontrak','P7','Office DC','Daily'],
-  ['W19','Jabal Rahmat','Kontrak','P4','Outbound (Packing, Stagging & Receiving)','Kamis'],
-  ['W21','Laode Syarif','Kontrak','P4','Outbound (Packing, Stagging & Receiving)','Kamis'],
-  ['W36','Abd. Yandi Saputra','Kontrak','P5','Parkiran 1 & waste','Jumat'],
-  ['W03','Syafii','Freelance','P5','Storage','Jumat'],
-  ['W29','Muh. Fahri','Kontrak','P6','Area QC & karantina','Sabtu'],
-  ['W35','A. Muh Akram','Probation','P6','Parkiran 2, toilet urinoir','Sabtu'],
-  ['W34','Ansar Ramadhan','Kontrak','P6','Mobil Operasional DC','Sabtu']
+  ['W09','REZKY NOVITA SAID','Kontrak','Office','Meja Kerja Pribadi & Mushollah perempuan','Daily'],
+  ['W28','ZUHDI','Kontrak','P7','P.7','Senin'],
+  ['W17','SULQADRI','Kontrak','P5','P.5','Selasa'],
+  ['W07','ARDHY WAHIDIN','Kontrak','P8','P.8','Rabu'],
+  ['W08','YUSRI','Kontrak','P1','P.1','Kamis'],
+  ['W04','ABDUL HALIK','Kontrak','P12','P.12','Jumat'],
+  ['W24','SULDENI','Kontrak','P3','P.3','Sabtu'],
+  ['W14','RIANG INDRA PRATIWI','Kontrak','Office','Meja kerja Pribadi & Mushollah perempuan','Daily'],
+  ['W19','JABAL RAHMAT','Kontrak','P11','P.11','Senin'],
+  ['W21','LAODE SARIF ADAM','Kontrak','P9','P.9','Selasa'],
+  ['W36','ABD. YANDI SAPUTRA','Kontrak','P2','P.2','Rabu'],
+  ['W03',"MUHAMMAD SAFI'I",'Freelance','P4','P4','Kamis'],
+  ['W29','MUHAMMAD FACHRI DHARMAWAN','Kontrak','P6','P6','Jumat'],
+  ['W35','ANDI MUHAMMAD AKRAM','Probation','P10','P.10','Sabtu'],
+  ['W34','MUHAMMAD ANSHAR RAMADHAN','Kontrak','Kendaraan','Mobil DC','Daily']
  ].map(([code,name,category,ket,area,schedule])=>({code,name,category,ket,area,schedule}));
+ const ZONES=['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12','Office','Kendaraan'];
+ // Layout gudang (skematik, dibuat ulang dari gambar layout): [x,y,lebar,tinggi,warna]
+ const GEO={P1:[10,12,222,278,'#F8B4B4'],P2:[10,290,218,332,'#D4DDD3'],P3:[232,12,203,328,'#F7EDB5'],P4:[232,340,201,282,'#E4CFC4'],P5:[438,12,167,323,'#F8B8B4'],P6:[435,340,170,282,'#D5DDD2'],P7:[608,8,940,72,'#B8DDF3'],P8:[608,80,940,98,'#F3B0D5'],P9:[608,178,940,107,'#F7EDB0'],P10:[608,285,940,100,'#E5CBBE'],P11:[608,385,940,113,'#CFE6BE'],P12:[608,498,940,116,'#E8B0BC']};
  let records=seed;
  try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(saved)&&saved.length)records=saved.filter(r=>r&&/^W\d{2,4}$/.test(r.code)&&r.name&&r.area)}catch{}
  for(const r of records)if(!staffMaster[r.code])staffMaster[r.code]={name:r.name,role:'Operator'};
  const clone=()=>records.map(r=>({...r}));
  window.getFiveRMaster=clone;
  window.getFiveRProfile=code=>clone().find(r=>r.code===code)||null;
- window.fiveRRequiredOn=(profile,day)=>{if(!profile||!day)return false;if(profile.schedule==='Daily')return true;const weekday=new Intl.DateTimeFormat('id-ID',{timeZone:'UTC',weekday:'long'}).format(new Date(day+'T12:00:00Z')).toLowerCase();return weekday===String(profile.schedule).toLowerCase()};
+ window.fiveRRequiredOn=(profile,day)=>{if(!profile||!day)return false;if(/^(daily|dayli)$/i.test(profile.schedule))return true;const weekday=new Intl.DateTimeFormat('id-ID',{timeZone:'UTC',weekday:'long'}).format(new Date(day+'T12:00:00Z')).toLowerCase();return weekday===String(profile.schedule).toLowerCase()};
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const nik=code=>{try{return (JSON.parse(localStorage.getItem(INFO)||'{}')||{})[code]?.nik||''}catch{return''}};
+ const dayShort={Senin:'Sen',Selasa:'Sel',Rabu:'Rab',Kamis:'Kam',Jumat:'Jum',Sabtu:'Sab',Daily:'Daily'};
  const box=document.createElement('details');box.className='card';box.id='five-r-master';box.style.marginTop='16px';
- box.innerHTML='<summary style="font-size:19px;font-weight:700;cursor:pointer">Master area 5R · '+records.length+' petugas</summary><p class="sub">Diisi dari daftar area yang Anda lampirkan. Jadwal JBS: Daily atau hari Senin–Sabtu. Perubahan saat ini hanya tersimpan di browser ini.</p><div style="overflow:auto"><table><thead><tr><th>Kode / nama</th><th>Kategori / ket</th><th>Area 5R</th><th>Jadwal</th><th>Kelola</th></tr></thead><tbody id="five-r-master-rows"></tbody></table></div><h3 style="margin-top:18px">Tambah / perbarui petugas dan area</h3><form id="five-r-master-form"><div class="form-grid"><div class="field"><label>Kode staff</label><input id="five-r-code" required pattern="W[0-9]{2,4}" placeholder="W03" maxlength="5"></div><div class="field"><label>Nama</label><input id="five-r-name" required maxlength="100"></div><div class="field"><label>Kategori</label><select id="five-r-category"><option>Kontrak</option><option>Freelance</option><option>Probation</option><option>Tetap</option></select></div><div class="field"><label>Ket / grup</label><input id="five-r-ket" maxlength="30" placeholder="P1"></div><div class="field"><label>Area 5R</label><input id="five-r-area" required maxlength="150"></div><div class="field"><label>Jadwal 5R</label><select id="five-r-schedule"><option>Daily</option><option>Senin</option><option>Selasa</option><option>Rabu</option><option>Kamis</option><option>Jumat</option><option>Sabtu</option></select></div></div><p class="sub">Perubahan area berlaku untuk tugas berikutnya; laporan yang sudah memiliki bukti tetap mempertahankan area lamanya.</p><button class="button" type="submit">Simpan draft area</button> <button class="button secondary" type="reset">Kosongkan form</button></form>';
+ box.innerHTML='<summary style="font-size:19px;font-weight:700;cursor:pointer">Master area 5R</summary><p class="sub">Petugas, area, dan jadwal 5R (JBS: Daily atau hari Senin-Sabtu). Semua data bisa diedit dan dihapus bila ada perubahan. Perubahan saat ini tersimpan di browser ini.</p>'+
+ '<h3 style="margin-top:12px">Layout gudang</h3><p class="sub">Skema dibuat ulang dari gambar layout. Klik zona untuk mengisi form di bawah. Isi zona menampilkan petugas dan hari JBS-nya.</p><div style="overflow:auto"><svg id="five-r-layout" viewBox="0 0 1560 630" style="width:100%;min-width:640px;max-width:1100px;display:block;background:#fff;border:1px solid #cfd8de;border-radius:8px" role="img" aria-label="Layout gudang zona P1 sampai P12"></svg></div><p id="five-r-zone-note" class="sub"></p>'+
+ '<h3 style="margin-top:18px">Petugas dan area</h3><div style="overflow:auto"><table><thead><tr><th>Kode / nama</th><th>ID Staff</th><th>Kategori</th><th>Zona</th><th>Area 5R</th><th>Jadwal (JBS)</th><th>Kelola</th></tr></thead><tbody id="five-r-master-rows"></tbody></table></div>'+
+ '<h3 style="margin-top:18px" id="five-r-form-title">Tambah / perbarui petugas dan area</h3><form id="five-r-master-form"><div class="form-grid"><div class="field"><label>Kode staff</label><input id="five-r-code" required pattern="W[0-9]{2,4}" placeholder="W03" maxlength="5"></div><div class="field"><label>Nama</label><input id="five-r-name" required maxlength="100"></div><div class="field"><label>Kategori</label><select id="five-r-category"><option>Kontrak</option><option>Freelance</option><option>Probation</option><option>Tetap</option></select></div><div class="field"><label>Zona (layout)</label><select id="five-r-ket">'+ZONES.map(z=>'<option>'+z+'</option>').join('')+'</select></div><div class="field"><label>Area 5R</label><input id="five-r-area" required maxlength="150" placeholder="Contoh: P.7"></div><div class="field"><label>Jadwal 5R (JBS)</label><select id="five-r-schedule"><option>Daily</option><option>Senin</option><option>Selasa</option><option>Rabu</option><option>Kamis</option><option>Jumat</option><option>Sabtu</option></select></div></div><p class="sub">Perubahan area dipakai di Compliance untuk laporan 5R. Bila area dikosongkan, otomatis memakai nama zona. Satu zona boleh dipegang beberapa petugas.</p><button class="button" type="submit">Simpan</button> <button class="button secondary" type="button" id="five-r-cancel">Batal / kosongkan form</button></form>';
  master.append(box);
- const rows=box.querySelector('#five-r-master-rows'),form=box.querySelector('#five-r-master-form');
- function render(){box.querySelector('summary').textContent='Master area 5R · '+records.length+' petugas';rows.innerHTML=records.map(r=>'<tr><td><strong>'+esc(r.code)+'</strong> · '+esc(r.name)+'</td><td>'+esc(r.category)+' · '+esc(r.ket)+'</td><td>'+esc(r.area)+'</td><td>'+esc(r.schedule)+'</td><td><button class="button secondary" type="button" data-five-r-edit="'+esc(r.code)+'">Edit</button></td></tr>').join('')}
- rows.onclick=e=>{const code=e.target.closest('[data-five-r-edit]')?.dataset.fiveREdit,r=records.find(x=>x.code===code);if(!r)return;for(const field of ['code','name','category','ket','area','schedule'])box.querySelector('#five-r-'+field).value=r[field]||'';form.scrollIntoView({block:'nearest'})};
- form.onsubmit=e=>{e.preventDefault();const row=Object.fromEntries(['code','name','category','ket','area','schedule'].map(field=>[field,box.querySelector('#five-r-'+field).value.trim()]));row.code=row.code.toUpperCase();if(!/^W\d{2,4}$/.test(row.code)||!row.name||!row.area)return;const next=clone(),at=next.findIndex(r=>r.code===row.code);if(at>=0)next[at]=row;else next.push(row);next.sort((a,b)=>a.code.localeCompare(b.code,'id',{numeric:true}));try{localStorage.setItem(key,JSON.stringify(next))}catch{alert('Master 5R gagal disimpan di browser ini.');return}records=next;if(!staffMaster[row.code])staffMaster[row.code]={name:row.name,role:'Operator'};render();form.reset();window.dispatchEvent(new Event('five-r-master-updated'));alert('Draft area 5R '+row.code+' tersimpan di browser ini. Belum tersinkron antarperangkat.')};
+ const rows=box.querySelector('#five-r-master-rows'),form=box.querySelector('#five-r-master-form'),svg=box.querySelector('#five-r-layout'),note=box.querySelector('#five-r-zone-note'),F=f=>box.querySelector('#five-r-'+f);
+ const persist=next=>{try{localStorage.setItem(key,JSON.stringify(next))}catch{alert('Master 5R gagal disimpan di browser ini.');return false}records=next;render();window.dispatchEvent(new Event('five-r-master-updated'));return true};
+ function drawLayout(){
+  let s='<rect x="0" y="0" width="1560" height="630" fill="#f7f7f7"/>';
+  for(const [z,[x,y,w,h,c]] of Object.entries(GEO)){
+   const who=records.filter(r=>r.ket===z);
+   s+='<g data-zone="'+z+'" style="cursor:pointer"><title>'+esc(z+(who.length?': '+who.map(r=>r.name+' ('+r.schedule+')').join(', '):': belum ada petugas'))+'</title><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+c+'" stroke="#555" stroke-width="2"/><text x="'+(x+w/2)+'" y="'+(y+Math.min(h/2,60))+'" text-anchor="middle" font-size="'+(h<120?30:36)+'" font-weight="700" fill="#222">'+z+'</text>'+
+   (h<120?'<text x="'+(x+w/2+55)+'" y="'+(y+Math.min(h/2,60))+'" font-size="20" fill="#333">'+esc(who.map(r=>r.code+' '+(dayShort[r.schedule]||r.schedule)).join('   '))+'</text>':who.map((r,i)=>'<text x="'+(x+w/2)+'" y="'+(y+Math.min(h/2,60)+30+i*24)+'" text-anchor="middle" font-size="20" fill="#333">'+esc(r.code+' '+(dayShort[r.schedule]||r.schedule))+'</text>').join(''))+'</g>';
+  }
+  s+='<rect x="612" y="110" width="52" height="410" fill="#fff" stroke="#777"/>';
+  const extra=records.filter(r=>!GEO[r.ket]);
+  svg.innerHTML=s;
+  note.textContent=extra.length?'Di luar peta: '+extra.map(r=>r.name+' ('+r.ket+': '+r.area+', '+r.schedule+')').join(' · '):'';
+ }
+ function render(){
+  box.querySelector('summary').textContent='Master area 5R · '+records.length+' petugas';
+  rows.innerHTML=records.map(r=>'<tr><td><strong>'+esc(r.code)+'</strong> · '+esc(r.name)+'</td><td>'+esc(nik(r.code)||'-')+'</td><td>'+esc(r.category)+'</td><td>'+esc(r.ket||'-')+'</td><td>'+esc(r.area)+'</td><td>'+esc(r.schedule)+'</td><td><button class="button secondary" type="button" data-five-r-edit="'+esc(r.code)+'">Edit</button> <button class="button secondary" type="button" data-five-r-del="'+esc(r.code)+'">Hapus</button></td></tr>').join('');
+  drawLayout();
+ }
+ const fill=r=>{for(const field of ['code','name','category','ket','area','schedule'])F(field).value=r[field]||(field==='ket'?'P1':'');box.querySelector('#five-r-form-title').textContent='Edit petugas '+r.code;F('code').readOnly=true;form.scrollIntoView({block:'nearest'})};
+ const reset=()=>{form.reset();F('code').readOnly=false;box.querySelector('#five-r-form-title').textContent='Tambah / perbarui petugas dan area'};
+ rows.onclick=e=>{
+  const del=e.target.closest('[data-five-r-del]')?.dataset.fiveRDel;
+  if(del){const r=records.find(x=>x.code===del);if(r&&confirm('Hapus '+r.name+' ('+del+') dari master area 5R?')){persist(clone().filter(x=>x.code!==del))}return}
+  const code=e.target.closest('[data-five-r-edit]')?.dataset.fiveREdit,r=records.find(x=>x.code===code);if(!r)return;fill(r)};
+ box.querySelector('#five-r-cancel').onclick=reset;
+ F('ket').onchange=()=>{if(/^P\.?\d+$/.test(F('area').value.trim())&&/^P\d+$/.test(F('ket').value))F('area').value=F('ket').value.replace(/^P(\d+)$/,'P.$1')};
+ svg.onclick=e=>{const z=e.target.closest('[data-zone]')?.dataset.zone;if(!z)return;F('ket').value=z;if(!F('area').value)F('area').value=z.replace(/^P(\d+)$/,'P.$1');form.scrollIntoView({block:'nearest'})};
+ form.onsubmit=e=>{e.preventDefault();const row=Object.fromEntries(['code','name','category','ket','area','schedule'].map(field=>[field,F(field).value.trim()]));row.code=row.code.toUpperCase();if(!row.area)row.area=row.ket.replace(/^P(\d+)$/,'P.$1');if(!/^W\d{2,4}$/.test(row.code)||!row.name||!row.area)return;const next=clone(),at=next.findIndex(r=>r.code===row.code);if(at>=0)next[at]=row;else next.push(row);next.sort((a,b)=>a.code.localeCompare(b.code,'id',{numeric:true}));if(!persist(next))return;if(!staffMaster[row.code])staffMaster[row.code]={name:row.name,role:'Operator'};reset();alert('Area 5R '+row.code+' tersimpan di browser ini. Belum tersinkron antarperangkat.')};
  render();window.dispatchEvent(new Event('five-r-master-updated'));
 })();
 // END FIVE R MASTER MODULE
