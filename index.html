@@ -1714,7 +1714,7 @@ const PerformanceCore=(()=>{
   if(cpsl.length)jobs.push({activity:'CPSL (keterlibatan tim)',tasks:cpsl.length,done:cpsl.filter(t=>validPackage(t)&&t.checkpoints?.loading).length,target:cpsl.length,actual:cpsl.filter(t=>validPackage(t)).length,unit:'koli VP',note:'Volume tim, tidak dijumlah antaranggota; Done setelah bantu loading.'});
   if(drivers.length)jobs.push({activity:'Driver (keterlibatan tim)',tasks:drivers.length,done:drivers.filter(t=>validPackage(t)&&t.checkpoints?.unloading).length,target:drivers.length,actual:drivers.filter(t=>validPackage(t)&&t.checkpoints?.loading).length,unit:'koli loading',note:'Konfirmasi pribadi: loading '+drivers.filter(t=>t.checkpoints?.loading?.actor===code).length+', unloading '+drivers.filter(t=>t.checkpoints?.unloading?.actor===code).length+'; unloading bukan GR toko.'});
   const admin=Object.entries(data.operations||{}).filter(([id,o])=>o.admin===code&&data.packages.some(p=>p.id===id&&p.vpReady&&within(p.date,from,to)));
-  if(admin.length)jobs.push({activity:'Admin outbound — transfer stok',tasks:admin.length,done:admin.filter(([,o])=>o.transfer).length,target:admin.length,actual:admin.filter(([,o])=>o.transfer).length,unit:'koli',note:'Dokumen selesai '+admin.filter(([,o])=>o.document).length+'; pencatatan manual.'});
+
   const attendance=unique(data.attendance.filter(r=>r.code===code&&within(r.day,from,to)&&r.action==='Attendance in'),r=>r.day);
   return {code,pick,cp,jobs,attendance:attendance.length,tasks:jobs.reduce((s,j)=>s+j.tasks,0),done:jobs.reduce((s,j)=>s+j.done,0)};
  }
@@ -1758,27 +1758,28 @@ if(typeof document!=='undefined')(()=>{
    const po=new Set([...by.Counting.po,...by['Put away'].po]),sku=by.Counting.sku+by['Put away'].sku,koli=by.Counting.koli+by['Put away'].koli,pcs=by.Counting.pcs+by['Put away'].pcs,unk=by.Counting.unk+by['Put away'].unk;
    section('Inbound · Counting dan Put away','Counting: '+by.Counting.po.size+' PO · '+by.Counting.sku+' SKU · '+by.Counting.koli+' koli · '+num(by.Counting.pcs)+' pcs. Put away: '+by['Put away'].po.size+' PO · '+by['Put away'].sku+' SKU · '+by['Put away'].koli+' koli · '+num(by['Put away'].pcs)+' pcs. Volume batch penuh per aktivitas (tidak dibagi dua PIC).',[['Purchase Order',po.size+' PO','PO berbeda yang dikerjakan'],['SKU',num(sku),'jumlah SKU pada batch yang dikerjakan'],['Koli',num(koli),'Counting + Put away'],['Pcs',num(pcs)+' pcs',unk?unk+' batch pcs belum lengkap':'sesuai isi koli']]);
   }
-  // 2) Admin Inbound (PO): dikreditkan ke staf yang memegang role Admin Inbound pada hari batch Done PO
+  // 2) Admin Inbound (PO): centang kolom PO di sheet GR = sudah PO. Dikreditkan ke pemegang role Admin Inbound hari itu; bila belum ada alokasi role, ke Rezky (W09).
   let plans={};try{plans=(JSON.parse(localStorage.getItem('wos-roles-v1')||'{}').plans)||{}}catch(e){}
-  const po=grAll.filter(b=>b.purchase&&((plans[dIso(b.date)]||{})[code]||[]).some(s=>s.roleId==='adm-in'));
+  const creditedTo=(dateIso,roleId,fallback)=>{const day=plans[dateIso]||{},holders=Object.keys(day).filter(c=>day[c].some(s=>s.roleId===roleId));return holders.length?holders.includes(code):code===fallback};
+  const po=grAll.filter(b=>b.purchase&&creditedTo(dIso(b.date),'adm-in','W09'));
   if(po.length){
    labels.push('Admin Inbound (PO)');
    const sku=po.reduce((s,b)=>s+(Number(b.sku)||0),0),koli=po.reduce((s,b)=>s+(Array.isArray(b.koli)?b.koli.length:Number(b.totalKoli)||0),0),pcs=po.reduce((s,b)=>s+(Number(String(b.totalPcs).replace(/\D/g,''))||0),0);
-   section('Admin Inbound · Purchase Order (PO)','Dihitung dari batch Done PO pada hari staf ini memegang role Admin Inbound (role harian). Bila beberapa admin bertugas di hari yang sama, angka masing-masing adalah cakupan hari tugas, bukan barang tambahan.',[['Purchase Order',new Set(po.map(b=>b.po)).size+' PO',po.length+' batch Done PO'],['SKU',num(sku),'pada batch Done PO'],['Koli',num(koli),'koli di-PO-kan'],['Pcs',num(pcs)+' pcs','total batch']]);
+   section('Admin Inbound · Purchase Order (PO)','PO dihitung dari kolom PO yang dicentang di sheet GR (centang = sudah PO). Dikreditkan ke staf yang memegang role Admin Inbound pada hari itu; bila role belum dialokasikan, tercatat atas Rezky (admin inbound default) sampai sinkron Supabase berjalan penuh.',[['Purchase Order',new Set(po.map(b=>b.po)).size+' PO',po.length+' batch Done PO'],['SKU',num(sku),'pada batch Done PO'],['Koli',num(koli),'koli di-PO-kan'],['Pcs',num(pcs)+' pcs','total batch']]);
   }
-  // 3) Admin Outbound: transfer stok
-  const opsList=Object.entries(d.operations||{}).filter(([,o])=>o.admin===code).map(([id,o])=>({o,p:d.packages.find(p=>p.id===id)})).filter(x=>x.p&&x.p.vpReady&&C.within(x.p.date,from,to));
-  if(opsList.length){
+  // 3) Admin Outbound: centang TFS di spreadsheet SOQ = transfer stok. Pemegang role Admin Outbound hari itu; bila belum ada alokasi, ke Riang (W14).
+  const tfs=C.unique(d.rows.filter(r=>r.tfs&&r.allocated&&C.within(r.date,from,to)),r=>JSON.stringify([r.source,r.date,r.line])).filter(r=>creditedTo(r.date,'adm-out','W14'));
+  if(tfs.length){
    labels.push('Admin Outbound (transfer stok)');
-   const done=opsList.filter(x=>x.o.transfer);
-   section('Admin Outbound · Transfer stok','Transfer stok dicatat manual oleh admin setelah VP. SKU dari jumlah baris SKU per koli; pcs dari isi koli.',[['Transfer stok',done.length+' / '+opsList.length+' koli','dokumen selesai '+opsList.filter(x=>x.o.document).length],['SKU',num(done.reduce((s,x)=>s+(x.p.count||0),0)),'baris SKU yang ditransfer'],['Koli',num(done.length),'koli selesai transfer'],['Pcs',num(done.reduce((s,x)=>s+(x.p.pcs||0),0))+' pcs',new Set(done.map(x=>x.p.outlet)).size+' toko']]);
+   const koliSet=new Set(tfs.map(r=>JSON.stringify([r.source,r.date,r.koli])));
+   section('Admin Outbound · Transfer stok (TFS)','Transfer stok dihitung dari kolom TFS yang dicentang di spreadsheet SOQ. Dikreditkan ke staf yang memegang role Admin Outbound pada hari itu; bila role belum dialokasikan, tercatat atas Riang (admin outbound default) sampai sinkron Supabase berjalan penuh.',[['Transfer stok',num(koliSet.size)+' koli','TFS tercentang di SOQ'],['SKU',num(tfs.length),'baris SKU yang ditransfer'],['Pcs',num(tfs.reduce((s,r)=>s+(r.actual||0),0))+' pcs','total ACT'],['Toko',new Set(tfs.map(r=>r.outlet)).size+' toko','tujuan transfer']]);
   }
-  // 4) Driver: pengantaran
+  // 4) Driver: loading dan unloading toko dicentang di web
   const trips=Object.values(d.logistics||{}).filter(t=>(t.drivers||[]).includes(code)&&C.within(t.package.date,from,to)&&d.packages.find(p=>p.id===t.id)?.vpReady);
   if(trips.length){
    labels.push('Driver (pengantaran)');
-   const loaded=trips.filter(t=>t.checkpoints?.loading);
-   section('Driver · Pengantaran','Pengantaran dihitung dari koli yang loading-nya sudah dikonfirmasi. Satu hari berangkat = satu pengantaran. Ditugaskan '+trips.length+' koli; '+loaded.length+' sudah loading.',[['Pengantaran',new Set(loaded.map(t=>t.package.date)).size+' kali','hari berangkat dengan loading'],['Titik / toko',new Set(loaded.map(t=>t.package.outlet)).size+' toko','toko berbeda yang diantar'],['Koli',num(loaded.length),'koli diantar'],['Pcs',num(loaded.reduce((s,t)=>s+(t.package.pcs||0),0))+' pcs','total isi koli']]);
+   const loaded=trips.filter(t=>t.checkpoints?.loading),delivered=trips.filter(t=>t.checkpoints?.unloading);
+   section('Driver · Pengantaran','Dihitung dari centang Loading dan Unloading toko di web. Pengantaran = hari berangkat dengan loading; toko, koli, dan pcs dihitung dari koli yang sudah dikonfirmasi unloading di toko. Ditugaskan '+trips.length+' koli · '+loaded.length+' sudah loading · '+delivered.length+' sudah unloading toko.',[['Pengantaran',new Set(loaded.map(t=>t.package.date)).size+' kali','hari berangkat dengan loading'],['Titik / toko',new Set(delivered.map(t=>t.package.outlet)).size+' toko','toko yang sudah unloading'],['Koli',num(delivered.length),'koli sampai di toko'],['Pcs',num(delivered.reduce((s,t)=>s+(t.package.pcs||0),0))+' pcs','total isi koli']]);
   }
   // 5) Picker
   if(k.pick.tasks){
