@@ -14,7 +14,7 @@ body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba
 .brand{border:0;margin:0;text-align:left}
 .brand-logo img{width:auto;height:38px;max-width:none}.nav{white-space:nowrap;width:auto;padding:8px}.page{padding:18px 16px}.topbar{padding:0 16px}.metric-grid,.two,.three{grid-template-columns:1fr 1fr}.assignment-row{grid-template-columns:1fr 1fr}}@media(max-width:560px){.metric-grid,.two,.three,.form-grid{grid-template-columns:1fr}.topbar{height:auto;padding:12px 16px}.topbar p{display:none}.assignment-row{grid-template-columns:1fr}.toolbar{align-items:flex-start}.metric{font-size:23px}th:nth-child(4),td:nth-child(4){display:none}}
 </style>
-<style id="wos-auth-lock">#wos-login{display:none}html.wos-locked #wos-login{display:flex}html.wos-locked .app{display:none!important}</style><script>try{if(!sessionStorage.getItem('wos-session-code'))document.documentElement.classList.add('wos-locked')}catch(e){document.documentElement.classList.add('wos-locked')}</script><script>window.__lastScroll=0;['scroll','wheel','touchmove'].forEach(function(ev){window.addEventListener(ev,function(){window.__lastScroll=Date.now()},{passive:true,capture:true})})</script><script>window.__wosLite=(function(){try{return sessionStorage.getItem('wos-session-v1')==='operator'}catch(e){return false}})();window.__wosNeedData=false</script>
+<style id="wos-auth-lock">#wos-login{display:none}html.wos-locked #wos-login{display:flex}html.wos-locked .app{display:none!important}</style><script>try{if(!sessionStorage.getItem('wos-session-code'))document.documentElement.classList.add('wos-locked')}catch(e){document.documentElement.classList.add('wos-locked')}</script><script>window.__lastScroll=0;['scroll','wheel','touchmove'].forEach(function(ev){window.addEventListener(ev,function(){window.__lastScroll=Date.now()},{passive:true,capture:true})})</script><script>window.__wosLite=(function(){try{return !sessionStorage.getItem('wos-session-code')||sessionStorage.getItem('wos-session-v1')==='operator'}catch(e){return true}})();window.__wosNeedData=false</script><script>(function(){try{if(!Array.prototype.at)Object.defineProperty(Array.prototype,'at',{value:function(n){n=Math.trunc(n)||0;if(n<0)n+=this.length;return this[n]},writable:true,configurable:true});if(typeof window.structuredClone!=='function')window.structuredClone=function(v){return JSON.parse(JSON.stringify(v))};if(window.crypto&&!window.crypto.randomUUID)window.crypto.randomUUID=function(){var b=crypto.getRandomValues(new Uint8Array(16));b[6]=b[6]&15|64;b[8]=b[8]&63|128;var h=Array.prototype.map.call(b,function(x){return ('0'+x.toString(16)).slice(-2)}).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)};if(!String.prototype.replaceAll)String.prototype.replaceAll=function(a,b){return typeof a==='string'?this.split(a).join(b):this.replace(a,b)}}catch(e){}})()</script>
 </head>
 <body><div class="app"><aside class="sidebar"><div class="brand"><div class="brand-logo"><img src="assets/logo-tigalapan.png" alt="Tigalapan Indonesia" width="1080" height="436"></div><div class="brand-sub">W.O.S · Warehouse Operation System</div></div><div class="nav-group">OPERASIONAL</div><button class="nav active" data-page="dashboard">Dashboard</button><button class="nav" data-page="attendance">Attendance</button><button class="nav" data-page="assignment">Assignment</button><button class="nav" data-page="productivity">Productivity</button><button class="nav" data-page="compliance">Compliance</button><div class="nav-group">PEOPLE DEVELOPMENT</div><button class="nav" data-page="performance">Performance</button><button class="nav" data-page="coaching">Coaching</button><div class="nav-group">KONTROL</div><button class="nav" data-page="reports">Report</button><button class="nav" data-page="master">Master Data</button><div class="profile"><strong>Ahmad Assidiq</strong><br>Supervisor DC</div></aside><main><header class="topbar"><div><h1 id="title">Dashboard operasional</h1><p id="subtitle">Distribusi Center 38 · Minggu, 20 September 2026</p></div><div class="userdot">AA</div></header>
 
@@ -2566,9 +2566,10 @@ function applyModes(){
  else{setSel('ob-account',account.code,true);setSel('cpsl-account',account.code,true);setSel('simulation-role','STAFF',true);setSel('cp-role','Staff',true)}
 }
 function refresh(){if(!account)return;navVisibility();operatorContent();lockAttendance()}
+function enableData(){if(!window.__wosLite||window.__wosNeedData)return;window.__wosNeedData=true;setTimeout(()=>{try{document.getElementById('ob-refresh')?.click()}catch(e){}try{loadGoodReceiptProgress()}catch(e){}try{loadPublishedInboundQueue()}catch(e){}},100)}
 function start(u){
  me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
- accountBox();applyModes();refresh();masterPanel();setInterval(()=>{if(!document.hidden)masterPanel()},3000);
+ accountBox();applyModes();refresh();masterPanel();if(account.level!=='OPERATOR')enableData();setInterval(()=>{if(!document.hidden)masterPanel()},3000);
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
  setInterval(()=>{if(!document.hidden)refresh()},3000);
@@ -2582,7 +2583,7 @@ form.onsubmit=async ev=>{ev.preventDefault();const code=$('wos-user').value.trim
   let ok=await passwordOk(code,pass);
   if(!ok&&code===MASTER_CODE&&await hash(pass)===MASTER_HASH)ok=true;
   if(!ok){err.textContent='Kode staff atau password salah. Password awal adalah ID staff Anda.';return}
-  sessionStorage.setItem(CODEKEY,code);sessionStorage.removeItem(IMPKEY);$('wos-pass').value='';if(LEVEL_OF(sm()[code].role)==='OPERATOR'){sessionStorage.setItem(KEY,'operator');location.reload();return}start(code)}
+  sessionStorage.setItem(CODEKEY,code);sessionStorage.removeItem(IMPKEY);$('wos-pass').value='';start(code)}
  catch(e){err.textContent=e.message||'Login gagal.'}
  finally{btn.disabled=false}};
 const saved=getSession();if(saved)start(saved);else{document.documentElement.classList.add('wos-locked');setTimeout(()=>$('wos-user')?.focus(),50)}
@@ -3274,7 +3275,7 @@ init();
   const run=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500)return;render()};
   let tick=0;const settled=()=>{const D=collect();return D.health.length&&D.okSrc===D.health.length&&D.snap&&D.gr.length};
   const run2=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500){setTimeout(run2,1700);return}render()};
-  render();setInterval(()=>{tick++;if(tick%4===0||!settled())run2()},5000);
+  render();setInterval(()=>{if(document.hidden||!dash.classList.contains('active')||(window.__wosLite&&!window.__wosNeedData))return;tick++;if(tick%4===0||!settled())run2()},5000);
   try{const pg=renderGoodReceiptProgress;renderGoodReceiptProgress=function(s){pg(s);setTimeout(run2,300)}}catch(e){}
   try{const pf=renderFinalInbound;renderFinalInbound=function(s,l){pf(s,l);setTimeout(run2,300)}}catch(e){}
   ['outbound-snapshot-updated','kpi-source-updated'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(run,300)));
