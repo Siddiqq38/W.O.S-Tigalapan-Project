@@ -3195,14 +3195,14 @@ init();
   return a;
  }
  function summary(D,M){
-  const grDone=D.gr.filter(b=>b.counting&&b.putAway),kol=b=>Array.isArray(b.koli)?b.koli.length:Number(b.totalKoli)||0,koliAll=D.gr.reduce((s,b)=>s+kol(b),0),koliDone=grDone.reduce((s,b)=>s+kol(b),0);
+  const grDone=D.gr.filter(b=>b.counting),kol=b=>Array.isArray(b.koli)?b.koli.length:Number(b.totalKoli)||0,koliAll=D.gr.reduce((s,b)=>s+kol(b),0),koliDone=grDone.reduce((s,b)=>s+kol(b),0),koliPut=D.gr.filter(b=>b.counting&&b.putAway).reduce((s,b)=>s+kol(b),0);
   const vp=D.packages.filter(p=>p.vpReady).length,tot=D.packages.length,act=D.rows.reduce((s,r)=>s+(r.validActual?r.actual||0:0),0),tgt=D.rows.reduce((s,r)=>s+(r.soq||0),0);
   const days=D.snapC.days.filter(r=>r.day===D.to&&!r.exempt&&r.fiveRRequired!==false),ok5=days.filter(r=>r.report&&r.report.approval==='approved').length,miss=days.filter(r=>!r.report).length;
   const events=D.snapC.events.filter(e=>e.day>=D.from&&e.day<=D.to&&e.status==='valid').length;
   const drmYes=D.snapC.days.filter(r=>r.day===D.to&&r.drm==='yes').length,late=D.att.filter(r=>r.day===D.to&&r.action==='Attendance in'&&(((Date.parse(r.at)+WITA)%86400000)/60000)>490).length;
   const card=(t,big,p,c,sub,tab)=>'<div class="dx-card"><div class="dx-k">'+t+'</div><div class="dx-big">'+big+'</div>'+barH(p,c)+'<div class="dx-sub">'+sub+'</div></div>';
   const acts=actions(D,M);
-  return '<div class="dx-grid4">'+card('Kehadiran',M.hadir+' / '+M.total,pct(M.hadir,M.total),'g',late+' terlambat · DRM ikut '+drmYes)+card('Inbound','<span>'+num(koliDone)+' koli GR</span>',pct(koliDone,koliAll),'',D.snap?'Ready GR '+num(D.snap.summary.ready)+' · Staging '+num(D.snap.summary.staging):'Memuat data Stagging-In')+card('Outbound',vp+' / '+tot+' koli',pct(vp,tot),'','ACT '+num(act)+' / '+num(tgt)+' pcs · VP selesai')+card('Compliance',ok5+' / '+days.length+' 5R',pct(ok5,days.length),miss?'a':'g',miss+' belum lapor · '+events+' temuan terverifikasi')+'</div>'+
+  return '<div class="dx-grid4">'+card('Kehadiran',M.hadir+' / '+M.total,pct(M.hadir,M.total),'g',late+' terlambat · DRM ikut '+drmYes)+card('Inbound','<span>'+num(koliDone)+' koli GR</span>',pct(koliDone,koliAll),'',(D.gr.length?'Put away '+num(koliPut)+' koli · ':'Memuat Form GR · ')+(D.snap?'Ready GR '+num(D.snap.summary.ready)+' · Staging '+num(D.snap.summary.staging):'memuat Stagging-In'))+card('Outbound',vp+' / '+tot+' koli',pct(vp,tot),'','ACT '+num(act)+' / '+num(tgt)+' pcs · VP selesai')+card('Compliance',ok5+' / '+days.length+' 5R',pct(ok5,days.length),miss?'a':'g',miss+' belum lapor · '+events+' temuan terverifikasi')+'</div>'+
   '<div class="dx-grid2"><div class="dx-card"><h3>Perlu tindakan</h3>'+(acts.length?acts.map(x=>'<div class="dx-row"><span><span class="dx-dot '+x.lvl+'"></span>'+esc(x.text)+'</span><button class="dx-go" data-dx-tab="'+x.tab+'" type="button">Buka ›</button></div>').join(''):'<div class="dx-row"><span><span class="dx-dot g"></span>Semua berjalan normal</span></div>')+'</div>'+
   '<div class="dx-card"><h3>Man power sekarang</h3><div class="dx-row"><span>Bekerja</span><strong>'+M.bekerja+'</strong></div><div class="dx-row"><span>Standby</span><strong>'+M.standby+'</strong></div><div class="dx-row"><span>Belum punya role</span><strong style="'+(M.belumRole?'color:var(--amber)':'')+'">'+M.belumRole+'</strong></div><div class="dx-row"><span>Belum hadir</span><strong>'+M.belumHadir+'</strong></div></div></div>'+
   '<div class="dx-links"><button class="dx-pill" data-dx-tab="inbound" type="button">Dashboard Inbound ›</button><button class="dx-pill" data-dx-tab="outbound" type="button">Dashboard Outbound ›</button><button class="dx-pill" data-dx-tab="manpower" type="button">Dashboard Man Power ›</button><button class="dx-pill" data-dx-tab="compliance" type="button">Dashboard Compliance ›</button></div>';
@@ -3272,7 +3272,11 @@ init();
    if(e.target.closest('[data-dx-refresh]')){document.getElementById('ob-refresh')?.click();try{loadPublishedInboundQueue()}catch(x){}try{loadGoodReceiptProgress()}catch(x){}e.target.textContent='Memperbarui...'}
   });
   const run=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500)return;render()};
-  render();setInterval(run,20000);
+  let tick=0;const settled=()=>{const D=collect();return D.health.length&&D.okSrc===D.health.length&&D.snap&&D.gr.length};
+  const run2=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500){setTimeout(run2,1700);return}render()};
+  render();setInterval(()=>{tick++;if(tick%4===0||!settled())run2()},5000);
+  try{const pg=renderGoodReceiptProgress;renderGoodReceiptProgress=function(s){pg(s);setTimeout(run2,300)}}catch(e){}
+  try{const pf=renderFinalInbound;renderFinalInbound=function(s,l){pf(s,l);setTimeout(run2,300)}}catch(e){}
   ['outbound-snapshot-updated','kpi-source-updated'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(run,300)));
   document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='dashboard')setTimeout(()=>{box.dataset.sig='';render()},60)}));
  }
