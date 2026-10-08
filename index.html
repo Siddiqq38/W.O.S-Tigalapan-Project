@@ -1801,7 +1801,7 @@ if(typeof document!=='undefined')(()=>{
  function bar(label,n,total){const pct=C.percent(n,total);return '<div><span>'+E(label)+' · '+(pct===null?'Belum ada pembanding':pct+'% ('+n+'/'+total+')')+'</span>'+(pct===null?'':'<progress max="100" value="'+Math.min(100,pct)+'"></progress>')+'</div>';}
  function renderCards(){const from=$('kpi-from').value,to=$('kpi-to').value,root=$('kpi-cards');current=[];if(!C.range(from,to)){root.textContent='Pilih rentang tanggal yang valid.';return;}const d=source(from,to),codes=$('kpi-person').value==='all'?Object.keys(staffMaster).filter(c=>staffMaster[c].role!=='Supervisor'):[$('kpi-person').value];current=codes.map(code=>C.operator(d,code,from,to));root.innerHTML=current.map(k=>{const p=staffMaster[k.code],cp=k.cp,follow=[],rk=roleKpi(d,k,from,to);if(!k.attendance)follow.push('Riwayat check-in belum tersedia untuk periode ini.');if(cp.drmUnknown)follow.push(cp.drmUnknown+' checklist DRM belum diperiksa.');if(cp.missing||cp.waiting||cp.rejected)follow.push('Tindak lanjuti 5R: '+cp.missing+' belum lapor, '+cp.waiting+' menunggu ACC, '+cp.rejected+' ditolak.');if(cp.pending)follow.push(cp.pending+' kejadian menunggu verifikasi; belum masuk pelanggaran valid.');if(cp.valid)follow.push(cp.valid+' kejadian terverifikasi perlu ditinjau bersama bukti dan konteks.');return '<article class="card kpi-sheet"><h2>'+E(p?.name||k.code)+'</h2><p>'+E(k.code+' · '+(p?.role||'')+' | Cutoff '+from+' – '+to)+'</p><p style="color:#168d89;font-weight:700">Performance Card · data sementara, tanpa peringkat otomatis</p><div class="kpi-grid">'+tile('Hari check-in tercatat',k.attendance||'Belum tersedia','Bukan total hari kerja; histori sebelum fitur ini belum tersimpan')+rk.topTiles+'</div>'+rk.sectionsHtml+'<h3>Penugasan & volume pekerjaan</h3><div class="kpi-table"><table><thead><tr><th>Aktivitas</th><th>Selesai / tugas</th><th>Realisasi / target</th><th>Keterangan</th></tr></thead><tbody>'+k.jobs.map(j=>'<tr><td>'+E(j.activity)+'</td><td>'+j.done+' / '+j.tasks+'</td><td>'+num(j.actual)+' / '+num(j.target)+' '+E(j.unit)+'</td><td>'+E(j.note)+'</td></tr>').join('')+(k.jobs.length?'':'<tr><td colspan="4">Belum ada penugasan tercatat pada periode ini.</td></tr>')+'</tbody></table></div><div class="kpi-grid" style="margin-top:20px"><div><h3>Indikator terukur</h3><div class="kpi-chart">'+(k.pick.tasks?bar('ACT picking / target',k.pick.actual,k.pick.target)+bar('VP / target picking',k.pick.verified,k.pick.target):'')+bar('DRM hadir / checklist diperiksa',cp.drmYes,cp.drmYes+cp.drmNo)+bar('Device dikumpulkan / diperiksa',cp.deviceYes,cp.deviceYes+cp.deviceNo)+bar('5R ACC / laporan diputuskan',cp.approved,cp.approved+cp.rejected)+'</div><p class="sub">Persentase hanya memakai pembanding tercatat. 5R yang belum diputuskan tidak dianggap lulus atau gagal.</p></div><div><h3>Compliance & kelengkapan</h3><p>DRM: '+cp.drmYes+' ikut · '+cp.drmNo+' tidak ikut · '+cp.drmUnknown+' belum diperiksa.</p><p>5R: '+cp.approved+' ACC · '+cp.rejected+' ditolak · '+cp.waiting+' menunggu ACC · '+cp.missing+' belum lapor.</p><p>SOP valid: '+cp.sop+' · Miss put away: '+cp.missPutAway+' · Total kejadian valid: '+cp.valid+' · Pending: '+cp.pending+'.</p><p>Hadir historis / sakit / alpha / cuti / izin / off / Change Off / keterlambatan: belum ada sumber riwayat tervalidasi yang lengkap. Tidak dihitung sebagai nol atau nilai sempurna.</p></div></div><h3>Fokus tindak lanjut</h3><ul>'+ (follow.length?follow:['Pastikan kelengkapan data dan target jabatan sebelum menilai KPI.']).map(s=>'<li>'+E(s)+'</li>').join('')+'</ul><details><summary>Rincian komplain dan kejadian dalam cutoff</summary>'+cp.events.map(e=>'<p>'+E(e.day+' · '+e.type+' · '+e.status+' · '+(e.detail||''))+'</p>').join('')+'</details><p class="kpi-muted">'+E(coverage(d,from,to))+'</p><p class="kpi-muted">Skor gabungan dan peringkat belum ditetapkan. Volume tidak dibandingkan langsung antarjabatan; bukti komplain perlu ditinjau manusia.</p></article>';}).join('');}
  var kpiStaleD=false,kpiStaleC=false;const kpiPageActive=id=>!!document.getElementById(id)?.closest('.page')?.classList.contains('active');
- function render(){if(document.hidden){kpiStaleD=kpiStaleC=true;return}if(Date.now()-(window.__lastScroll||0)<1500){clearTimeout(render.h);render.h=setTimeout(render,1600);return}if(kpiPageActive('kpi-dash-card')){renderDashboard();kpiStaleD=false}else kpiStaleD=true;if(kpiPageActive('kpi-cards')){renderCards();kpiStaleC=false}else kpiStaleC=true}
+ function render(){if(document.hidden){kpiStaleD=kpiStaleC=true;return}if(Date.now()-(window.__lastScroll||0)<1500){clearTimeout(render.h);render.h=setTimeout(render,1600);return}kpiStaleD=false;if(kpiPageActive('kpi-cards')){renderCards();kpiStaleC=false}else kpiStaleC=true}
  document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{if(kpiStaleD||kpiStaleC)render()},0)));
  ['kpi-dash-from','kpi-dash-to'].forEach(id=>$(id).onchange=renderDashboard);$('kpi-dash-today').onclick=()=>{$('kpi-dash-from').value=$('kpi-dash-to').value=today();renderDashboard();};$('kpi-dash-card').onclick=()=>{$('kpi-from').value=$('kpi-dash-from').value;$('kpi-to').value=$('kpi-dash-to').value;document.querySelector('.nav[data-page="performance"]').click();renderCards();};
  ['kpi-from','kpi-to','kpi-person'].forEach(id=>$(id).onchange=renderCards);$('kpi-run').onclick=renderCards;perf.querySelectorAll('[data-kpi-period]').forEach(b=>b.onclick=()=>{const [from,to]=C.preset(b.dataset.kpiPeriod,today());$('kpi-from').value=from;$('kpi-to').value=to;renderCards();});
@@ -3100,6 +3100,178 @@ init();
  }
  init();
  document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='reports')setTimeout(()=>{const h=$('wos-report-main');if(h){h.dataset.sig='';render()}},60)}));
+})();
+</script>
+<style id="dx-css">
+#kpi-dashboard{display:none!important}
+#wos-dash .dx-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+#wos-dash .dx-pills{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#wos-dash .dx-pill{border:1px solid var(--line);background:var(--white);color:inherit;border-radius:999px;padding:6px 13px;font-size:13px;cursor:pointer}
+#wos-dash .dx-pill.on{background:#b5532a;border-color:#b5532a;color:#fff}
+#wos-dash .dx-sync{font-size:12px;color:var(--muted)}
+#wos-dash .dx-sync.ok{color:var(--green)}#wos-dash .dx-sync.warn{color:var(--amber)}
+#wos-dash .dx-grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+#wos-dash .dx-grid2{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px;margin-top:12px}
+@media(max-width:860px){#wos-dash .dx-grid2{grid-template-columns:minmax(0,1fr)}}
+#wos-dash .dx-card{background:var(--white);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:0}
+#wos-dash .dx-card h3{margin:0 0 10px;font-size:14px;font-weight:600}
+#wos-dash .dx-k{font-size:13px;color:var(--muted)}
+#wos-dash .dx-big{font-size:28px;font-weight:700;margin:4px 0 8px;line-height:1.1}
+#wos-dash .dx-bar{height:7px;background:var(--bg,#eef2f6);border-radius:4px;overflow:hidden}
+#wos-dash .dx-bar i{display:block;height:100%;border-radius:4px;background:#b5532a}
+#wos-dash .dx-bar i.g{background:var(--green)}#wos-dash .dx-bar i.a{background:var(--amber)}#wos-dash .dx-bar i.r{background:var(--red)}
+#wos-dash .dx-sub{font-size:12px;color:var(--muted);margin-top:8px}
+#wos-dash .dx-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:13px;align-items:center}
+#wos-dash .dx-row:first-of-type{border-top:0}
+#wos-dash .dx-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;background:var(--amber)}
+#wos-dash .dx-dot.r{background:var(--red)}#wos-dash .dx-dot.g{background:var(--green)}
+#wos-dash .dx-go{border:0;background:transparent;color:#b5532a;cursor:pointer;font-size:12px;white-space:nowrap}
+#wos-dash .dx-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#wos-dash .dx-funnel{display:grid;gap:8px}
+#wos-dash .dx-f{display:grid;grid-template-columns:150px minmax(0,1fr) 90px;gap:10px;align-items:center;font-size:13px}
+#wos-dash .dx-tbl{width:100%;border-collapse:collapse;font-size:13px}
+#wos-dash .dx-tbl th{text-align:left;font-size:11px;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+#wos-dash .dx-tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+#wos-dash .dx-scroll{overflow:auto}
+#wos-dash .dx-tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber)}
+#wos-dash .dx-tag.r{background:var(--red-bg);color:var(--red)}#wos-dash .dx-tag.g{background:var(--green-bg);color:var(--green)}
+</style>
+<script>
+// DASHBOARD MODULE: dashboard utama ringkas + tab Inbound, Outbound, Man Power, Compliance.
+(()=>{
+ const $=id=>document.getElementById(id),WITA=8*3600e3;
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const num=v=>Number(v||0).toLocaleString('id-ID');
+ const iso=ms=>new Date(ms+WITA).toISOString().slice(0,10);
+ const todayK=()=>iso(Date.now());
+ const dIso=v=>{const p=String(v||'').split('/');return p.length===3?p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'):String(v||'')};
+ const readJ=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
+ const sm=()=>{try{return staffMaster}catch(e){return{}}};
+ const staffList=()=>Object.entries(sm()).filter(([,p])=>!p.out&&p.role!=='Supervisor');
+ const pct=(a,b)=>b>0?Math.min(100,Math.round(a*100/b)):0;
+ const st={range:'today',tab:'ringkas'};
+ const range=()=>{const t=todayK();if(st.range==='yesterday'){const y=iso(Date.now()-864e5);return[y,y]}if(st.range==='7d')return[iso(Date.now()-6*864e5),t];return[t,t]};
+ const inR=(d,f,t)=>d>=f&&d<=t;
+ const uniq=(list,key)=>{const m=new Map();list.forEach(x=>m.set(key(x),x));return[...m.values()]};
+ const barH=(p,c)=>'<div class="dx-bar"><i class="'+(c||'')+'" style="width:'+p+'%"></i></div>';
+ function collect(){
+  const [from,to]=range();
+  const ob=typeof window.getOutboundKpiData==='function'?window.getOutboundKpiData():{rows:[],health:[],logistics:{}};
+  const rows=uniq((ob.rows||[]).filter(r=>inR(r.date,from,to)),r=>JSON.stringify([r.source,r.date,r.line]));
+  let packages=[];try{packages=CpslCore.packages(rows)}catch(e){}
+  const groups=new Map();rows.forEach(r=>{if(!r.koli)return;const k=JSON.stringify([r.source,r.date,r.koli]),g=groups.get(k)||{n:0,tfs:0,outlet:r.outlet};g.n++;if(r.tfs)g.tfs++;groups.set(k,g)});
+  const tfsDone=[...groups.values()].filter(g=>g.n>0&&g.tfs===g.n).length;
+  const logi=Object.values(ob.logistics||{}).filter(t=>t.package&&inR(t.package.date,from,to));
+  const gr=uniq((typeof goodReceiptBatches!=='undefined'?goodReceiptBatches:[]).filter(b=>inR(dIso(b.date),from,to)),b=>[b.date,b.po,b.batch].join('|'));
+  const snap=(typeof lastInboundSnapshot!=='undefined'&&lastInboundSnapshot)?lastInboundSnapshot:null;
+  const health=ob.health||[],okSrc=health.filter(h=>h.lastRead&&!h.error).length;
+  const snapC=(window.__complianceSnapshot&&window.__complianceSnapshot())||{days:[],events:[]};
+  const att=readJ('wos-attendance-kpi-v1',[]),plans=(readJ('wos-roles-v1',{plans:{}}).plans||{})[to]||{},tasks=readJ('wos-tasks-v1',[]).filter(t=>t.day===to);
+  return{from,to,ob,rows,packages,groups,tfsDone,logi,gr,snap,health,okSrc,snapC,att,plans,tasks};
+ }
+ function manpower(D){
+  const day=D.to,hadir=new Set(D.att.filter(r=>r.day===day&&r.action==='Attendance in').map(r=>r.code)),nowMin=(()=>{const d=new Date(Date.now()+WITA);return d.getUTCHours()*60+d.getUTCMinutes()})();
+  const toMin=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?Number(m[1])*60+Number(m[2]):NaN};
+  const list=staffList().map(([code,p])=>{
+   const slots=D.plans[code]||[],active=slots.filter(s=>nowMin>=toMin(s.from)&&nowMin<toMin(s.to)),working=D.tasks.some(t=>t.by2===code&&t.status==='diterima');
+   const here=hadir.has(code);let status=!here?'Belum hadir':working?'Bekerja':active.length?'Standby':slots.length?'Di luar jam role':'Belum role';
+   return{code,name:p.name,here,slots,active,status,working};
+  });
+  const count=s=>list.filter(x=>x.status===s).length;
+  return{list,hadir:hadir.size,total:list.length,bekerja:count('Bekerja'),standby:count('Standby'),belumRole:count('Belum role'),belumHadir:count('Belum hadir')};
+ }
+ function actions(D,M){
+  const a=[];const add=(lvl,text,tab,page)=>a.push({lvl,text,tab,page});
+  const crit=new Set(D.rows.filter(r=>r.critical).map(r=>JSON.stringify([r.source,r.date,r.koli])));
+  if(crit.size)add('r',crit.size+' koli SOQ Critical','outbound');
+  const failed=D.health.filter(h=>h.error).length;if(failed)add('r',failed+' sumber SOQ gagal sinkron (data mungkin usang)','outbound');
+  const ready=D.snap?D.snap.summary.ready:0;if(ready>0)add('a',num(ready)+' koli Ready GR belum ditugaskan','inbound');
+  const noPo=D.gr.filter(b=>b.counting&&b.putAway&&!b.purchase).length;if(noPo)add('a',noPo+' batch GR menunggu PO admin','inbound');
+  const pend5r=D.snapC.days.filter(r=>r.report&&r.report.approval==='pending').length;if(pend5r)add('a',pend5r+' video 5R menunggu ACC SPV','compliance');
+  const hadirNoRole=M.list.filter(x=>x.here&&!x.slots.length).length;if(hadirNoRole)add('a',hadirNoRole+' staf hadir belum punya role','manpower');
+
+  const drmPending=M.list.filter(x=>{const r=D.snapC.days.find(r=>r.id===D.to+':'+x.code);return x.here&&(!r||!['yes','no'].includes(r.drm))}).length;if(drmPending)add('a',drmPending+' staf hadir belum ditandai DRM','manpower');
+  const oldTasks=D.tasks.filter(t=>t.status==='baru'&&Date.now()-Date.parse(t.at)>15*60000).length;if(oldTasks)add('a',oldTasks+' task belum diterima lebih dari 15 menit','manpower');
+  return a;
+ }
+ function summary(D,M){
+  const grDone=D.gr.filter(b=>b.counting&&b.putAway),kol=b=>Array.isArray(b.koli)?b.koli.length:Number(b.totalKoli)||0,koliAll=D.gr.reduce((s,b)=>s+kol(b),0),koliDone=grDone.reduce((s,b)=>s+kol(b),0);
+  const vp=D.packages.filter(p=>p.vpReady).length,tot=D.packages.length,act=D.rows.reduce((s,r)=>s+(r.validActual?r.actual||0:0),0),tgt=D.rows.reduce((s,r)=>s+(r.soq||0),0);
+  const days=D.snapC.days.filter(r=>r.day===D.to&&!r.exempt&&r.fiveRRequired!==false),ok5=days.filter(r=>r.report&&r.report.approval==='approved').length,miss=days.filter(r=>!r.report).length;
+  const events=D.snapC.events.filter(e=>e.day>=D.from&&e.day<=D.to&&e.status==='valid').length;
+  const drmYes=D.snapC.days.filter(r=>r.day===D.to&&r.drm==='yes').length,late=D.att.filter(r=>r.day===D.to&&r.action==='Attendance in'&&(((Date.parse(r.at)+WITA)%86400000)/60000)>490).length;
+  const card=(t,big,p,c,sub,tab)=>'<div class="dx-card"><div class="dx-k">'+t+'</div><div class="dx-big">'+big+'</div>'+barH(p,c)+'<div class="dx-sub">'+sub+'</div></div>';
+  const acts=actions(D,M);
+  return '<div class="dx-grid4">'+card('Kehadiran',M.hadir+' / '+M.total,pct(M.hadir,M.total),'g',late+' terlambat · DRM ikut '+drmYes)+card('Inbound','<span>'+num(koliDone)+' koli GR</span>',pct(koliDone,koliAll),'',D.snap?'Ready GR '+num(D.snap.summary.ready)+' · Staging '+num(D.snap.summary.staging):'Memuat data Stagging-In')+card('Outbound',vp+' / '+tot+' koli',pct(vp,tot),'','ACT '+num(act)+' / '+num(tgt)+' pcs · VP selesai')+card('Compliance',ok5+' / '+days.length+' 5R',pct(ok5,days.length),miss?'a':'g',miss+' belum lapor · '+events+' temuan terverifikasi')+'</div>'+
+  '<div class="dx-grid2"><div class="dx-card"><h3>Perlu tindakan</h3>'+(acts.length?acts.map(x=>'<div class="dx-row"><span><span class="dx-dot '+x.lvl+'"></span>'+esc(x.text)+'</span><button class="dx-go" data-dx-tab="'+x.tab+'" type="button">Buka ›</button></div>').join(''):'<div class="dx-row"><span><span class="dx-dot g"></span>Semua berjalan normal</span></div>')+'</div>'+
+  '<div class="dx-card"><h3>Man power sekarang</h3><div class="dx-row"><span>Bekerja</span><strong>'+M.bekerja+'</strong></div><div class="dx-row"><span>Standby</span><strong>'+M.standby+'</strong></div><div class="dx-row"><span>Belum punya role</span><strong style="'+(M.belumRole?'color:var(--amber)':'')+'">'+M.belumRole+'</strong></div><div class="dx-row"><span>Belum hadir</span><strong>'+M.belumHadir+'</strong></div></div></div>'+
+  '<div class="dx-links"><button class="dx-pill" data-dx-tab="inbound" type="button">Dashboard Inbound ›</button><button class="dx-pill" data-dx-tab="outbound" type="button">Dashboard Outbound ›</button><button class="dx-pill" data-dx-tab="manpower" type="button">Dashboard Man Power ›</button><button class="dx-pill" data-dx-tab="compliance" type="button">Dashboard Compliance ›</button></div>';
+ }
+ function inboundTab(D){
+  const kol=b=>Array.isArray(b.koli)?b.koli.length:Number(b.totalKoli)||0,pcs=b=>Number(String(b.totalPcs).replace(/\D/g,''))||0,s=D.snap?D.snap.summary:null;
+  const gr=D.gr,total=gr.length,cnt=gr.filter(b=>b.counting).length,put=gr.filter(b=>b.counting&&b.putAway).length,po=gr.filter(b=>b.purchase).length;
+  const card=(t,big,sub)=>'<div class="dx-card"><div class="dx-k">'+t+'</div><div class="dx-big">'+big+'</div><div class="dx-sub">'+sub+'</div></div>';
+  const f=(l,n,t,c)=>'<div class="dx-f"><span>'+l+'</span>'+barH(pct(n,t),c)+'<strong>'+num(n)+'</strong></div>';
+  const queue=D.snap&&D.snap.queue?D.snap.queue:[];const now=Date.now();
+  const age=u=>{const d=dIso(u);if(!/^\d{4}-/.test(d))return null;return Math.floor((now-Date.parse(d+'T00:00:00+08:00'))/864e5)};
+  let people=[];try{people=InboundRoleCore.snapshot((typeof goodReceiptBatches!=='undefined'?goodReceiptBatches:[]),D.from,D.to,Object.keys(sm())).people}catch(e){}
+  const by={};people.forEach(p=>{const o=by[p.code]=by[p.code]||{c:0,pa:0,koli:0,pcs:0};if(p.role==='Counting')o.c+=p.done;else o.pa+=p.done;o.koli+=p.actualKoli;o.pcs+=p.actualPcs});
+  const pic=Object.entries(by).sort((a,b)=>b[1].koli-a[1].koli);
+  return '<div class="dx-grid4">'+card('Staging In',s?num(s.staging)+' koli':'Memuat…','Total koli intransit di sheet; tidak terikat tanggal')+card('Tidak ada HPP',s?num(s.noHpp)+' koli':'Memuat…','Belum bisa menjadi target GR')+card('Ready GR',s?num(s.ready)+' koli':'Memuat…','Siap ditugaskan GR')+card('GR pada rentang',total+' batch',num(gr.reduce((a,b)=>a+kol(b),0))+' koli · '+num(gr.reduce((a,b)=>a+pcs(b),0))+' pcs')+'</div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Alur batch GR pada rentang</h3><div class="dx-funnel">'+f('Batch dibuat',total,total,'')+f('Counting selesai',cnt,total,'')+f('Put away selesai',put,total,'g')+f('PO admin selesai',po,total,'g')+'</div></div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Antrean Ready GR per PO (umur sejak unload)</h3><div class="dx-scroll">'+(queue.length?'<table class="dx-tbl"><thead><tr><th>PO</th><th>Vendor</th><th>Tgl unload</th><th>Umur</th><th>Ready (koli)</th><th>Area / resi</th></tr></thead><tbody>'+queue.slice().sort((a,b)=>(age(b.unload)||0)-(age(a.unload)||0)).map(r=>{const a=age(r.unload);return '<tr><td>'+esc(r.po)+'</td><td>'+esc(r.vendor||'-')+'</td><td>'+esc(r.unload||'-')+'</td><td>'+(a===null?'-':'<span class="dx-tag '+(a>3?'r':'g')+'">'+a+' hari</span>')+'</td><td><strong>'+num(r.ready)+'</strong></td><td>'+esc((r.staging||[]).join(', ')||'-')+' '+esc((r.resi||[]).join(', '))+'</td></tr>'}).join('')+'</tbody></table>':'<p class="dx-sub">Tidak ada antrean Ready GR.</p>')+'</div></div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Produktivitas PIC (Counting dan Put away)</h3><div class="dx-scroll">'+(pic.length?'<table class="dx-tbl"><thead><tr><th>Staf</th><th>Counting (batch)</th><th>Put away (batch)</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+pic.map(([c,o])=>'<tr><td>'+esc(sm()[c]?.name||c)+'</td><td>'+o.c+'</td><td>'+o.pa+'</td><td><strong>'+num(o.koli)+'</strong></td><td>'+num(o.pcs)+'</td></tr>').join('')+'</tbody></table>':'<p class="dx-sub">Belum ada realisasi GR pada rentang ini.</p>')+'</div></div>';
+ }
+ function outboundTab(D){
+  const pk=D.packages,tot=pk.length,pick=pk.filter(p=>p.pickingReady).length,vp=pk.filter(p=>p.vpReady).length,loaded=D.logi.filter(t=>t.checkpoints&&t.checkpoints.loading).length,deliv=D.logi.filter(t=>t.checkpoints&&t.checkpoints.unloading).length;
+  const f=(l,n,c)=>'<div class="dx-f"><span>'+l+'</span>'+barH(pct(n,tot),c)+'<strong>'+num(n)+' / '+num(tot)+'</strong></div>';
+  const by={};D.rows.forEach(r=>{const o=by[r.outlet]=by[r.outlet]||{koli:new Set(),soq:0,act:0,soo:0,crit:false};if(r.koli)o.koli.add(r.koli);o.soq+=r.soq||0;o.act+=r.validActual?r.actual||0:0;if(r.reconciled)o.soo+=r.soo||0;if(r.critical)o.crit=true});
+  const vpBy={};pk.forEach(p=>{const o=vpBy[p.outlet]=vpBy[p.outlet]||{n:0,vp:0};o.n++;if(p.vpReady)o.vp++});
+  const outlets=Object.entries(by).sort((a,b)=>a[0].localeCompare(b[0]));
+  const pick2={};D.rows.forEach(r=>{if(!r.picker)return;const o=pick2[r.picker]=pick2[r.picker]||{soq:0,act:0,koli:new Set()};o.soq+=r.soq||0;o.act+=r.validActual?r.actual||0:0;if(r.koli)o.koli.add(r.koli)});
+  const pickers=Object.entries(pick2).sort((a,b)=>b[1].act-a[1].act);
+  const crit=outlets.filter(([,o])=>o.crit).map(([n])=>n);
+  const trips=new Set(D.logi.filter(t=>t.checkpoints&&t.checkpoints.loading).map(t=>t.package.date)).size;
+  return '<div class="dx-card"><h3>Pipeline koli outbound</h3><div class="dx-funnel">'+f('SOQ teralokasi',tot,'')+f('Picking selesai',pick,'')+f('VP selesai',vp,'')+f('TFS selesai (transfer stok)',D.tfsDone,'g')+f('Loading',loaded,'g')+f('Unloading toko',deliv,'g')+'</div><div class="dx-sub">Pengiriman: '+trips+' hari berangkat · '+deliv+' koli sampai di toko'+(crit.length?' · <span class="dx-tag r">SOQ Critical: '+esc(crit.join(', '))+'</span>':'')+'</div></div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Progres per toko</h3><div class="dx-scroll">'+(outlets.length?'<table class="dx-tbl"><thead><tr><th>Toko</th><th>Koli VP</th><th>ACT / target (pcs)</th><th style="width:28%">Progres</th><th>SOO</th></tr></thead><tbody>'+outlets.map(([n,o])=>{const v=vpBy[n]||{n:0,vp:0};return '<tr><td>'+esc(n)+(o.crit?' <span class="dx-tag r">Critical</span>':'')+'</td><td>'+v.vp+' / '+(v.n||o.koli.size)+'</td><td>'+num(o.act)+' / '+num(o.soq)+'</td><td>'+barH(pct(o.act,o.soq),pct(o.act,o.soq)>=100?'g':'')+'</td><td>'+num(o.soo)+'</td></tr>'}).join('')+'</tbody></table>':'<p class="dx-sub">Belum ada SOQ pada rentang ini.</p>')+'</div></div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Progres per picker</h3><div class="dx-scroll">'+(pickers.length?'<table class="dx-tbl"><thead><tr><th>Picker</th><th>Koli</th><th>ACT / target (pcs)</th><th style="width:30%">Progres</th></tr></thead><tbody>'+pickers.map(([c,o])=>'<tr><td>'+esc(sm()[c]?.name||c)+'</td><td>'+o.koli.size+'</td><td>'+num(o.act)+' / '+num(o.soq)+'</td><td>'+barH(pct(o.act,o.soq),pct(o.act,o.soq)>=100?'g':'')+'</td></tr>').join('')+'</tbody></table>':'<p class="dx-sub">Belum ada picking pada rentang ini.</p>')+'</div></div>';
+ }
+ function manpowerTab(D,M){
+  const tag=s=>s==='Bekerja'?'g':s==='Standby'?'g':s==='Belum hadir'?'r':'';
+  return '<div class="dx-grid4"><div class="dx-card"><div class="dx-k">Hadir</div><div class="dx-big">'+M.hadir+' / '+M.total+'</div></div><div class="dx-card"><div class="dx-k">Bekerja</div><div class="dx-big">'+M.bekerja+'</div></div><div class="dx-card"><div class="dx-k">Standby</div><div class="dx-big">'+M.standby+'</div></div><div class="dx-card"><div class="dx-k">Belum punya role</div><div class="dx-big" style="'+(M.belumRole?'color:var(--amber)':'')+'">'+M.belumRole+'</div></div></div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Roster hari ini ('+esc(D.to)+')</h3><div class="dx-scroll"><table class="dx-tbl"><thead><tr><th>Staf</th><th>Status</th><th>Role dan jam</th></tr></thead><tbody>'+M.list.map(x=>'<tr><td>'+esc(x.name)+'<br><span class="dx-sub" style="margin:0">'+esc(x.code)+'</span></td><td><span class="dx-tag '+tag(x.status)+'">'+esc(x.status)+'</span></td><td>'+(x.slots.length?x.slots.map(s=>esc(s.from+'-'+s.to)+' '+esc(s.label?'Other: '+s.label:(readJ('wos-roles-v1',{master:[]}).master.find(r=>r.id===s.roleId)||{}).name||s.roleId)).join('<br>'):'<span class="dx-sub" style="margin:0">-</span>')+'</td></tr>').join('')+'</tbody></table></div><div class="dx-sub">Detail siapa kerja apa, berapa, dan berapa lama ada di menu Report (Man Power).</div></div>';
+ }
+ function complianceTab(D,M){
+  const days=D.snapC.days.filter(r=>r.day===D.to&&!r.exempt),hadir=M.hadir,yes=days.filter(r=>r.drm==='yes').length,no=days.filter(r=>r.drm==='no').length;
+  const req=days.filter(r=>r.fiveRRequired!==false),appr=req.filter(r=>r.report&&r.report.approval==='approved').length,pend=D.snapC.days.filter(r=>r.report&&r.report.approval==='pending'),miss=req.filter(r=>!r.report).length;
+  const evs=D.snapC.events.filter(e=>e.day>=D.from&&e.day<=D.to&&e.status!=='batal').sort((a,b)=>b.createdAt-a.createdAt).slice(0,8);
+  const card=(t,big,sub)=>'<div class="dx-card"><div class="dx-k">'+t+'</div><div class="dx-big">'+big+'</div><div class="dx-sub">'+sub+'</div></div>';
+  return '<div class="dx-grid4">'+card('DRM',yes+' ikut',no+' tidak ikut · hadir '+hadir)+card('5R disetujui',appr+' / '+req.length,miss+' belum lapor')+card('Antrean ACC 5R',pend.length+' video','menunggu SPV')+card('Temuan pada rentang',D.snapC.events.filter(e=>e.day>=D.from&&e.day<=D.to&&e.status==='valid').length+' valid',D.snapC.events.filter(e=>e.status==='pending').length+' menunggu verifikasi')+'</div>'+
+  '<div class="dx-card" style="margin-top:12px"><h3>Temuan terbaru</h3>'+(evs.length?evs.map(e=>'<div class="dx-row"><span>'+esc(sm()[e.code]?.name||e.code)+' · '+esc(e.type)+'</span><span class="dx-tag '+(e.status==='valid'?'r':'')+'">'+(e.status==='valid'?'Terverifikasi':'Menunggu')+'</span></div>').join(''):'<div class="dx-sub">Belum ada temuan pada rentang ini.</div>')+'</div>';
+ }
+ function render(){
+  const root=$('wos-dash');if(!root)return;
+  const D=collect(),M=manpower(D);
+  const ok=D.okSrc,tot=D.health.length,synced=tot&&ok===tot;
+  const tabs=[['ringkas','Ringkasan'],['inbound','Inbound'],['outbound','Outbound'],['manpower','Man Power'],['compliance','Compliance']];
+  const body=st.tab==='inbound'?inboundTab(D):st.tab==='outbound'?outboundTab(D):st.tab==='manpower'?manpowerTab(D,M):st.tab==='compliance'?complianceTab(D,M):summary(D,M);
+  const html='<div class="dx-top"><div class="dx-pills">'+tabs.map(t=>'<button type="button" class="dx-pill'+(st.tab===t[0]?' on':'')+'" data-dx-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div class="dx-pills">'+[['today','Hari ini'],['yesterday','Kemarin'],['7d','7 hari']].map(r=>'<button type="button" class="dx-pill'+(st.range===r[0]?' on':'')+'" data-dx-range="'+r[0]+'">'+r[1]+'</button>').join('')+'<span class="dx-sync '+(synced?'ok':'warn')+'">'+(synced?'Sinkron '+ok+'/'+tot:'Sinkron '+ok+'/'+tot+' sumber')+'</span><button type="button" class="dx-pill" data-dx-refresh="1">Refresh</button></div></div><div>'+body+'</div>';
+  if(root.dataset.sig!==html){root.dataset.sig=html;root.innerHTML=html}
+ }
+ function init(){
+  const dash=$('dashboard');if(!dash||$('wos-dash'))return;
+  const box=document.createElement('div');box.id='wos-dash';dash.prepend(box);
+  box.addEventListener('click',e=>{
+   const t=e.target.closest('[data-dx-tab]');if(t){st.tab=t.dataset.dxTab;box.dataset.sig='';render();return}
+   const r=e.target.closest('[data-dx-range]');if(r){st.range=r.dataset.dxRange;box.dataset.sig='';render();return}
+   if(e.target.closest('[data-dx-refresh]')){document.getElementById('ob-refresh')?.click();try{loadPublishedInboundQueue()}catch(x){}try{loadGoodReceiptProgress()}catch(x){}e.target.textContent='Memperbarui...'}
+  });
+  const run=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500)return;render()};
+  render();setInterval(run,20000);
+  ['outbound-snapshot-updated','kpi-source-updated'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(run,300)));
+  document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='dashboard')setTimeout(()=>{box.dataset.sig='';render()},60)}));
+ }
+ init();
 })();
 </script>
 </body></html>
