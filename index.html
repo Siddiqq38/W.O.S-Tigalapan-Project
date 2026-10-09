@@ -887,7 +887,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  }
  function acceptCapture(blob,kind,binding,generation){
   if(generation!==cameraGeneration)return;
-  if(!blob?.size||blob.size>20*1024*1024){$('camera-status').textContent='Bukti kosong atau melebihi 20 MB. Rekam ulang lebih singkat.';return;}
+  if(!blob?.size||blob.size>7*1024*1024){$('camera-status').textContent='Bukti kosong atau melebihi 7 MB. Rekam ulang lebih singkat.';return;}
   clearDraft();draft={blob,kind,id:binding.id,area:binding.area,capturedAt:Date.now()};draftUrl=URL.createObjectURL(blob);
   const preview=kind==='video'?$('preview-video'):$('preview-photo');preview.src=draftUrl;preview.hidden=false;
   $('report-send').disabled=false;$('camera-status').textContent='Bukti siap. Klik Kirim laporan untuk mengirim ke SPV.';
@@ -910,9 +910,9 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    const row=captureRow();if(!stream||typeof MediaRecorder==='undefined')throw Error('Aktifkan kamera terlebih dahulu.');
    clearDraft();const generation=cameraGeneration;recordBinding={id:row.id,area:row.area};
    const chunks=[],mime=['video/webm;codecs=vp8','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t));
-   recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:1200000});
+   recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:700000});
    let bytes=0;const started=Date.now(),active=recorder;
-   active.ondataavailable=ev=>{if(ev.data.size){chunks.push(ev.data);bytes+=ev.data.size;if(bytes>20*1024*1024&&active.state==='recording')active.stop();}};
+   active.ondataavailable=ev=>{if(ev.data.size){chunks.push(ev.data);bytes+=ev.data.size;if(bytes>6.5*1024*1024&&active.state==='recording')active.stop();}};
    active.onerror=()=>{stopCamera();$('camera-status').textContent='Rekaman gagal. Buka kamera dan coba lagi.';};
    active.onstop=()=>{clearTimeout(recordTimer);clearInterval(elapsedTimer);$('video-stop').disabled=true;$('video-start').disabled=false;$('photo').disabled=false;acceptCapture(new Blob(chunks,{type:active.mimeType||mime||'video/webm'}),'video',recordBinding,generation);};
    active.start(1000);$('video-start').disabled=true;$('photo').disabled=true;$('video-stop').disabled=false;
@@ -3532,7 +3532,7 @@ init();
   const sg=o=>JSON.stringify(Object.keys(o).sort());if(sg(next)===sg(cur))return;all[d]=next;merging=true;try{raw.call(localStorage,LK,JSON.stringify(all))}finally{merging=false}
   relSeen={};const c2=relRows();Object.keys(c2).forEach(id=>relSeen[id]=JSON.stringify(c2[id]));window.dispatchEvent(new Event('storage'))}
  // ---- 5R: bukti foto/video ke Google Drive + metadata approval ke tab LAPORAN_5R
- const DK='wos-5r-drive-v1',R5MAX=24*1024*1024;let r5Seen={},r5Busy=false,r5Big={},r5Err='';
+ const DK='wos-5r-drive-v1',R5MAX=7.5*1024*1024;let r5Seen={},r5Busy=false,r5Big={},r5Err='';
  const dmap=()=>rj(DK,{}),dset=(f,d)=>{const m=dmap();m[f]=d;try{raw.call(localStorage,DK,JSON.stringify(m))}catch(e){}};
  const blobB64=b=>new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=()=>rej(fr.error);fr.readAsDataURL(b)});
  function shrink2(url,max,q,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',q).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
