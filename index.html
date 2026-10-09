@@ -3382,14 +3382,16 @@ init();
 (()=>{
  const CK='wos-sheets-config-v1',QK='wos-sync-queue-v1',AK='wos-attendance-kpi-v1',WITA=8*3600e3;
  const rj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
- const cfg=()=>{const o=rj(CK,null);const g=window.WOS_SHEETS||{};return{url:(o&&o.url)||g.url||'',token:(o&&o.token)||g.token||''}};
+ const DEF_URL='https://script.google.com/macros/s/AKfycbzkk0ITOH3DjEX3rTXBoNj_23lMTwqxzi5EFJrULEXTGHBfNKQ1a4AwpacLkpi9NmQnxQ/exec',DEF_TOKEN='QhfwH49YQ6iJU5yytc4GGhkUEHbA';
+ const cfg=()=>{const o=rj(CK,null);const g=window.WOS_SHEETS||{};return{url:(o&&o.url)||g.url||DEF_URL,token:(o&&o.token)||g.token||DEF_TOKEN}};
  const on=()=>!!cfg().url;
  const raw=Storage.prototype.setItem;let merging=false,busy=false,state='off',lastErr='';
  const queue=()=>rj(QK,[]),saveQ=q=>{try{raw.call(localStorage,QK,JSON.stringify(q.slice(-300)))}catch(e){}};
  const dayWita=d=>new Date((d||new Date()).getTime()+WITA).toISOString().slice(0,10);
  const rid=r=>(r.code+'-'+r.day+'-'+r.action).replace(/\s+/g,'_');
  const rkey=r=>r.code+'|'+r.day+'|'+r.action;
- const chip=document.createElement('div');chip.id='st-chip';document.body.append(chip);
+ const chip=document.createElement('div');chip.id='st-chip';chip.style.cursor='pointer';chip.title='Ketuk untuk memeriksa koneksi';document.body.append(chip);
+ chip.onclick=async()=>{chip.textContent='Memeriksa koneksi…';let t='';try{t=await window.WOSStore.test()}catch(e){t='Gagal: '+e.message}try{await window.WOSStore.flush()}catch(e){}const s=window.WOSStore.status();alert('Koneksi Google Sheets: '+t+'\nAntrean kirim: '+s.queued+(s.lastErr?'\nKesalahan terakhir: '+s.lastErr:'')+'\nBila antrean tidak berkurang, periksa sinyal internet lalu muat ulang halaman.');paint()};
  function paint(){const n=queue().length;chip.className=on()&&sessionStorage.getItem('wos-session-code')?'on':'';chip.textContent=state==='err'?'Sheets: gagal ('+n+' antre)':n?'Sheets: mengirim '+n+'…':'Sheets: tersambung'}
  async function call(body,get){const c=cfg();if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)));return r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body))});return r.json()}
