@@ -731,6 +731,10 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   const html=codes.length?'<p class="sub">Tanggal '+esc(day)+' · hadir (Attendance in) '+present+' dari '+codes.length+' staf · ikut DRM '+joined+' · tidak ikut DRM '+absentDrm+'. Kolom kiri terisi otomatis dari Attendance in. '+(canMark?'Saat briefing, SPV menandai ✓ ikut atau ✕ tidak ikut DRM; yang ✕ otomatis tercatat di Compliance.':'Penandaan DRM dilakukan SPV saat briefing.')+'</p><table><thead><tr><th></th><th>Staf</th><th>Kehadiran</th><th>Ikut DRM</th><th>Tidak ikut</th><th>Status DRM</th></tr></thead><tbody>'+codes.map(c=>{const e=seen.get(c),status=stat(c),dis=!canMark||!e;return '<tr><td style="font-size:20px;font-weight:700;color:'+(e?'#1b7a46':'#b3261e')+'" aria-label="'+(e?'Hadir':'Belum hadir')+'">'+(e?'✓':'✕')+'</td><td>'+esc(label(c))+'</td><td>'+(e?'Hadir · '+esc(clock(Date.parse(e.at)))+' WITA':'<span class="sub">Belum hadir</span>')+'</td><td><button class="button'+(status==='yes'?'':' secondary')+'" type="button" data-drm-code="'+esc(c)+'" data-drm-value="yes" '+(dis?'disabled':'')+' aria-label="'+esc('Tandai '+label(c)+' ikut DRM')+'">✓</button></td><td><button class="button'+(status==='no'?'':' secondary')+'" type="button" data-drm-code="'+esc(c)+'" data-drm-value="no" '+(dis?'disabled':'')+' aria-label="'+esc('Tandai '+label(c)+' tidak ikut DRM')+'">✕</button></td><td>'+(e||status!=='unknown'?tag(({yes:'Ikut DRM',no:'Tidak ikut DRM',unknown:'Belum diperiksa'})[status],status==='yes'?'green':status==='no'?'red':'amber'):'<span class="sub">-</span>')+'</td></tr>'}).join('')+'</tbody></table>':'<p class="sub">Belum ada data staf.</p>';
   const box=$('drm-attendance');if(box.dataset.sig===html)return;box.dataset.sig=html;box.innerHTML=html;
  }
+ window.__wosDrmDays=()=>state.days||[];
+ window.__wosDrmApply=async list=>{if(busy||!db||!list||!list.length)return false;const need=list.filter(x=>{const r=(state.days||[]).find(d=>d.id===x.id);return !r||r.drm!==x.drm});if(!need.length)return false;
+  return mutate(s=>{need.forEach(x=>{let row=s.days.find(r=>r.id===x.id);if(!row){const profile=window.getFiveRProfile?.(x.code);row={id:x.id,day:x.day,code:x.code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:window.fiveRRequiredOn?.(profile,x.day)||false,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row)}row.drm=x.drm;
+   const eid='DRM:'+x.id,ex=s.events.find(e=>e.id===eid);if(x.drm==='no'){if(ex){ex.status='valid';ex.resolved=false}else s.events.push({id:eid,day:x.day,code:x.code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+(x.by||'SPV'),status:'valid',source:'Daftar check-in',actor:x.by||'SPV',createdAt:Date.now(),resolved:false})}else if(ex){ex.status='batal';ex.review='Checklist dikoreksi: ikut DRM'}})})};
  window.__renderDrm=()=>{try{renderDrm()}catch(e){}};window.__complianceSnapshot=()=>({days:state.days||[],events:state.events||[]});
  function refreshReportChoices(){const current=$('report-code').value,profiles=window.getFiveRMaster?.()||[];$('report-code').innerHTML='<option value="">Pilih staff</option>'+profiles.map(r=>'<option value="'+esc(r.code)+'">'+esc(r.code+' · '+(staffMaster[r.code]?.name||r.name))+'</option>').join('');if(profiles.some(r=>r.code===current))$('report-code').value=current;refreshAreaChoices()}
  function refreshAreaChoices(){const code=$('report-code').value,profile=window.getFiveRProfile?.(code),area=$('report-area-choice');const areas=[...new Set((window.getFiveRMaster?.()||[]).map(r=>r.area))].sort((a,b)=>a.localeCompare(b,'id',{numeric:true}));area.innerHTML='<option value="">Pilih area</option>'+areas.map(a=>'<option value="'+esc(a)+'">'+esc(a)+(profile&&a===profile.area?' (area tugas)':'')+'</option>').join('');area.value=profile?profile.area:'';$('report-person').value='';$('report-area').value=area.value;reportArea();stopCamera()}
@@ -769,7 +773,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
     req.onsuccess=()=>{try{result=req.result||{days:[],events:[],audit:[]};fn(result);if(reconcileCompliance(result))audit(result,'Pemeriksaan batas waktu 5R');store.put(result,'state');if(file)tx.objectStore('files').put(file.blob,file.id);}catch(e){reject(e);tx.abort();}};
     tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Penyimpanan dibatalkan'));
    });
-   state=next;kpiReady=true;render();window.dispatchEvent(new Event('kpi-source-updated'));return true;
+   state=next;kpiReady=true;render();window.dispatchEvent(new Event('kpi-source-updated'));try{window.__wosDrmSaved&&window.__wosDrmSaved(state.days)}catch(e){}return true;
   }catch(e){notice('Gagal menyimpan: '+e.message+'. Data belum dinyatakan terkirim. Periksa kapasitas / izin penyimpanan browser.',true);return false;}
   finally{busy=false;}
  }
@@ -3384,18 +3388,46 @@ init();
   if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{if(b64){const q=queue();q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id});saveQ(q)}push()})}else push()}
  // tangkap perubahan Attendance lokal
  let seen=new Set(rj(AK,[]).map(rkey));
- Storage.prototype.setItem=function(k,v){raw.apply(this,arguments);if(k!==AK||this!==localStorage||merging||!on())return;try{JSON.parse(v).forEach(r=>{if(r&&r.code&&!seen.has(rkey(r))){seen.add(rkey(r));sendRow(r)}})}catch(e){}};
+ const RK='wos-roles-v1',TK='wos-tasks-v1',today=()=>dayWita();
+ const nm=c=>{try{return staffMaster[c].name}catch(e){return''}};
+ const enq=(a,tab,row,id)=>{const q=queue();q.push(a==='delete'?{a,tab,id}:{a,tab,row});saveQ(q);flush()};
+ // role harian: satu baris per slot
+ let rolesSeen=null;
+ const slotRows=()=>{const o={},d=today(),p=((rj(RK,{plans:{}}).plans||{})[d])||{},m=(rj(RK,{master:[]}).master)||[];Object.keys(p).forEach(c=>(p[c]||[]).forEach(s=>{const r=m.find(x=>x.id===s.roleId);o[s.id]={id:s.id,tanggal:d,kode_staf:c,nama:nm(c),role_id:s.roleId,role:r?r.name:s.roleId,keterangan:s.label||'',jam_mulai:s.from,jam_selesai:s.to,dipilih_oleh:s.by||'',waktu:s.at||''}}));return o};
+ function diffRoles(){if(!on()||merging)return;const cur=slotRows();if(rolesSeen===null)rolesSeen={};
+  Object.keys(cur).forEach(id=>{const j=JSON.stringify(cur[id]);if(rolesSeen[id]!==j){rolesSeen[id]=j;enq('append','ROLE_HARIAN',cur[id])}});
+  Object.keys(rolesSeen).forEach(id=>{if(!cur[id]){delete rolesSeen[id];enq('delete','ROLE_HARIAN',null,id)}})}
+ // task: JSON lengkap di kolom judul
+ let tasksSeen={};
+ const taskRow=t=>({id:t.id,waktu:t.at||'',tanggal:t.day||'',tujuan:t.to||(t.roleId?'role:'+t.roleId:''),judul:JSON.stringify(t),qty:t.qty||'',status:t.status||'',diterima_oleh:t.by2||'',waktu_terima:t.acceptedAt||'',waktu_selesai:t.doneAt||''});
+ function diffTasks(){if(!on()||merging)return;rj(TK,[]).filter(t=>t&&t.id&&t.day===today()).forEach(t=>{const j=JSON.stringify(t);if(tasksSeen[t.id]!==j){tasksSeen[t.id]=j;enq('append','TASK',taskRow(t))}})}
+ // DRM (compliance, IndexedDB)
+ let drmSeen={};
+ window.__wosDrmSaved=days=>{if(!on()||merging)return;(days||[]).forEach(r=>{if(r.day!==today()||!r.id)return;const v=r.drm||'unknown';if(drmSeen[r.id]===v||(v==='unknown'&&drmSeen[r.id]===undefined))return;drmSeen[r.id]=v;
+  enq('append','DRM',{id:r.id,tanggal:r.day,kode_staf:r.code,nama:nm(r.code),status:v,ditandai_oleh:sessionStorage.getItem('wos-session-code')||sessionStorage.getItem('wos-session-v1')||'',waktu:new Date().toISOString()})})};
+ Storage.prototype.setItem=function(k,v){raw.apply(this,arguments);if(this!==localStorage||merging||!on())return;
+  if(k===AK){try{JSON.parse(v).forEach(r=>{if(r&&r.code&&!seen.has(rkey(r))){seen.add(rkey(r));sendRow(r)}})}catch(e){}}
+  else if(k===RK)diffRoles();else if(k===TK)diffTasks()};
+ const pending=tab=>queue().some(x=>x.tab===tab);
+ async function pullMore(){const d=today();
+  if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};r.rows.forEach(x=>{(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:x.jam_mulai,to:x.jam_selesai,by:x.dipilih_oleh,at:x.waktu})});
+    const sig=o=>JSON.stringify(Object.keys(o).sort().map(c=>[c,o[c].map(s=>s.id).sort()]));if(R.master&&R.master.length&&sig(plans)!==sig((R.plans||{})[d]||{})){R.plans=R.plans||{};R.plans[d]=plans;merging=true;try{raw.call(localStorage,RK,JSON.stringify(R))}finally{merging=false}
+     rolesSeen={};Object.keys(slotRows()).forEach(id=>rolesSeen[id]=JSON.stringify(slotRows()[id]));window.dispatchEvent(new Event('storage'))}}}
+  if(!pending('TASK')){const r=await call({action:'list',tab:'TASK',from:d,to:d},true);if(r.ok){const rank={baru:0,diterima:1,selesai:2},local=rj(TK,[]);let ch=false;
+    r.rows.forEach(x=>{let t;try{t=JSON.parse(x.judul)}catch(e){return}if(!t||!t.id)return;const i=local.findIndex(l=>l.id===t.id);if(i<0){local.push(t);ch=true}else if((rank[t.status]||0)>(rank[local[i].status]||0)){local[i]=t;ch=true}tasksSeen[t.id]=JSON.stringify(t)});
+    if(ch){merging=true;try{raw.call(localStorage,TK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'))}}}
+  if(!pending('DRM')&&window.__wosDrmApply){const r=await call({action:'list',tab:'DRM',from:d,to:d},true);if(r.ok){const list=r.rows.filter(x=>x.status==='yes'||x.status==='no').map(x=>({id:x.id,day:x.tanggal,code:x.kode_staf,drm:x.status,by:x.ditandai_oleh}));list.forEach(x=>drmSeen[x.id]=x.drm);merging=true;try{await window.__wosDrmApply(list)}finally{merging=false}}}}
  // ambil Attendance dari sheet (lintas perangkat)
  async function pull(){if(!on()||document.hidden||!sessionStorage.getItem('wos-session-code'))return;
   try{const t=new Date(),from=dayWita(new Date(t.getTime()-864e5*2)),r=await call({action:'list',tab:'ATTENDANCE',from,to:dayWita(t)},true);if(!r.ok)throw new Error(r.error);
    const local=rj(AK,[]),have=new Set(local.map(rkey));let add=0;
    r.rows.forEach(x=>{const row={code:x.kode_staf,action:x.aksi,day:x.tanggal,at:x.waktu_iso};if(row.code&&row.action&&row.day&&!have.has(rkey(row))){if(x.simulasi==='ya')row.sim=true;local.push(row);have.add(rkey(row));seen.add(rkey(row));add++}});
    if(add){merging=true;try{raw.call(localStorage,AK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'));if(window.__renderDrm)try{window.__renderDrm()}catch(e){}}
-   if(state!=='err')state='ok'}catch(e){state='err';lastErr=String(e&&e.message||e)}paint()}
+   await pullMore();if(state!=='err')state='ok'}catch(e){state='err';lastErr=String(e&&e.message||e)}paint()}
  window.WOSStore={enabled:on,config:cfg,setConfig(url,token){raw.call(localStorage,CK,JSON.stringify({url:url,token:token||cfg().token}));paint();return flush()},queue,flush,pull,
   async test(){try{const r=await call({action:'ping'},true);return r.ok?'OK '+r.tabs.length+' tab':'Gagal: '+r.error}catch(e){return 'Gagal: '+e.message}},status:()=>({state,lastErr,queued:queue().length})};
  setInterval(()=>{flush();pull()},30000);window.addEventListener('online',flush);document.addEventListener('visibilitychange',()=>{if(!document.hidden){flush();pull()}});
- setTimeout(()=>{flush();pull()},4000);paint();
+ setTimeout(()=>{try{diffRoles();diffTasks()}catch(e){}flush();pull()},4000);paint();
 })();
 </script>
 </body></html>
