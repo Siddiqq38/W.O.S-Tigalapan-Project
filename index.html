@@ -3408,9 +3408,10 @@ init();
  Storage.prototype.setItem=function(k,v){raw.apply(this,arguments);if(this!==localStorage||merging||!on())return;
   if(k===AK){try{JSON.parse(v).forEach(r=>{if(r&&r.code&&!seen.has(rkey(r))){seen.add(rkey(r));sendRow(r)}})}catch(e){}}
   else if(k===RK)diffRoles();else if(k===TK)diffTasks()};
+ const hh=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?(m[1].length<2?'0':'')+m[1]+':'+m[2]:t};
  const pending=tab=>queue().some(x=>x.tab===tab);
  async function pullMore(){const d=today();
-  if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};r.rows.forEach(x=>{(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:x.jam_mulai,to:x.jam_selesai,by:x.dipilih_oleh,at:x.waktu})});
+  if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};r.rows.forEach(x=>{(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:hh(x.jam_mulai),to:hh(x.jam_selesai),by:x.dipilih_oleh,at:x.waktu})});
     const sig=o=>JSON.stringify(Object.keys(o).sort().map(c=>[c,o[c].map(s=>s.id).sort()]));if(R.master&&R.master.length&&sig(plans)!==sig((R.plans||{})[d]||{})){R.plans=R.plans||{};R.plans[d]=plans;merging=true;try{raw.call(localStorage,RK,JSON.stringify(R))}finally{merging=false}
      rolesSeen={};Object.keys(slotRows()).forEach(id=>rolesSeen[id]=JSON.stringify(slotRows()[id]));window.dispatchEvent(new Event('storage'))}}}
   if(!pending('TASK')){const r=await call({action:'list',tab:'TASK',from:d,to:d},true);if(r.ok){const rank={baru:0,diterima:1,selesai:2},local=rj(TK,[]);let ch=false;
