@@ -2672,6 +2672,9 @@ tick();setInterval(()=>{if(!document.hidden)tick()},5000);
 .rl-chip.now{background:#C6E0B4;border-color:#548235;font-weight:700}
 .rl-chip button{border:0;background:transparent;cursor:pointer;color:#b3261e;font-size:13px;padding:0}
 .rl-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#rl-planner table{table-layout:fixed;min-width:820px}
+#rl-planner th:nth-child(1){width:20%}#rl-planner th:nth-child(2){width:17%}#rl-planner th:nth-child(3){width:28%}#rl-planner th:nth-child(4){width:35%}
+.rl-drm{transition:background .12s,border-color .12s}
 .rl-row input,.rl-row select{padding:5px 6px;font-size:12px;max-width:160px}
 .rl-msg{min-height:16px;font-size:12px;margin-top:6px}
 .rl-msg.err{color:#b3261e}.rl-msg.ok{color:#1b7a46}
@@ -2767,7 +2770,7 @@ function planner(){
   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;R=load();const c=b.dataset.code;
    if(b.dataset.act==='add'){const err=addSlot(c,$('rl-r-'+c).value,$('rl-f-'+c).value,$('rl-t-'+c).value,$('rl-l-'+c).value);say('p',err||('Role ditambahkan untuk '+nameOf(c)+'.'),err?'err':'ok')}
    if(b.dataset.act==='del'){removeSlot(c,b.dataset.id);say('p','Role dihapus.','ok')}
-   if(b.dataset.act==='drm'){const hb=document.getElementById('cp-drm-attendance');if(hb){const f=document.createElement('button');f.dataset.drmCode=c;f.dataset.drmValue=b.dataset.v;hb.append(f);f.click();f.remove()}setTimeout(()=>{box.dataset.sig='';planner()},900)}
+   if(b.dataset.act==='drm'){box.querySelectorAll('.rl-drm[data-code="'+c+'"]').forEach(x=>x.classList.toggle('on',x.dataset.v===b.dataset.v));const hb=document.getElementById('cp-drm-attendance');if(hb){const f=document.createElement('button');f.dataset.drmCode=c;f.dataset.drmValue=b.dataset.v;hb.append(f);f.click();f.remove()}setTimeout(()=>{box.dataset.sig='';planner()},900)}
    box.dataset.sig='';planner();standby()})}
  let html;
  if(isSpv()||user()==='admin'){
@@ -2777,7 +2780,24 @@ function planner(){
   const c=me(),h=hadirAt(c);
   html='<h2>Pilih role hari ini</h2><p class="sub">'+esc(nameOf(c))+' ('+esc(c)+'). Pilih role sesuai arahan SPV pada DRM, lengkap dengan rentang jam. Anda hanya bisa memilih untuk akun sendiri.</p>'+(h?chips(c,true)+'<div style="margin-top:8px">'+addForm(c)+'</div>':'<p class="note">Lakukan <strong>Attendance in</strong> dulu pada panel check-in di bawah, lalu pilih role.</p>')+msgH('p');
  }
- if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html}
+ if(box.dataset.sig!==html){box.dataset.sig=html;morphInto(box,html)}
+}
+// perbarui DOM hanya pada bagian yang berubah (tanpa membangun ulang tabel, input dan scroll tetap)
+function morphInto(root,html){
+ const t=document.createElement('template');t.innerHTML=html;
+ const sync=(a,b)=>{
+  if(a.nodeType!==b.nodeType||a.nodeName!==b.nodeName){a.replaceWith(b);return}
+  if(a.nodeType===3){if(a.data!==b.data)a.data=b.data;return}
+  if(a.nodeType!==1)return;
+  for(const at of Array.from(a.attributes))if(!b.hasAttribute(at.name))a.removeAttribute(at.name);
+  for(const at of Array.from(b.attributes))if(a.getAttribute(at.name)!==at.value)a.setAttribute(at.name,at.value);
+  const ac=a.childNodes,bc=b.childNodes;
+  if(ac.length!==bc.length){a.innerHTML=b.innerHTML;return}
+  for(let i=0;i<bc.length;i++)sync(ac[i],bc[i]);
+ };
+ const ac=root.childNodes,bc=t.content.childNodes;
+ if(ac.length!==bc.length){root.innerHTML=html;return}
+ for(let i=0;i<bc.length;i++)sync(ac[i],bc[i]);
 }
 
 // ---------- dashboard standby + task ----------
