@@ -3348,5 +3348,55 @@ init();
  $('fd-copyall').onclick=async()=>{const all=read();if(!all.length){msg('Belum ada masukan tersimpan.');return}try{await navigator.clipboard.writeText(all.map(compose).join('\n\n----\n\n'));msg(all.length+' masukan disalin.')}catch(e){msg('Gagal menyalin; coba lagi.')}};
 })();
 </script>
+<script src="sheets-config.js"></script>
+<style>#st-chip{position:fixed;left:12px;bottom:14px;z-index:9990;background:#fff;color:#555;border:1px solid #ddd;border-radius:999px;padding:4px 10px;font-size:11px;display:none}#st-chip.on{display:block}</style>
+<script>
+// SHEETS MODULE: lapisan penyimpanan yang bisa diganti (sekarang Google Sheets via Apps Script). Attendance dulu.
+(()=>{
+ const CK='wos-sheets-config-v1',QK='wos-sync-queue-v1',AK='wos-attendance-kpi-v1',WITA=8*3600e3;
+ const rj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
+ const cfg=()=>{const o=rj(CK,null);const g=window.WOS_SHEETS||{};return{url:(o&&o.url)||g.url||'',token:(o&&o.token)||g.token||''}};
+ const on=()=>!!cfg().url;
+ const raw=Storage.prototype.setItem;let merging=false,busy=false,state='off',lastErr='';
+ const queue=()=>rj(QK,[]),saveQ=q=>{try{raw.call(localStorage,QK,JSON.stringify(q.slice(-300)))}catch(e){}};
+ const dayWita=d=>new Date((d||new Date()).getTime()+WITA).toISOString().slice(0,10);
+ const rid=r=>(r.code+'-'+r.day+'-'+r.action).replace(/\s+/g,'_');
+ const rkey=r=>r.code+'|'+r.day+'|'+r.action;
+ const chip=document.createElement('div');chip.id='st-chip';document.body.append(chip);
+ function paint(){const n=queue().length;chip.className=on()&&sessionStorage.getItem('wos-session-code')?'on':'';chip.textContent=state==='err'?'Sheets: gagal ('+n+' antre)':n?'Sheets: mengirim '+n+'…':'Sheets: tersambung'}
+ async function call(body,get){const c=cfg();if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)));return r.json()}
+  const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body))});return r.json()}
+ async function flush(){if(!on()||busy||!navigator.onLine)return;let q=queue();if(!q.length){paint();return}busy=true;
+  try{while(q.length){const it=q[0];
+    if(it.a==='photo'){const r=await call({action:'photo',data:it.data,mime:'image/jpeg',name:it.name});if(!r.ok)throw new Error(r.error);q=queue();q.shift();q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q);}
+    else{const r=await call({action:it.a,tab:it.tab,row:it.row,id:it.id});if(!r.ok)throw new Error(r.error);q=queue();q.shift();saveQ(q)}
+    q=queue()}
+   state='ok';lastErr=''}catch(e){state='err';lastErr=String(e&&e.message||e)}
+  busy=false;paint()}
+ function shrink(url,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,480/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.6).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
+ function sendRow(r){
+  const name=(typeof staffMaster!=='undefined'&&staffMaster[r.code]&&staffMaster[r.code].name)||'';
+  const loc=(typeof attendanceLocation!=='undefined'&&attendanceLocation)||{};
+  const wt=new Date(Date.parse(r.at)+WITA);
+  const row={id:rid(r),waktu_iso:r.at,tanggal:r.day,kode_staf:r.code,nama:name,aksi:r.action,jam_wita:isNaN(wt)?'':wt.toISOString().slice(11,16),lat:loc.lat||'',lng:loc.lng||'',akurasi_m:loc.accuracy||'',jarak_m:loc.meters||'',foto_id:'',simulasi:r.sim?'ya':'',perangkat:(navigator.userAgent||'').slice(0,90)};
+  const push=()=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});saveQ(q);flush()};
+  const ph=(typeof attendancePhoto!=='undefined'&&attendancePhoto)||null;
+  if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{if(b64){const q=queue();q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id});saveQ(q)}push()})}else push()}
+ // tangkap perubahan Attendance lokal
+ let seen=new Set(rj(AK,[]).map(rkey));
+ Storage.prototype.setItem=function(k,v){raw.apply(this,arguments);if(k!==AK||this!==localStorage||merging||!on())return;try{JSON.parse(v).forEach(r=>{if(r&&r.code&&!seen.has(rkey(r))){seen.add(rkey(r));sendRow(r)}})}catch(e){}};
+ // ambil Attendance dari sheet (lintas perangkat)
+ async function pull(){if(!on()||document.hidden||!sessionStorage.getItem('wos-session-code'))return;
+  try{const t=new Date(),from=dayWita(new Date(t.getTime()-864e5*2)),r=await call({action:'list',tab:'ATTENDANCE',from,to:dayWita(t)},true);if(!r.ok)throw new Error(r.error);
+   const local=rj(AK,[]),have=new Set(local.map(rkey));let add=0;
+   r.rows.forEach(x=>{const row={code:x.kode_staf,action:x.aksi,day:x.tanggal,at:x.waktu_iso};if(row.code&&row.action&&row.day&&!have.has(rkey(row))){if(x.simulasi==='ya')row.sim=true;local.push(row);have.add(rkey(row));seen.add(rkey(row));add++}});
+   if(add){merging=true;try{raw.call(localStorage,AK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'));if(window.__renderDrm)try{window.__renderDrm()}catch(e){}}
+   if(state!=='err')state='ok'}catch(e){state='err';lastErr=String(e&&e.message||e)}paint()}
+ window.WOSStore={enabled:on,config:cfg,setConfig(url,token){raw.call(localStorage,CK,JSON.stringify({url:url,token:token||cfg().token}));paint();return flush()},queue,flush,pull,
+  async test(){try{const r=await call({action:'ping'},true);return r.ok?'OK '+r.tabs.length+' tab':'Gagal: '+r.error}catch(e){return 'Gagal: '+e.message}},status:()=>({state,lastErr,queued:queue().length})};
+ setInterval(()=>{flush();pull()},30000);window.addEventListener('online',flush);document.addEventListener('visibilitychange',()=>{if(!document.hidden){flush();pull()}});
+ setTimeout(()=>{flush();pull()},4000);paint();
+})();
+</script>
 </body></html>
 
