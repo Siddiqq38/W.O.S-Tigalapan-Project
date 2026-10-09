@@ -656,7 +656,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  style.textContent='#compliance .cp-table{overflow:auto}#compliance table{min-width:700px}#compliance th,#compliance td{display:table-cell!important}#compliance .cp-stack{display:grid;gap:16px}#compliance .cp-fold>summary{cursor:pointer;font-size:20px;font-weight:700;padding:5px 0;color:#12334b}#compliance .cp-fold>section,#compliance .cp-fold>details{margin-top:14px}#compliance video,#compliance img{width:100%;max-height:300px;object-fit:contain;background:#102131;border-radius:8px}#compliance button:disabled{opacity:.5;cursor:not-allowed}#compliance [hidden]{display:none!important}#compliance .cp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}#compliance .cp-admin{border-left:3px solid #1675bd}';
  document.head.append(style);
  page.innerHTML='<div class="toolbar"><div><h2>Compliance & 5R</h2><span class="sub">Kepatuhan harian, laporan kejadian, dan bukti area</span></div><span class="tag amber">Mode uji · penyimpanan lokal</span></div>'+
- '<div class="note">Catatan dan foto/video tersimpan di browser perangkat ini (IndexedDB), bukan server. Data belum tersinkron antarperangkat. Menghapus data browser menghapus bukti. Waktu menggunakan jam perangkat dalam WITA, bukan waktu server.</div>'+
+ '<div class="note">Foto dan video bukti 5R dikirim ke Google Drive, dan statusnya tersinkron ke SPV dalam sekitar 30 detik. Waktu memakai jam perangkat dalam WITA. Pastikan sinyal baik saat mengirim video.</div>'+
  '<div class="form-grid"><div class="field"><label for="cp-date">Tanggal pemantauan (WITA)</label><input id="cp-date" type="date" value="'+today+'"></div><div class="field"><label for="cp-role">Peran aktif</label><select id="cp-role"><option>SPV</option><option>Manager</option><option>Admin</option><option>Staff</option></select></div><div class="field"><label for="cp-actor">Dicatat / diverifikasi oleh</label><select id="cp-actor">'+actorOptions+'</select></div></div>'+
  '<p id="cp-message" class="note" role="status" aria-live="polite">Memuat penyimpanan lokal…</p><div id="cp-totals" class="grid three"></div><br>'+
  '<div class="cp-stack">'+
@@ -676,7 +676,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  '<section class="card"><h2>Register kejadian</h2><p class="sub">SPV/Manager memverifikasi atau membatalkan laporan dengan alasan. Selesai ditindaklanjuti tidak menghapus kejadian dari rekap. 5R lewat batas dibuat otomatis hanya bagi petugas wajib laporan.</p><div id="cp-events" class="cp-table"></div><div id="cp-review-panel" hidden><p id="cp-review-title"></p><div class="field"><label for="cp-review-reason">Alasan / klarifikasi / tindak lanjut (wajib)</label><textarea id="cp-review-reason" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-review-save" class="button">Simpan hasil verifikasi</button><button id="cp-review-cancel" class="button secondary">Batal</button></div></div></section>'+
  '<section class="card"><div class="card-head"><h2>Rekap Compliance bulanan</h2><div class="field"><label for="cp-month">Bulan</label><input id="cp-month" type="month" value="'+today.slice(0,7)+'"></div></div><div id="cp-monthly" class="cp-table"></div><button id="cp-export" class="button secondary">Unduh rekap CSV</button><p class="sub">Belum ada peringkat gabungan. Attendance, jumlah assignment, volume pcs/koli, dan Compliance harus dinilai terpisah sebelum bobot disepakati. Jumlah assignment bukan pengganti volume; pcs tidak disamakan dengan koli. Rekap ini hanya mencakup data lokal.</p></section>'+
  '<details class="card"><summary>Riwayat perubahan lokal</summary><div id="cp-audit"></div></details>'+
- '<section id="cp-viewer" class="card" hidden><h2 id="cp-view-title">Bukti tersimpan lokal</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><div id="cp-5r-review" hidden><h3>Checklist SPV — pemeriksaan 5R</h3><p class="sub">Checklist awal; sesuaikan standar rinci bersama SPV. Tinjau video/foto sebelum memberi keputusan. Semua butir wajib memenuhi standar untuk ACC.</p><div class="cp-stack">'+['Ringkas — barang tidak diperlukan telah disingkirkan','Rapi — barang dan alat tersusun di tempatnya','Resik — area, lantai, dan alat bersih','Rawat — label, penandaan, serta kondisi area terjaga','Rajin — standar area dipelihara dan tidak ada temuan terbuka'].map((t,i)=>'<label><input type="checkbox" id="cp-5r-check-'+i+'"> '+t+'</label>').join('')+'</div><div class="field" style="margin-top:12px"><label for="cp-5r-note">Catatan SPV / temuan (wajib jika ditolak)</label><textarea id="cp-5r-note" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-5r-approve" class="button">ACC 5R</button><button id="cp-5r-reject" class="button secondary">Tolak / minta perbaikan</button></div></div><div id="cp-5r-history"></div><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
+ '<section id="cp-viewer" class="card" hidden><h2 id="cp-view-title">Bukti 5R</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><div id="cp-5r-review" hidden><h3>Checklist SPV — pemeriksaan 5R</h3><p class="sub">Checklist awal; sesuaikan standar rinci bersama SPV. Tinjau video/foto sebelum memberi keputusan. Semua butir wajib memenuhi standar untuk ACC.</p><div class="cp-stack">'+['Ringkas — barang tidak diperlukan telah disingkirkan','Rapi — barang dan alat tersusun di tempatnya','Resik — area, lantai, dan alat bersih','Rawat — label, penandaan, serta kondisi area terjaga','Rajin — standar area dipelihara dan tidak ada temuan terbuka'].map((t,i)=>'<label><input type="checkbox" id="cp-5r-check-'+i+'"> '+t+'</label>').join('')+'</div><div class="field" style="margin-top:12px"><label for="cp-5r-note">Catatan SPV / temuan (wajib jika ditolak)</label><textarea id="cp-5r-note" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-5r-approve" class="button">ACC 5R</button><button id="cp-5r-reject" class="button secondary">Tolak / minta perbaikan</button></div></div><div id="cp-5r-history"></div><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
  const stack=page.querySelector('.cp-stack');
  const fold=(id,title,nodes)=>{const box=document.createElement('details');box.className='card cp-fold';box.id=id;box.innerHTML='<summary>'+title+'</summary>';for(const node of nodes)if(node)box.append(node);stack.append(box);return box};
  const dutyPanel=$('duty-panel'),dailyPanel=$('daily').closest('section'),checkPanel=$('check-panel'),reportPanel=$('report-person').closest('section'),viewer=$('viewer'),incidentPanel=$('event-person').closest('section'),eventsPanel=$('events').closest('section'),monthlyPanel=$('monthly').closest('section'),auditPanel=$('audit').closest('details');
@@ -735,6 +735,20 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  window.__wosDrmApply=async list=>{if(busy||!db||!list||!list.length)return false;const need=list.filter(x=>{const r=(state.days||[]).find(d=>d.id===x.id);return !r||r.drm!==x.drm});if(!need.length)return false;
   return mutate(s=>{need.forEach(x=>{let row=s.days.find(r=>r.id===x.id);if(!row){const profile=window.getFiveRProfile?.(x.code);row={id:x.id,day:x.day,code:x.code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:window.fiveRRequiredOn?.(profile,x.day)||false,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row)}row.drm=x.drm;
    const eid='DRM:'+x.id,ex=s.events.find(e=>e.id===eid);if(x.drm==='no'){if(ex){ex.status='valid';ex.resolved=false}else s.events.push({id:eid,day:x.day,code:x.code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+(x.by||'SPV'),status:'valid',source:'Daftar check-in',actor:x.by||'SPV',createdAt:Date.now(),resolved:false})}else if(ex){ex.status='batal';ex.review='Checklist dikoreksi: ikut DRM'}})})};
+ window.__wosGetFile=id=>new Promise(res=>{try{const rq=db.transaction('files').objectStore('files').get(id);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>res(null)}catch(e){res(null)}});
+ window.__wosApplyReports=async list=>{if(busy||!db||!list||!list.length)return false;
+  const rank=a=>a==='approved'?3:a==='rejected'?2:1;
+  const need=list.filter(x=>{const r=(state.days||[]).find(d=>d.id===x.id);if(!r||!r.report)return true;const a=r.report,b=x.report;if(a.at!==b.at)return b.at>a.at;return (b.reviewHistory||[]).length>(a.reviewHistory||[]).length||rank(b.approval)>rank(a.approval)});
+  if(!need.length)return false;
+  return mutate(s=>{need.forEach(x=>{let row=s.days.find(r=>r.id===x.id);
+   if(!row){const profile=window.getFiveRProfile?.(x.code);row={id:x.id,day:x.day,code:x.code,area:x.area||profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:true,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row)}
+   const cur=row.report;
+   if(cur&&cur.at===x.report.at){['approval','checks','reviewNote','reviewHistory','reviewedAt','reviewer'].forEach(k=>{if(x.report[k]!==undefined)cur[k]=x.report[k]})}
+   else{if(cur){row.reportHistory=row.reportHistory||[];row.reportHistory.push(cur)}row.report=Object.assign({},x.report)}
+   const eid='5r-quality:'+row.id+':'+row.report.fileId,ex=s.events.find(e=>e.id===eid);
+   if(row.report.approval==='rejected'){if(ex){ex.detail=row.report.reviewNote||ex.detail}else s.events.push({id:eid,day:row.day,code:row.code,type:'Temuan 5R',detail:row.report.reviewNote||'',status:'pending',source:'Checklist approval SPV',createdAt:Date.now(),actor:row.report.reviewer||'SPV',resolved:false})}
+   else if(row.report.approval==='approved'){for(const e of s.events.filter(e=>e.id.startsWith('5r-quality:'+row.id+':')&&e.status==='pending')){e.status='batal';e.review='Perbaikan diterima dan 5R di-ACC.'}}
+  })})};
  window.__renderDrm=()=>{try{renderDrm()}catch(e){}};window.__complianceSnapshot=()=>({days:state.days||[],events:state.events||[]});
  function refreshReportChoices(){const current=$('report-code').value,profiles=window.getFiveRMaster?.()||[];$('report-code').innerHTML='<option value="">Pilih staff</option>'+profiles.map(r=>'<option value="'+esc(r.code)+'">'+esc(r.code+' · '+(staffMaster[r.code]?.name||r.name))+'</option>').join('');if(profiles.some(r=>r.code===current))$('report-code').value=current;refreshAreaChoices()}
  function refreshAreaChoices(){const code=$('report-code').value,profile=window.getFiveRProfile?.(code),area=$('report-area-choice');const areas=[...new Set((window.getFiveRMaster?.()||[]).map(r=>r.area))].sort((a,b)=>a.localeCompare(b,'id',{numeric:true}));area.innerHTML='<option value="">Pilih area</option>'+areas.map(a=>'<option value="'+esc(a)+'">'+esc(a)+(profile&&a===profile.area?' (area tugas)':'')+'</option>').join('');area.value=profile?profile.area:'';$('report-person').value='';$('report-area').value=area.value;reportArea();stopCamera()}
@@ -790,7 +804,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   const button=ev.target.closest('[data-drm-code]');if(!button||!canMarkDrm())return;
   const code=button.dataset.drmCode,value=button.dataset.drmValue,day=$('date').value;
   if(!staffMaster[code])return;
-  if(await mutate(s=>{const id=rowId(day,code),profile=window.getFiveRProfile?.(code),required=window.fiveRRequiredOn?.(profile,day)||false;let row=s.days.find(r=>r.id===id);if(!row){row={id,day,code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:required,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row);}row.drm=value;const eid='DRM:'+id,existing=s.events.find(e=>e.id===eid);if(value==='no'){if(existing){existing.status='valid';existing.resolved=false}else s.events.push({id:eid,day,code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+actor(),status:'valid',source:'Daftar check-in',actor:actor(),createdAt:Date.now(),resolved:false})}else if(existing){existing.status='batal';existing.review='Checklist dikoreksi: ikut DRM'}audit(s,'DRM '+code+' '+(value==='yes'?'ikut':'tidak ikut')+' · '+day);})){notice('Status DRM '+label(code)+' tersimpan lokal.');}
+  if(await mutate(s=>{const id=rowId(day,code),profile=window.getFiveRProfile?.(code),required=window.fiveRRequiredOn?.(profile,day)||false;let row=s.days.find(r=>r.id===id);if(!row){row={id,day,code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:required,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row);}row.drm=value;const eid='DRM:'+id,existing=s.events.find(e=>e.id===eid);if(value==='no'){if(existing){existing.status='valid';existing.resolved=false}else s.events.push({id:eid,day,code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+actor(),status:'valid',source:'Daftar check-in',actor:actor(),createdAt:Date.now(),resolved:false})}else if(existing){existing.status='batal';existing.review='Checklist dikoreksi: ikut DRM'}audit(s,'DRM '+code+' '+(value==='yes'?'ikut':'tidak ikut')+' · '+day);})){notice('Status DRM '+label(code)+' tersimpan.');}
  };
  $('report-code').onchange=refreshAreaChoices;
  $('report-area-choice').onchange=()=>{stopCamera();$('report-area').value=$('report-area-choice').value;$('camera-status').textContent='Area dipilih. Buka kamera untuk memulai laporan 5R.'};
@@ -803,7 +817,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   if(!day||!codes.length||codes.some(c=>!staffMaster[c])||!area||!team)return notice('Isi tanggal, kode staff yang valid, tim, dan area.',true);
   if(state.days.some(r=>r.day===day&&codes.includes(r.code)&&r.report&&r.area!==area))return notice('Area sudah memiliki bukti. Jangan mengganti area setelah laporan; gunakan tanggal penugasan berikutnya.',true);
   if(await mutate(s=>{for(const code of codes){const id=rowId(day,code),row=s.days.find(r=>r.id===id);if(row){row.area=area;row.team=team;row.fiveRRequired=true;}else s.days.push({id,day,code,area,team,fiveRRequired:true,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null});}audit(s,'Tetapkan area '+area+' untuk '+codes.join(', ')+' tanggal '+day);})){ 
-   notice('Petugas dan area harian tersimpan lokal.');$('duty-code').value='';
+   notice('Petugas dan area harian tersimpan.');$('duty-code').value='';
   }
  };
  $('copy-duty').onclick=async()=>{
@@ -831,7 +845,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   const day=$('date').value,code=$('event-person').value,type=$('event-type').value,source=$('event-source').value.trim(),detail=$('event-detail').value.trim();
   if(!day||day>complianceDate()||!detail||!source)return notice('Isi tanggal kejadian (bukan masa depan), sumber, dan fakta kejadian.',true);
   if(await mutate(s=>{s.events.push({id:crypto.randomUUID(),day,code,type,source,detail,status:'pending',actor:actor(),createdAt:Date.now(),resolved:false});audit(s,'Laporan '+type+' untuk '+code);})){
-   $('event-detail').value='';$('event-source').value='';notice('Laporan tersimpan lokal, menunggu verifikasi.');
+   $('event-detail').value='';$('event-source').value='';notice('Laporan terkirim, menunggu verifikasi SPV.');
   }
  };
  $('events').onclick=ev=>{
@@ -849,7 +863,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   if(await mutate(s=>{const e=s.events.find(e=>e.id===action.id);if(!e)throw Error('Kejadian tidak ditemukan.');
    if(action.status==='resolved'){e.resolved=true;e.resolution=reason;}else{e.status=action.status;e.review=reason;}
    audit(s,'Kejadian '+action.id+': '+action.status+' · '+reason);
-  })){$('review-cancel').click();notice('Verifikasi / tindak lanjut tersimpan lokal.');}
+  })){$('review-cancel').click();notice('Verifikasi / tindak lanjut tersimpan.');}
  };
  function clearDraft(){
   draft=null;if(draftUrl)URL.revokeObjectURL(draftUrl);draftUrl=null;
@@ -876,7 +890,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   if(!blob?.size||blob.size>20*1024*1024){$('camera-status').textContent='Bukti kosong atau melebihi 20 MB. Rekam ulang lebih singkat.';return;}
   clearDraft();draft={blob,kind,id:binding.id,area:binding.area,capturedAt:Date.now()};draftUrl=URL.createObjectURL(blob);
   const preview=kind==='video'?$('preview-video'):$('preview-photo');preview.src=draftUrl;preview.hidden=false;
-  $('report-send').disabled=false;$('camera-status').textContent='Bukti siap. Klik Kirim laporan untuk menyimpan di browser ini.';
+  $('report-send').disabled=false;$('camera-status').textContent='Bukti siap. Klik Kirim laporan untuk mengirim ke SPV.';
  }
  $('report-person').onchange=()=>{stopCamera();reportArea();$('camera-status').textContent='Petugas berubah; ambil bukti baru untuk petugas ini.';};
  $('camera-open').onclick=async()=>{
@@ -926,7 +940,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    if(await mutate(s=>{const current=s.days.find(r=>r.id===capture.id);if(!current||current.exempt||(current.report&&current.report.approval==='approved')||current.area!==capture.area)throw Error('Penugasan berubah atau laporan sudah ada. Muat ulang data.');
     if(current.report){current.reportHistory=current.reportHistory||[];current.reportHistory.push(current.report);}
     current.report={at,kind:capture.kind,fileId,capturedAt:capture.capturedAt,size:capture.blob.size,approval:'pending'};audit(s,'Laporan 5R '+current.id+' tersimpan ('+capture.kind+'), menunggu approval SPV');
-   },{id:fileId,blob:capture.blob})){stopCamera();$('camera-status').textContent=label(row.code)+' — Menunggu approval SPV (tersimpan lokal).';notice('Bukti tersimpan, belum dihitung Done. SPV melihat bukti dan mengisi checklist approval.');}
+   },{id:fileId,blob:capture.blob})){stopCamera();$('camera-status').textContent=label(row.code)+' — Menunggu approval SPV (dikirim ke SPV).';notice('Bukti tersimpan, belum dihitung Done. SPV melihat bukti dan mengisi checklist approval.');}
    else $('report-send').disabled=false;
   }catch(e){$('camera-status').textContent=e.message;}
  };
@@ -934,11 +948,21 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   const id=ev.target.closest('[data-view]')?.dataset.view;if(!id)return;
   const row=state.days.find(r=>r.id===id);if(!row?.report)return;
   try{
+   if(String(row.report.fileId).startsWith('drive:')){
+    const did=row.report.fileId.slice(6);let fr=$('view-frame');
+    if(!fr){fr=document.createElement('iframe');fr.id='cp-view-frame';fr.style.cssText='width:100%;height:420px;border:0;border-radius:8px';fr.allow='autoplay';$('view-photo').after(fr)}
+    if(viewUrl){URL.revokeObjectURL(viewUrl);viewUrl=null}
+    try{$('view-video').pause()}catch(e){}
+    if(row.report.kind==='video'){$('view-video').hidden=true;$('view-photo').hidden=true;fr.hidden=false;fr.src='https://drive.google.com/file/d/'+did+'/preview'}
+    else{fr.hidden=true;fr.removeAttribute('src');$('view-video').hidden=true;$('view-photo').hidden=false;$('view-photo').src='https://drive.google.com/thumbnail?id='+did+'&sz=w1600'}
+    $('viewer').hidden=false;$('viewer').scrollIntoView({behavior:'smooth'});
+   }else{
    const blob=await new Promise((resolve,reject)=>{const req=db.transaction('files').objectStore('files').get(row.report.fileId);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
    if(!blob)throw Error('Bukti tidak tersedia dalam browser ini.');
    if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=URL.createObjectURL(blob);
+   const f0=$('view-frame');if(f0){f0.hidden=true;f0.removeAttribute('src')}
    $('view-video').hidden=row.report.kind!=='video';$('view-photo').hidden=row.report.kind==='video';
-   (row.report.kind==='video'?$('view-video'):$('view-photo')).src=viewUrl;$('viewer').hidden=false;$('viewer').scrollIntoView({behavior:'smooth'});
+   (row.report.kind==='video'?$('view-video'):$('view-photo')).src=viewUrl;$('viewer').hidden=false;$('viewer').scrollIntoView({behavior:'smooth'});}
    fiveRReview={id:row.id,fileId:row.report.fileId};
    $('view-title').textContent='Bukti 5R — '+label(row.code)+' · '+row.area+' · '+row.day;
    $('5r-review').hidden=!canApproveFiveR()||row.exempt;
@@ -984,7 +1008,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  }
  $('5r-approve').onclick=()=>decideFiveR('approved');
  $('5r-reject').onclick=()=>decideFiveR('rejected');
- $('view-close').onclick=()=>{$('view-video').pause();$('view-video').removeAttribute('src');$('view-photo').removeAttribute('src');if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=null;fiveRReview=null;$('viewer').hidden=true;};
+ $('view-close').onclick=()=>{const vf=$('view-frame');if(vf){vf.hidden=true;vf.removeAttribute('src')}$('view-video').pause();$('view-video').removeAttribute('src');$('view-photo').removeAttribute('src');if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=null;fiveRReview=null;$('viewer').hidden=true;};
  $('export').onclick=()=>{
   const rows=complianceMonthly(state,$('month').value),head=['Kode','Nama','Hari wajib','DRM hadir','Device dikumpulkan','5R disetujui','5R menunggu APV','5R ditolak','5R lewat batas','SOP valid','Komplain valid','Semua valid','Menunggu verifikasi'];
   const cell=v=>'"'+String(v).replace(/^[=+\-@]/,"'$&").replace(/"/g,'""')+'"';
@@ -3449,7 +3473,7 @@ init();
    const local=rj(AK,[]),have=new Set(local.map(rkey));let add=0;
    r.rows.forEach(x=>{const row={code:x.kode_staf,action:x.aksi,day:x.tanggal,at:x.waktu_iso};if(x.simulasi==='hapus'){const i=local.findIndex(l=>rkey(l)===rkey(row));if(i>=0){local.splice(i,1);add++}have.delete(rkey(row));seen.add(rkey(row));return}if(row.code&&row.action&&row.day&&!have.has(rkey(row))){if(x.simulasi==='ya')row.sim=true;local.push(row);have.add(rkey(row));seen.add(rkey(row));add++}});
    if(add){merging=true;try{raw.call(localStorage,AK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'));if(window.__renderDrm)try{window.__renderDrm()}catch(e){}}
-   for(const f of [pullPengajuan,pullMore,pullRelease]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}if(state!=='err')state='ok'}catch(e){state='err';lastErr=String(e&&e.message||e)}paint()}
+   for(const f of [pullPengajuan,pullMore,pullRelease,pullR5]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}if(state!=='err')state='ok'}catch(e){state='err';lastErr=String(e&&e.message||e)}paint()}
  // ---- Attendance: koreksi master (hapus = tanda hapus di sheet, perangkat lain ikut menghapus)
  function attDelete(code,day,action){const k=code+'|'+day+'|'+action;merging=true;try{const l=rj(AK,[]),i=l.findIndex(r=>rkey(r)===k);if(i>=0){l.splice(i,1);raw.call(localStorage,AK,JSON.stringify(l))}}finally{merging=false}seen.add(k);
   enq('append','ATTENDANCE',{id:rid({code,day,action}),tanggal:day,kode_staf:code,nama:nm(code),aksi:action,simulasi:'hapus',perangkat:'dihapus oleh '+(sessionStorage.getItem('wos-session-code')||'master')});window.dispatchEvent(new Event('storage'))}
@@ -3507,6 +3531,45 @@ init();
   const all=rj(LK,{}),cur=all[d]||{},next={};r.rows.forEach(x=>{if(x.dicabut==='ya')return;next[x.kode_staf]={by:x.dibuka_oleh||'SPV',at:x.waktu,note:x.keterangan,reason:x.jenis}});
   const sg=o=>JSON.stringify(Object.keys(o).sort());if(sg(next)===sg(cur))return;all[d]=next;merging=true;try{raw.call(localStorage,LK,JSON.stringify(all))}finally{merging=false}
   relSeen={};const c2=relRows();Object.keys(c2).forEach(id=>relSeen[id]=JSON.stringify(c2[id]));window.dispatchEvent(new Event('storage'))}
+ // ---- 5R: bukti foto/video ke Google Drive + metadata approval ke tab LAPORAN_5R
+ const DK='wos-5r-drive-v1',R5MAX=24*1024*1024;let r5Seen={},r5Busy=false,r5Big={},r5Err='';
+ const dmap=()=>rj(DK,{}),dset=(f,d)=>{const m=dmap();m[f]=d;try{raw.call(localStorage,DK,JSON.stringify(m))}catch(e){}};
+ const blobB64=b=>new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=()=>rej(fr.error);fr.readAsDataURL(b)});
+ function shrink2(url,max,q,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',q).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
+ const r5Sig=r=>{const p=r.report||{};return JSON.stringify([p.at,p.approval,p.reviewedAt||0,(p.reviewHistory||[]).length])};
+ async function r5Upload(row){
+  const p=row.report,f=p.fileId;if(String(f).startsWith('drive:'))return f.slice(6);
+  const m=dmap();if(m[f])return m[f];if(!window.__wosGetFile)return'';
+  const blob=await window.__wosGetFile(f);if(!blob)return'';
+  let b64,mime,ext;
+  if(p.kind==='video'){if(blob.size>R5MAX){r5Big[f]=1;return''}b64=await blobB64(blob);mime=blob.type||'video/webm';ext=/mp4/.test(mime)?'mp4':'webm'}
+  else{const u=URL.createObjectURL(blob);b64=await new Promise(res=>shrink2(u,1280,.72,res));URL.revokeObjectURL(u);if(!b64)b64=await blobB64(blob);mime='image/jpeg';ext='jpg'}
+  const r=await call({action:'photo',data:b64,mime,name:'5R-'+row.day+'-'+row.code+'.'+ext});
+  if(!r.ok)throw new Error(r.error);dset(f,r.file_id);return r.file_id}
+ async function r5Run(days){
+  if(r5Busy||!on())return;const from=dayWita(new Date(Date.now()-864e5*2));
+  const rows=(days||[]).filter(r=>r&&r.report&&r.id&&r.day>=from&&r5Seen[r.id]!==r5Sig(r)+(dmap()[r.report.fileId]||String(r.report.fileId).startsWith('drive:')?'1':'0'));
+  if(!rows.length)return;r5Busy=true;
+  try{for(const row of rows){const p=row.report;let did='';
+   try{did=await r5Upload(row)}catch(e){r5Err='5R: '+(e.message||e);continue}
+   if(!did&&!r5Big[p.fileId])continue;
+   const c=Object.assign({},p);delete c.fileId;if(!did)c.note_file='video terlalu besar, tidak diunggah';
+   enq('append','LAPORAN_5R',{id:row.id,tanggal:row.day,kode_staf:row.code,nama:nm(row.code),area:row.area||'',file_id:did,jenis_file:p.kind||'',kiriman_ke:'SPV',status:p.approval||'pending',catatan_spv:JSON.stringify(c),waktu:new Date(p.at||Date.now()).toISOString()});
+   r5Seen[row.id]=r5Sig(row)+(did?'1':'0')}}
+  finally{r5Busy=false}}
+ {const _d=window.__wosDrmSaved;window.__wosDrmSaved=days=>{try{_d&&_d(days)}catch(e){}if(!on()||merging)return;try{r5Run(days)}catch(e){}}}
+ async function pullR5(){
+  if(!window.__wosApplyReports||!window.__wosDrmDays)return;
+  await r5Run(window.__wosDrmDays());
+  if(pending('LAPORAN_5R'))return;
+  const from=dayWita(new Date(Date.now()-864e5*2)),r=await call({action:'list',tab:'LAPORAN_5R',from,to:today()},true);if(!r.ok)return;
+  const list=[];r.rows.forEach(x=>{let rep;try{rep=JSON.parse(x.catatan_spv||'{}')}catch(e){return}if(!rep||!rep.at)return;rep.fileId=x.file_id?'drive:'+x.file_id:'';rep.kind=x.jenis_file||rep.kind;rep.approval=x.status||rep.approval||'pending';list.push({id:x.id,day:x.tanggal,code:x.kode_staf,area:x.area,report:rep})});
+  if(!list.length)return;
+  const days=window.__wosDrmDays();
+  const safe=list.filter(x=>{const l=days.find(d=>d.id===x.id);return !(l&&l.report&&l.report.at>x.report.at)});
+  if(!safe.length)return;
+  merging=true;try{await window.__wosApplyReports(safe)}finally{merging=false}
+  safe.forEach(x=>{r5Seen[x.id]=r5Sig({report:x.report})+(x.report.fileId?'1':'0')})}
  window.WOSStore={enabled:on,attDelete,pDelete,config:cfg,setConfig(url,token){raw.call(localStorage,CK,JSON.stringify({url:url,token:token||cfg().token}));paint();return flush()},queue,flush,pull,
   async test(){try{const r=await call({action:'ping'},true);return r.ok?'OK '+r.tabs.length+' tab':'Gagal: '+r.error}catch(e){return 'Gagal: '+e.message}},status:()=>({state,lastErr,queued:queue().length})};
   document.addEventListener('click',e=>{try{if(e.target.closest&&e.target.closest('.nav[data-page="attendance"]'))setTimeout(()=>{flush();pull()},300)}catch(x){}});
