@@ -149,12 +149,56 @@ function photo_(op) {
   if (!op.data) throw new Error('data foto kosong');
   const bytes = Utilities.base64Decode(op.data);
   const blob = Utilities.newBlob(bytes, op.mime || 'image/jpeg', op.name || ('foto-' + Date.now() + '.jpg'));
-  const file = folder_().createFile(blob);
+  const file = folderFor_(op.kategori, op.date).createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return { file_id: file.getId(), url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w600' };
 }
 
+/* Susunan folder: WOS-Foto / Kategori (Presensi, 5R, Pengajuan) / yyyy-MM / Pekan NN (tgl-tgl Bln) / yyyy-MM-dd */
+const BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+function sub_(parent, name) {
+  const it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
+function weekLabel_(d) {
+  const y = +d.slice(0, 4), m = +d.slice(5, 7), day = +d.slice(8, 10);
+  const dow = new Date(Date.UTC(y, m - 1, day)).getUTCDay();
+  const mon = new Date(Date.UTC(y, m - 1, day - ((dow + 6) % 7)));
+  const sun = new Date(mon.getTime() + 6 * 864e5);
+  const th = new Date(mon.getTime() + 3 * 864e5);
+  const jan4 = new Date(Date.UTC(th.getUTCFullYear(), 0, 4));
+  const wk = 1 + Math.round(((th - jan4) / 864e5 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
+  const p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  const a = p2(mon.getUTCDate()) + (mon.getUTCMonth() !== sun.getUTCMonth() ? ' ' + BULAN[mon.getUTCMonth()] : '');
+  return 'Pekan ' + p2(wk) + ' (' + a + '-' + p2(sun.getUTCDate()) + ' ' + BULAN[sun.getUTCMonth()] + ')';
+}
+function folderFor_(kategori, date) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd');
+  let f = folder_();
+  [kategori || 'Lainnya', d.slice(0, 7), weekLabel_(d), d].forEach(function (n) { f = sub_(f, n); });
+  return f;
+}
+
+/* Jalankan sekali (manual) untuk merapikan file lama yang masih menumpuk di folder WOS-Foto */
+function rapikanFolder() {
+  const root = folder_(), list = [], it = root.getFiles();
+  while (it.hasNext()) list.push(it.next());
+  let n = 0;
+  list.forEach(function (f) {
+    const name = f.getName();
+    if (/^TEST/i.test(name)) return;
+    const m = /(\d{4}-\d{2}-\d{2})/.exec(name);
+    const date = m ? m[1] : Utilities.formatDate(f.getDateCreated(), 'Asia/Makassar', 'yyyy-MM-dd');
+    const kat = /^5R-/.test(name) ? '5R' : (/^P[0-9a-z]+\.jpg$/.test(name) ? 'Pengajuan' : 'Presensi');
+    folderFor_(kat, date).addFile(f);
+    root.removeFile(f);
+    n++;
+  });
+  SpreadsheetApp.getUi().alert('Selesai. ' + n + ' file dirapikan ke folder bulan, pekan, dan hari.');
+}
+
 /* ============ Bantu ============ */
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }

@@ -3422,7 +3422,7 @@ init();
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body))});return r.json()}
  async function flush(){if(!on()||busy||!navigator.onLine)return;let q=queue();if(!q.length){paint();return}busy=true;
   try{while(q.length){const it=q[0];
-    if(it.a==='photo'){const r=await call({action:'photo',data:it.data,mime:'image/jpeg',name:it.name});if(!r.ok)throw new Error(r.error);q=queue();q.shift();const url='https://drive.google.com/thumbnail?id='+r.file_id+'&sz=w800';if(it.field==='json:photo'){const pm=rj('wos-photo-map-v1',{});pm[it.rowId]=url;try{raw.call(localStorage,'wos-photo-map-v1',JSON.stringify(pm))}catch(e){}}q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId){if(it.field==='json:photo'){try{const c=JSON.parse(x.row.catatan||'{}');c.photo=url;x.row.catatan=JSON.stringify(c)}catch(e){}}else x.row.foto_id=r.file_id}});saveQ(q);}
+    if(it.a==='photo'){const r=await call({action:'photo',data:it.data,mime:'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok)throw new Error(r.error);q=queue();q.shift();const url='https://drive.google.com/thumbnail?id='+r.file_id+'&sz=w800';if(it.field==='json:photo'){const pm=rj('wos-photo-map-v1',{});pm[it.rowId]=url;try{raw.call(localStorage,'wos-photo-map-v1',JSON.stringify(pm))}catch(e){}}q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId){if(it.field==='json:photo'){try{const c=JSON.parse(x.row.catatan||'{}');c.photo=url;x.row.catatan=JSON.stringify(c)}catch(e){}}else x.row.foto_id=r.file_id}});saveQ(q);}
     else{const r=await call({action:it.a,tab:it.tab,row:it.row,id:it.id});if(!r.ok)throw new Error(r.error);q=queue();q.shift();saveQ(q)}
     q=queue()}
    state='ok';lastErr=''}catch(e){state='err';lastErr=String(e&&e.message||e)}
@@ -3435,7 +3435,7 @@ init();
   const row={id:rid(r),waktu_iso:r.at,tanggal:r.day,kode_staf:r.code,nama:name,aksi:r.action,jam_wita:isNaN(wt)?'':wt.toISOString().slice(11,16),lat:loc.lat||'',lng:loc.lng||'',akurasi_m:loc.accuracy||'',jarak_m:loc.meters||'',foto_id:'',simulasi:r.sim?'ya':'',perangkat:r.manual?'koreksi master':(navigator.userAgent||'').slice(0,90)};
   const push=()=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});saveQ(q);flush()};
   const ph=r.manual?null:(typeof attendancePhoto!=='undefined'&&attendancePhoto)||null;
-  if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{if(b64){const q=queue();q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id});saveQ(q)}push()})}else push()}
+  if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{if(b64){const q=queue();q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id,date:r.day,kategori:'Presensi'});saveQ(q)}push()})}else push()}
  // tangkap perubahan Attendance lokal
  let seen=new Set(rj(AK,[]).map(rkey));
  const RK='wos-roles-v1',TK='wos-tasks-v1',today=()=>dayWita();
@@ -3461,7 +3461,7 @@ init();
  const hh=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?(m[1].length<2?'0':'')+m[1]+':'+m[2]:t};
  const pending=tab=>queue().some(x=>x.tab===tab);
  async function pullMore(){const d=today();
-  if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};r.rows.forEach(x=>{(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:hh(x.jam_mulai),to:hh(x.jam_selesai),by:x.dipilih_oleh,at:x.waktu})});
+  if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};const dupK=new Set();r.rows.forEach(x=>{const k=[x.kode_staf,x.role_id,hh(x.jam_mulai),hh(x.jam_selesai),x.keterangan].join('|');if(dupK.has(k)){enq('delete','ROLE_HARIAN',null,x.id);return}dupK.add(k);(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:hh(x.jam_mulai),to:hh(x.jam_selesai),by:x.dipilih_oleh,at:x.waktu})});
     const sig=o=>JSON.stringify(Object.keys(o).sort().map(c=>[c,o[c].map(s=>s.id).sort()]));if(R.master&&R.master.length&&sig(plans)!==sig((R.plans||{})[d]||{})){R.plans=R.plans||{};R.plans[d]=plans;merging=true;try{raw.call(localStorage,RK,JSON.stringify(R))}finally{merging=false}
      rolesSeen={};Object.keys(slotRows()).forEach(id=>rolesSeen[id]=JSON.stringify(slotRows()[id]));window.dispatchEvent(new Event('storage'))}}}
   if(!pending('TASK')){const r=await call({action:'list',tab:'TASK',from:d,to:d},true);if(r.ok){const rank={baru:0,diterima:1,selesai:2},local=rj(TK,[]);let ch=false;
@@ -3497,7 +3497,7 @@ init();
   Object.keys(A).forEach(type=>A[type].forEach(o=>{if(!o.id)o.id=pidOf(type,o);cur[o.id]={type,o}}));
   Object.keys(cur).forEach(id=>{const{type,o}=cur[id],sig=psig(o);
    if(!pKnown[id]||pKnown[id].sig!==sig){const pm=rj('wos-photo-map-v1',{});
-    if(o.photo&&/^data:/.test(o.photo)&&!pm[id]&&!queue().some(x=>x.a==='photo'&&x.rowId===id)){shrink(o.photo,b64=>{if(b64){const q2=queue();q2.push({a:'photo',data:b64,name:id+'.jpg',rowId:id,field:'json:photo'});saveQ(q2)}enq('append','PENGAJUAN',pRow(type,o))})}
+    if(o.photo&&/^data:/.test(o.photo)&&!pm[id]&&!queue().some(x=>x.a==='photo'&&x.rowId===id)){shrink(o.photo,b64=>{if(b64){const q2=queue();q2.push({a:'photo',data:b64,name:id+'.jpg',rowId:id,field:'json:photo',date:today(),kategori:'Pengajuan'});saveQ(q2)}enq('append','PENGAJUAN',pRow(type,o))})}
     else enq('append','PENGAJUAN',pRow(type,o));pKnown[id]={sig,type,o}}});
   Object.keys(pKnown).forEach(id=>{if(cur[id])return;const k=pKnown[id];delete pKnown[id];const dead=pDel.has(id);if(!dead)markApplied(id);k.o.status=dead?'Dihapus':pRej.has(id)?'Ditolak':'Disetujui';const row=pRow(k.type,k.o);row.approver=sessionStorage.getItem('wos-session-code')||'';enq('append','PENGAJUAN',row)})}
  function pDelete(id){const A=ARR();if(!A)return false;pDel.add(id);let hit=false;Object.keys(A).forEach(t=>{const i=A[t].findIndex(o=>o.id===id);if(i>=0){A[t].splice(i,1);hit=true}});if(hit)try{renderUnifiedApproval()}catch(e){}return hit}
@@ -3545,7 +3545,7 @@ init();
   let b64,mime,ext;
   if(p.kind==='video'){if(blob.size>R5MAX){r5Big[f]=1;return''}b64=await blobB64(blob);mime=blob.type||'video/webm';ext=/mp4/.test(mime)?'mp4':'webm'}
   else{const u=URL.createObjectURL(blob);b64=await new Promise(res=>shrink2(u,1280,.72,res));URL.revokeObjectURL(u);if(!b64)b64=await blobB64(blob);mime='image/jpeg';ext='jpg'}
-  const r=await call({action:'photo',data:b64,mime,name:'5R-'+row.day+'-'+row.code+'.'+ext});
+  const r=await call({action:'photo',data:b64,mime,name:'5R-'+row.day+'-'+row.code+'.'+ext,date:row.day,kategori:'5R'});
   if(!r.ok)throw new Error(r.error);dset(f,r.file_id);return r.file_id}
  async function r5Run(days){
   if(r5Busy||!on())return;const from=dayWita(new Date(Date.now()-864e5*2));
