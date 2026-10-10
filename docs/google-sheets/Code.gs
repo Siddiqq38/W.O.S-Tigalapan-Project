@@ -172,29 +172,34 @@ function weekLabel_(d) {
   const a = p2(mon.getUTCDate()) + (mon.getUTCMonth() !== sun.getUTCMonth() ? ' ' + BULAN[mon.getUTCMonth()] : '');
   return 'Pekan ' + p2(wk) + ' (' + a + '-' + p2(sun.getUTCDate()) + ' ' + BULAN[sun.getUTCMonth()] + ')';
 }
+const _folderCache = {};
 function folderFor_(kategori, date) {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd');
+  const key = (kategori || 'Lainnya') + '|' + d;
+  if (_folderCache[key]) return _folderCache[key];
   let f = folder_();
   [kategori || 'Lainnya', d.slice(0, 7), weekLabel_(d), d].forEach(function (n) { f = sub_(f, n); });
+  _folderCache[key] = f;
   return f;
 }
 
-/* Jalankan sekali (manual) untuk merapikan file lama yang masih menumpuk di folder WOS-Foto */
+/* Jalankan manual untuk merapikan file lama di folder WOS-Foto.
+   Aman dijalankan berulang: memproses sebagian per jalan (batas waktu ~4 menit), lanjutkan sampai sisa 0. */
 function rapikanFolder() {
-  const root = folder_(), list = [], it = root.getFiles();
-  while (it.hasNext()) list.push(it.next());
-  let n = 0;
-  list.forEach(function (f) {
-    const name = f.getName();
-    if (/^TEST/i.test(name)) return;
+  const start = Date.now(), MAX_MS = 240000, MAX_FILES = 60;
+  const root = folder_(), it = root.getFiles();
+  let moved = 0, skipped = 0, left = 0;
+  while (it.hasNext()) {
+    const f = it.next(), name = f.getName();
+    if (/^TEST/i.test(name)) { skipped++; continue; }
+    if (moved >= MAX_FILES || Date.now() - start > MAX_MS) { left++; continue; }
     const m = /(\d{4}-\d{2}-\d{2})/.exec(name);
     const date = m ? m[1] : Utilities.formatDate(f.getDateCreated(), 'Asia/Makassar', 'yyyy-MM-dd');
     const kat = /^5R-/.test(name) ? '5R' : (/^P[0-9a-z]+\.jpg$/.test(name) ? 'Pengajuan' : 'Presensi');
-    folderFor_(kat, date).addFile(f);
-    root.removeFile(f);
-    n++;
-  });
-  SpreadsheetApp.getUi().alert('Selesai. ' + n + ' file dirapikan ke folder bulan, pekan, dan hari.');
+    f.moveTo(folderFor_(kat, date));
+    moved++;
+  }
+  SpreadsheetApp.getUi().alert('Dirapikan: ' + moved + ' file. Sisa: ' + left + (left ? ' (jalankan rapikanFolder lagi sampai sisa 0)' : ' (selesai)') + '. Dilewati (TEST): ' + skipped + '.');
 }
 
 /* ============ Bantu ============ */
