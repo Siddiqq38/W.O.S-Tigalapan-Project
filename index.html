@@ -1283,6 +1283,32 @@ if(typeof document!=='undefined')(()=>{
  window.getOutboundKpiData=()=>({...window.getOutboundSuggestionData(),logistics:structuredClone(state.cpslTasks||{}),operations:structuredClone(state.operations||{}),findings:structuredClone(state.findings||[])});
  const table=(heads,rows)=>'<table><thead><tr>'+heads.map(h=>'<th>'+E(h)+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(cells=>'<tr class="'+(cells.critical?'ob-critical':'')+'">'+cells.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+heads.length+'">Belum ada data pada periode ini.</td></tr>')+'</tbody></table>';
  const tag=(label,color)=>'<span class="tag '+color+'">'+E(label)+'</span>',metrics=(t,rows)=>{const by=[...new Set(rows.map(r=>r.outlet))].map(o=>[o,C.totals(rows.filter(r=>r.outlet===o))]);return [['Target teralokasi',x=>n(x.allocated)+' pcs'],['ACT Picking',x=>n(x.actual)+' pcs'],['VP terverifikasi',x=>n(x.verified)+' pcs'],['Koli selesai VP',x=>x.doneKoli+' / '+x.koli],['Picker ditugaskan',x=>x.pickers+' orang'],['SOO terkonfirmasi',x=>n(x.shortage)+' pcs']].map(([l,f])=>'<div class="card"><span class="sub">'+l+'</span><div class="metric">'+f(t)+'</div>'+by.map(([o,x])=>'<div class="sub" style="font-size:11px;margin-top:3px">'+E(o)+' '+f(x)+'</div>').join('')+'</div>').join('');};
+ // Riwayat Outbound per rentang tanggal (ringkasan, per hari, per picker) dari arsip SOQ yang sudah terbaca
+ {const box=document.createElement('details');box.id='ob-range';box.className='card';box.open=true;box.style.margin='12px 0';
+  const d0=today(),back=k=>new Date(Date.parse(d0+'T00:00:00+08:00')-k*864e5+8*36e5).toISOString().slice(0,10);
+  box.innerHTML='<summary style="font-weight:700;cursor:pointer">Riwayat Outbound — rentang tanggal</summary><p class="sub" style="margin-top:8px">Lihat rekap beberapa hari sekaligus (misalnya sepekan). Data berasal dari SOQ yang terbaca pada 14 hari terakhir. Outlet mengikuti pilihan di atas.</p>'+
+  '<div class="form-grid"><div class="field"><label for="ob-r-from">Dari tanggal</label><input id="ob-r-from" type="date" value="'+back(6)+'"></div><div class="field"><label for="ob-r-to">Sampai tanggal</label><input id="ob-r-to" type="date" value="'+d0+'"></div></div>'+
+  '<div class="ob-actions"><button type="button" class="button secondary" data-r="0">Hari ini</button><button type="button" class="button secondary" data-r="6">7 hari terakhir</button><button type="button" class="button secondary" data-r="13">14 hari terakhir</button><button type="button" class="button" id="ob-r-go">Tampilkan</button><button type="button" class="button secondary" id="ob-r-pull">Tarik data terbaru</button><button type="button" class="button secondary" id="ob-r-csv">Unduh CSV</button></div><div id="ob-r-out" style="margin-top:12px"></div>';
+  $('summary').before(box);
+  let last=[];
+  const rangeRows=()=>{const a=$('r-from').value,b=$('r-to').value,src=$('source-filter').value;return all().filter(r=>r.date>=a&&r.date<=b&&(!src||r.source===src))};
+  const drawRange=()=>{
+   const a=$('r-from').value,b=$('r-to').value;if(!a||!b||a>b){$('r-out').innerHTML='<p class="note">Pilih rentang tanggal yang valid (Dari tidak boleh setelah Sampai).</p>';return}
+   const rows=rangeRows(),days=[...new Set(rows.map(r=>r.date))].sort().reverse(),pk=[...new Set(rows.filter(r=>r.allocated&&r.picker).map(r=>r.picker))].sort();
+   const t=C.totals(rows);
+   last=days.map(d=>{const x=C.totals(rows.filter(r=>r.date===d));return [d,x.allocated,x.actual,x.verified,x.doneKoli,x.koli,x.pickers,x.shortage]});
+   const html=(rows.length?'<div class="grid three">'+metrics(t,rows)+'</div>':'<p class="note">Belum ada data SOQ pada rentang ini. Coba "Tarik data terbaru" atau perpendek rentangnya.</p>')+
+   (rows.length?'<h3 style="margin-top:14px">Per hari</h3>'+table(['Tanggal','Target (pcs)','ACT picking','VP terverifikasi','Koli selesai VP','Picker','SOO'],last.map(r=>[E(r[0]),n(r[1]),n(r[2]),n(r[3]),r[4]+' / '+r[5],r[6]+' orang',n(r[7])]))+
+   '<h3 style="margin-top:14px">Per picker</h3>'+table(['Picker','Target (pcs)','ACT picking','VP terverifikasi','Koli selesai VP'],pk.map(c=>{const x=C.totals(rows.filter(r=>r.picker===c));return [person(c),n(x.allocated),n(x.actual),n(x.verified),x.doneKoli+' / '+x.koli]})):'');
+   if($('r-out').dataset.sig!==html){$('r-out').dataset.sig=html;$('r-out').innerHTML=html}
+  };
+  box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+   if(b.dataset.r!==undefined){$('r-to').value=d0;$('r-from').value=back(Number(b.dataset.r));drawRange()}
+   else if(b.id==='ob-r-go')drawRange();
+   else if(b.id==='ob-r-pull'){b.disabled=true;b.textContent='Menarik data…';$('refresh').click();setTimeout(()=>{b.disabled=false;b.textContent='Tarik data terbaru';drawRange()},7000)}
+   else if(b.id==='ob-r-csv'){drawRange();const cell=v=>'"'+String(v).replace(/^[=+\-@]/,"'$&").replace(/"/g,'""')+'"';const csv=[['Tanggal','Target pcs','ACT picking','VP terverifikasi','Koli selesai VP','Total koli','Picker','SOO']].concat(last).map(r=>r.map(cell).join(',')).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download='riwayat-outbound-'+$('r-from').value+'_'+$('r-to').value+'.csv';a.click()}});
+  box.addEventListener('change',e=>{if(e.target.id==='ob-r-from'||e.target.id==='ob-r-to')drawRange()});
+  drawRange();setInterval(()=>{if(!document.hidden&&box.open&&box.offsetParent)drawRange()},15000);}
  const detailTable=g=>table(['SKU','SOQ','ACT','Bin','SOO','VP','KET'],g.rows.map(r=>[E(r.sku),n(r.soq),r.actual===null?'Belum diisi':n(r.actual),E(r.location||'—'),r.shortage?n(r.shortage):'—',tag(r.verified?'Terverifikasi':r.issue||'Menunggu',r.verified?'green':'amber'),E(r.notes||'—')]))
  // Tabel SKU per koli baru dibuat saat baris dibuka (menghemat ribuan elemen DOM).
  const details=g=>'<details data-ob-g="'+E(g.id)+'"><summary>'+g.rows.length+' baris SKU</summary><div></div></details>'
