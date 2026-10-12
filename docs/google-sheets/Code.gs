@@ -53,6 +53,7 @@ function doGet(e) {
     if (p.token !== TOKEN) return json_({ ok: false, error: 'token salah' });
     if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString(), tabs: Object.keys(TABS) });
     if (p.action === 'list') return json_({ ok: true, rows: list_(p.tab, p.from, p.to) });
+    if (p.action === 'multi') return json_({ ok: true, data: multi_(p.q) });
     return json_({ ok: false, error: 'aksi tidak dikenal' });
   } catch (err) { return json_({ ok: false, error: String(err) }); }
 }
@@ -91,11 +92,9 @@ function sheet_(tab) {
 function list_(tab, from, to) {
   const sh = sheet_(tab), headers = TABS[tab], last = sh.getLastRow();
   if (last < 2) return [];
-  const start = Math.max(2, last - MAX_READ_ROWS + 1);
-  const values = sh.getRange(start, 1, last - start + 1, headers.length).getDisplayValues();
   const dateCol = headers.indexOf('tanggal');
   const out = [];
-  values.forEach(function (r) {
+  const take = function (r) {
     if (dateCol >= 0 && (from || to)) {
       const d = r[dateCol];
       if ((from && d < from) || (to && d > to)) return;
@@ -103,8 +102,37 @@ function list_(tab, from, to) {
     const o = {};
     headers.forEach(function (h, i) { o[h] = r[i]; });
     if (o.id !== '') out.push(o);
-  });
+  };
+  if (dateCol < 0 || !from) {
+    const start = Math.max(2, last - MAX_READ_ROWS + 1);
+    sh.getRange(start, 1, last - start + 1, headers.length).getDisplayValues().forEach(take);
+    return out;
+  }
+  // baca dari bawah per blok sampai bertemu data yang lebih lama dari "from" (jauh lebih cepat saat data menumpuk)
+  const CH = 250;
+  let end = last, scanned = 0;
+  while (end >= 2 && scanned < MAX_READ_ROWS) {
+    const start = Math.max(2, end - CH + 1);
+    const vals = sh.getRange(start, 1, end - start + 1, headers.length).getDisplayValues();
+    let allOld = true;
+    for (let i = 0; i < vals.length; i++) { const d = vals[i][dateCol]; if (!d || d >= from) { allOld = false; break; } }
+    vals.forEach(take);
+    scanned += vals.length;
+    if (allOld) break;
+    end = start - 1;
+  }
   return out;
+}
+
+/* Banyak tab sekaligus: q = "TAB:dari:sampai,TAB:dari:sampai" -> { "TAB|dari|sampai": [baris] } */
+function multi_(q) {
+  const res = {};
+  String(q || '').split(',').forEach(function (part) {
+    const p = part.split(':');
+    if (!p[0] || !TABS[p[0]]) return;
+    res[p[0] + '|' + (p[1] || '') + '|' + (p[2] || '')] = list_(p[0], p[1] || '', p[2] || '');
+  });
+  return res;
 }
 
 function upsert_(tab, row) {
