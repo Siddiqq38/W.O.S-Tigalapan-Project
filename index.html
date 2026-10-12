@@ -3719,7 +3719,7 @@ init();
 <script>
 // INBOUND V2 - RECEIVING (UNLOADING) & STAGING IN: STTB/resi per PO, koli dicentang satu per satu, hasilnya Staging In. Data ke Google Sheets (WOS Data Gudang), foto ke Drive.
 (()=>{
- const DEF_URL='https://script.google.com/macros/s/AKfycbwYyrs_14HvvBy3wHsJLJvmO6SDEf31thdu2hZexL3ZppPxLSCAKDdd2d9DnchbhsLnoQ/exec',DEF_TOKEN='c0rssm2uBdoW2j4MDkPvKbkzeRKG';
+ const DEF_URL='https://script.google.com/macros/s/AKfycbzlsqhRy9ZyP2Te5UYjyHowIJoHhjG-Uv7_xNTdIRAIFDl_ck40BKTYsXtT_Ik2RIwbZg/exec',DEF_TOKEN='c0rssm2uBdoW2j4MDkPvKbkzeRKG';
  const CK='wos-gd-config-v1',QK='wos-gd-queue-v1',SK='wos-gd-sesi-v1',WITA=8*3600e3;
  const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const rj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
