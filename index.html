@@ -3864,7 +3864,7 @@ init();
  const nav=document.createElement('button');nav.className='nav';nav.dataset.page='wms-inventory';nav.textContent='Inventory';after.after(nav);
  try{names['wms-inventory']=['Inventory (WMS)','Rekap stok per bin dan mutasi barang']}catch(e){}
  let built=false,tab='bin',stok=[],hist=[],from=back(29),to=today(),q='',state='',err='',note='';
- nav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));nav.classList.add('active');sec.classList.add('active');$('title').textContent='Inventory (WMS)';$('subtitle').textContent='Rekap stok per bin dan mutasi barang';build();load()});
+ nav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));nav.classList.add('active');sec.classList.add('active');$('title').textContent='Inventory (WMS)';$('subtitle').textContent='Rekap stok per bin dan mutasi barang';build();draw();load()});
  async function call(body){const c=window.WOSGudang.config();const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)));return r.json()}
  async function load(){
   if(!sec.classList.contains('active')||document.hidden)return;
