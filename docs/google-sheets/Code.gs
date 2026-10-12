@@ -147,6 +147,11 @@ function upsert_(tab, row) {
       const ids = sh.getRange(2, 1, last - 1, 1).getValues();
       for (let i = ids.length - 1; i >= 0; i--) {
         if (String(ids[i][0]) === id) {
+          if (tab === 'PENGAJUAN') {
+            const FINAL = { 'Disetujui': 1, 'Ditolak': 1, 'Dihapus': 1 }, sc = headers.indexOf('status');
+            const old = String(sh.getRange(i + 2, sc + 1).getValue());
+            if (FINAL[old] && !FINAL[values[sc]]) return { saved: id, ignored: true };
+          }
           sh.getRange(i + 2, 1, 1, headers.length).setValues([values]);
           return { saved: id, updated: true };
         }

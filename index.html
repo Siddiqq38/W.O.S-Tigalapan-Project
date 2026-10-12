@@ -3522,7 +3522,8 @@ init();
  function pRow(type,o){const c=Object.assign({},o),pm=rj('wos-photo-map-v1',{});if(c.photo&&/^data:/.test(c.photo))c.photo=pm[o.id]||'';
   return{id:o.id,waktu:o.appliedAt?new Date(o.appliedAt).toISOString():new Date().toISOString(),nama:o.employee,jenis:type,tanggal_mulai:o.start||o.date||'',tanggal_selesai:o.end||'',alasan:o.reason||'',pengganti:o.replacementName||'',status:o.status,approver:'',catatan:JSON.stringify(c)}}
  const psig=o=>JSON.stringify([o.status,o.employee,o.start,o.end,o.date,o.eta]);
- function syncOut(){if(!on()||pApplying)return;const A=ARR();if(!A)return;const cur={};
+ let pPulled=false;
+ function syncOut(){if(!on()||pApplying||!pPulled)return;const A=ARR();if(!A)return;const cur={};
   Object.keys(A).forEach(type=>A[type].forEach(o=>{if(!o.id)o.id=pidOf(type,o);cur[o.id]={type,o}}));
   Object.keys(cur).forEach(id=>{const{type,o}=cur[id],sig=psig(o);
    if(!pKnown[id]||pKnown[id].sig!==sig){const pm=rj('wos-photo-map-v1',{});
@@ -3540,7 +3541,7 @@ init();
    if(x.status==='Disetujui'||x.status==='Dihapus'||x.status==='Ditolak'){if(x.status!=='Dihapus')dec.push({employee:x.nama,type:x.jenis,when:x.tanggal_mulai||'',status:x.status,reason:o.rejectReason||''});if(i>=0){arr.splice(i,1);ch=true}if(x.status==='Disetujui'&&!done.has(x.id)){applyEffects(x.jenis,o);markApplied(x.id);ch=true}delete pKnown[x.id]}
    else if(i<0){if(!done.has(x.id)){arr.push(o);ch=true;pKnown[x.id]={sig:psig(o),type:x.jenis,o}}}
    else if(arr[i].status!==x.status){arr[i].status=x.status;ch=true;pKnown[x.id]={sig:psig(arr[i]),type:x.jenis,o:arr[i]}}});
-   window.__pDecisions=dec.reverse();window.__pApproved=r.rows.filter(x=>x.status==='Disetujui'&&(x.jenis==='Change Off'||x.jenis==='Cuti tahunan')).map(x=>{let o={};try{o=JSON.parse(x.catatan)||{}}catch(e){}return{employee:x.nama,type:x.jenis,start:x.tanggal_mulai,end:x.tanggal_selesai||x.tanggal_mulai,rep:x.pengganti||o.replacementName||''}});try{drawDecisions();drawOff()}catch(e){}
+   pPulled=true;window.__pDecisions=dec.reverse();window.__pApproved=r.rows.filter(x=>x.status==='Disetujui'&&(x.jenis==='Change Off'||x.jenis==='Cuti tahunan')).map(x=>{let o={};try{o=JSON.parse(x.catatan)||{}}catch(e){}return{employee:x.nama,type:x.jenis,start:x.tanggal_mulai,end:x.tanggal_selesai||x.tanggal_mulai,rep:x.pengganti||o.replacementName||''}});try{drawDecisions();drawOff()}catch(e){}
    if(ch){try{raw.call(localStorage,APPK,JSON.stringify({changeOff:jotmRequests,annualLeave:annualLeaveRequests,used:jotmUsed,leaveBalances:annualLeaveMaster,changeOffHistory:jotmHistory,leaveHistory:annualLeaveHistory}))}catch(e){}try{renderUnifiedApproval()}catch(e){}try{window.__renderAttSummary&&window.__renderAttSummary()}catch(e){}}}
   finally{pApplying=false}}
  try{const _r=renderUnifiedApproval;renderUnifiedApproval=function(){_r.apply(this,arguments);try{
