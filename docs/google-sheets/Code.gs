@@ -43,7 +43,7 @@ function setup() {
   if (first && first.getName().indexOf('Sheet') === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
   folder_();
   log_('setup', '', '', 'Tab dan folder siap');
-  SpreadsheetApp.getUi().alert('Selesai. ' + Object.keys(TABS).length + ' tab dibuat dan folder "' + FOLDER_NAME + '" siap di Google Drive.');
+  notify_('Selesai. ' + Object.keys(TABS).length + ' tab dibuat dan folder "' + FOLDER_NAME + '" siap di Google Drive.');
 }
 
 /* ============ API ============ */
@@ -232,7 +232,7 @@ function rapikanFolder() {
     f.moveTo(folderFor_(kat, date));
     moved++;
   }
-  SpreadsheetApp.getUi().alert('Dirapikan: ' + moved + ' file. Sisa: ' + left + (left ? ' (jalankan rapikanFolder lagi sampai sisa 0)' : ' (selesai)') + '. Dilewati (TEST): ' + skipped + '.');
+  notify_('Dirapikan: ' + moved + ' file. Sisa: ' + left + (left ? ' (jalankan rapikanFolder lagi sampai sisa 0)' : ' (selesai)') + '. Dilewati (TEST): ' + skipped + '.');
 }
 
 /* ============ Bantu ============ */
@@ -246,4 +246,9 @@ function log_(aksi, tab, id, pesan) {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('LOG');
     if (sh) sh.appendRow([Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss'), aksi, tab, id, pesan]);
   } catch (e) {}
+}
+
+/* Tampilkan pesan: dialog bila spreadsheet terbuka, jika tidak ditulis ke Execution log */
+function notify_(msg) {
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
 }
