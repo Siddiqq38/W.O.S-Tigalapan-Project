@@ -2473,10 +2473,10 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','assignment','inboundv2','inbound','productivity','compliance','performance','coaching','reports','master','access'];
+const ALL_PAGES=['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','inbound','productivity','compliance','performance','coaching','reports','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 const HOLD_PAGES=['inbound'];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','assignment','inboundv2','productivity','compliance','performance','coaching','reports'],ADMIN:['dashboard','attendance','assignment','inboundv2','inbound','productivity','compliance']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','productivity','compliance','performance','coaching','reports'],ADMIN:['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','inbound','productivity','compliance']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -2494,7 +2494,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['assignment']:[]),...(roleCats().includes('inbound')?['inboundv2']:[])]:PAGES[account.level]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['assignment']:[]),...(roleCats().includes('inbound')?['wms-inbound']:[]),...(roleCats().includes('storage')?['wms-location']:[]),...(roleCats().includes('outbound')?['wms-outbound']:[])]:PAGES[account.level]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -3730,11 +3730,24 @@ init();
  const canAdmin=()=>level()==='supervisor'||level()==='admin';
  // ---- halaman dan menu
  const main=document.querySelector('main');if(!main)return;
- const sec=document.createElement('section');sec.className='page';sec.id='inboundv2';main.appendChild(sec);
- const nav=document.createElement('button');nav.className='nav';nav.dataset.page='inboundv2';nav.textContent='Inbound';
- (document.querySelector('.nav[data-page="assignment"]')||document.querySelector('.profile')).after(nav);
- try{names.inboundv2=['Inbound','Unloading dan Staging In']}catch(e){}
- nav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));nav.classList.add('active');sec.classList.add('active');$('title').textContent='Inbound';$('subtitle').textContent='Unloading dan Staging In';build();pull()});
+ const FEAT={
+  'wms-location':[['Stok Opname'],['Cycle Count'],['Relokasi / Internal Move'],['Other']],
+  'wms-outbound':[['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing'],['Staging'],['Loading'],['Shipping'],['Unloading Outlet']],
+  'gr':[['Counting'],['Put Away'],['Data Entry (PO ke MOKA)']]
+ };
+ function phBlock(key,ttl){const f=FEAT[key];return '<div class="filters" data-ph="'+key+'" style="margin-bottom:12px">'+f.map((x,i)=>'<button type="button" class="filter'+(i?'':' active')+'" data-p="'+esc(x[0])+'">'+esc(x[0])+'</button>').join('')+'</div><div class="card" data-phbody="'+key+'"></div>'}
+ function phFill(key,name){const b=document.querySelector('[data-phbody="'+key+'"]');if(!b)return;b.innerHTML='<h3>'+esc(name)+'</h3><p class="sub">Fitur ini sedang disiapkan. Alur, dokumen, input, proses, dan outputnya akan ditambahkan setelah detail alur diterima. Pola datanya sama dengan Receiving: angka dan status tersimpan di Google Sheets (WOS Data Gudang), foto dan video di Google Drive.</p>';document.querySelectorAll('[data-ph="'+key+'"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name))}
+ const mk=(id,label,title,sub)=>{const s=document.createElement('section');s.className='page';s.id=id;main.appendChild(s);const n=document.createElement('button');n.className='nav';n.dataset.page=id;n.textContent=label;try{names[id]=[title,sub]}catch(e){}
+  n.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));n.classList.add('active');s.classList.add('active');$('title').textContent=title;$('subtitle').textContent=sub;
+   if(id==='wms-inbound'){build();pull()}else if(!s.dataset.built){s.dataset.built='1';s.innerHTML='<div class="toolbar"><div><h2>'+esc(label)+'</h2><span class="sub">'+esc(sub)+'</span></div></div>'+phBlock(id);phFill(id,FEAT[id][0][0])}});
+  return{s,n}};
+ const grp=document.createElement('div');grp.className='nav-group';grp.textContent='WMS';
+ const anchor=document.querySelector('.profile');anchor.before(grp);
+ const I=mk('wms-inbound','Inbound','Inbound (WMS)','Receiving dan Good Receipt'),L=mk('wms-location','Location Control','Location Control (WMS)','Stok opname, cycle count, relokasi'),O=mk('wms-outbound','Outbound','Outbound (WMS)','Picking sampai unloading outlet');
+ [I.n,L.n,O.n].forEach(n=>anchor.before(n));
+ const sec=I.s;
+ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-p]');if(!b)return;const w=b.closest('[data-ph]');if(w)phFill(w.dataset.ph,b.dataset.p)});
+
  // ---- koneksi, antrean
  let state='',err='',busy=false;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-200)))}catch(e){err='Penyimpanan HP penuh'}};
@@ -3764,9 +3777,10 @@ init();
  function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antre)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
  function build(){
   if(built)return;built=true;
-  sec.innerHTML='<div class="toolbar"><div><h2>Inbound</h2><span class="sub">Unloading di web, hasilnya otomatis menjadi Staging In</span></div><span id="iv2-state" class="tag amber">Memeriksa…</span></div>'+
-  '<div class="filters" style="margin-bottom:12px"><button class="filter active" data-t="unl" type="button">Unloading</button><button class="filter" data-t="stg" type="button">Staging In</button></div>'+
-  '<div id="iv2-unl"></div><div id="iv2-stg" hidden></div>';
+  sec.innerHTML='<div class="toolbar"><div><h2>Inbound</h2><span class="sub">Receiving (penerimaan fisik barang) dan Good Receipt</span></div><span id="iv2-state" class="tag amber">Memeriksa…</span></div>'+
+  '<div class="filters" style="margin-bottom:12px"><button class="filter active" data-f="recv" type="button">Receiving</button><button class="filter" data-f="gr" type="button">Good Receipt</button></div>'+
+  '<div id="iv2-recv"><div class="filters" style="margin-bottom:12px"><button class="filter active" data-t="unl" type="button">Penerimaan barang</button><button class="filter" data-t="stg" type="button">Staging In</button></div><div id="iv2-unl"></div><div id="iv2-stg" hidden></div></div>'+
+  '<div id="iv2-gr" hidden>'+phBlock('gr')+'</div>';phFill('gr','Counting');
   sec.addEventListener('click',onClick);sec.addEventListener('change',onChange);sec.addEventListener('input',onInput);
   draw();
  }
@@ -3779,7 +3793,7 @@ init();
   const host=$('iv2-unl');if(!host)return;
   const my=code(),opts=['A1','A2','A3','B1','B2','B3','C1','C2'].map(a=>'<option>'+a+'</option>').join('');
   if(!$('iv2-form')){
-   host.innerHTML='<div class="card" id="iv2-form"><h3 id="iv2-ft">Catat unloading baru</h3><p class="sub">Isi sesuai surat jalan. Data langsung masuk ke Staging In bila dokumen lengkap.</p>'+
+   host.innerHTML='<div class="card" id="iv2-form"><h3 id="iv2-ft">Catat penerimaan barang (Receiving)</h3><p class="sub">Isi sesuai surat jalan. Data langsung masuk ke Staging In bila dokumen lengkap.</p>'+
    '<div class="form-grid"><div class="field"><label for="iv2-resi">No. resi / AWB</label><input id="iv2-resi" placeholder="Contoh: 12128" autocomplete="off"></div><div class="field"><label for="iv2-po">No. PO</label><input id="iv2-po" placeholder="Contoh: BY30" autocomplete="off"></div><div class="field"><label for="iv2-ven">Vendor / pengirim</label><input id="iv2-ven" autocomplete="off"></div><div class="field"><label for="iv2-sj">No. surat jalan</label><input id="iv2-sj" autocomplete="off"></div><div class="field"><label for="iv2-koli">Jumlah koli</label><input id="iv2-koli" type="number" inputmode="numeric" min="1"></div><div class="field"><label for="iv2-area">Area staging</label><select id="iv2-area"><option value="">- pilih -</option>'+opts+'</select></div></div>'+
    '<div class="field"><label for="iv2-note">Catatan (opsional)</label><textarea id="iv2-note" rows="2" placeholder="Kondisi barang, selisih, dll"></textarea></div>'+
    '<div class="field"><label for="iv2-foto">Foto surat jalan / barang</label><input id="iv2-foto" type="file" accept="image/*" capture="environment"><span class="sub" id="iv2-fotoinfo">Belum ada foto</span></div>'+
@@ -3805,7 +3819,7 @@ init();
  function draw(){if(!built)return;sec.querySelectorAll('#iv2-unl input[type=date]').forEach((e,i)=>{if(document.activeElement!==e)e.value=i?to:from});sec.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('active',b.dataset.t===tab));$('iv2-unl').hidden=tab!=='unl';$('iv2-stg').hidden=tab!=='stg';if(tab==='unl')drawUnl();else drawStg()}
  const msg=(t,bad)=>{const m=$('iv2-msg');if(!m)return;m.hidden=!t;m.textContent=t||'';m.style.color=bad?'#b3261e':'#1b7a46'};
  let fotoFile=null;
- function resetForm(){editId='';fotoFile=null;['resi','po','ven','sj','koli','note'].forEach(k=>{const e=$('iv2-'+k);if(e)e.value=''});if($('iv2-area'))$('iv2-area').value='';if($('iv2-foto'))$('iv2-foto').value='';if($('iv2-fotoinfo'))$('iv2-fotoinfo').textContent='Belum ada foto';if($('iv2-ft'))$('iv2-ft').textContent='Catat unloading baru';if($('iv2-cancel'))$('iv2-cancel').hidden=true}
+ function resetForm(){editId='';fotoFile=null;['resi','po','ven','sj','koli','note'].forEach(k=>{const e=$('iv2-'+k);if(e)e.value=''});if($('iv2-area'))$('iv2-area').value='';if($('iv2-foto'))$('iv2-foto').value='';if($('iv2-fotoinfo'))$('iv2-fotoinfo').textContent='Belum ada foto';if($('iv2-ft'))$('iv2-ft').textContent='Catat penerimaan barang (Receiving)';if($('iv2-cancel'))$('iv2-cancel').hidden=true}
  function save(){
   const g=k=>($('iv2-'+k).value||'').trim(),resi=g('resi'),po=g('po'),koli=Number(g('koli'));
   if(!resi&&!po)return msg('Isi minimal No. resi atau No. PO.',true);
@@ -3818,6 +3832,7 @@ init();
  }
  function onClick(e){
   const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.f){sec.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('active',x===b));$('iv2-recv').hidden=b.dataset.f!=='recv';$('iv2-gr').hidden=b.dataset.f!=='gr';return}
   if(b.dataset.t){tab=b.dataset.t;draw();if(tab==='stg')pull();return}
   if(b.dataset.r!==undefined){to=today();from=back(Number(b.dataset.r));pull();return}
   if(b.id==='iv2-ref'){pull();return}
