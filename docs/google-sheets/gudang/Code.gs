@@ -40,6 +40,10 @@ function setup() {
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, headers.length);
   });
+  ['UNLOADING', 'STAGING_IN'].forEach(function (n) {   // tab lama yang sudah tidak dipakai
+    const old = ss.getSheetByName(n);
+    if (old && old.getLastRow() < 2 && ss.getSheets().length > 1) ss.deleteSheet(old);
+  });
   const first = ss.getSheets()[0];
   if (first && first.getName().indexOf('Sheet') === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
   seedMaster_();
