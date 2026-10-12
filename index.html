@@ -3769,13 +3769,13 @@ init();
  const shrink=(file,cb)=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const s=Math.min(1,1280/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.7).split(',')[1])};im.onerror=()=>cb(null);im.src=fr.result};fr.onerror=()=>cb(null);fr.readAsDataURL(file)};
  // daftar data = data server ditimpa isi antrean yang belum terkirim
  const view=(tab)=>{const m=new Map();D[TABKEY[tab]].forEach(r=>m.set(r.id,r));queue().forEach(x=>{if(x.a==='append'&&x.tab===tab)m.set(x.row.id,Object.assign({},m.get(x.row.id)||{},x.row))});return [...m.values()]};
- let from=back(29),to=today();
+ let from=back(29),to=today(),pullErr='';
  async function pull(){if(!sec.classList.contains('active')||document.hidden)return;
   try{const f60=back(60),q=['UNLOADING_SESI:'+back(7)+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::'].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error==='aksi tidak dikenal'?'Skrip Google perlu dipasang ulang (versi terbaru)':r.error);
    const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   D.sesi=g('UNLOADING_SESI',back(7),to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');
-   if(state!=='err')state='ok'}catch(e){state='err';err=String(e&&e.message||e)}
+   D.sesi=g('UNLOADING_SESI',back(7),to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');pullErr='';
+   if(state!=='err')state='ok'}catch(e){state='err';err=String(e&&e.message||e);pullErr=err}
   paintState();render()}
  function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antre)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
 
@@ -3807,6 +3807,7 @@ init();
   sec.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('active',b.dataset.t===tab));
   let html;
   if(tab==='recv')html=curId&&sesiNow()?htmlSession():htmlStart();else if(tab==='stg')html=htmlStaging();else html=htmlMaster();
+  if(pullErr)html='<p class="note" style="color:#b3261e"><strong>Data gudang belum bisa dimuat.</strong> '+esc(pullErr)+'<br>Bila pesannya "tab tidak dikenal" atau "perlu dipasang ulang": tempel skrip gudang terbaru di Apps Script, jalankan <strong>setup</strong>, lalu <strong>Terapkan > Kelola deployment > Versi baru</strong>.</p>'+html;
   const host=$('iv2-b');if(!host)return;
   if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!==''&&el.id!=='iv2-jam'&&el.id!=='iv2-tgl')el.value=vals[el.id]});if(id&&$(id)){$(id).focus();try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
  }
