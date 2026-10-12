@@ -11,15 +11,21 @@ const MAX_READ_ROWS = 4000;              // baris terakhir yang dibaca per permi
 
 // Daftar tab dan judul kolom. Kolom pertama selalu "id" (kunci unik).
 const TABS = {
-  UNLOADING: ['id','waktu_server','tanggal','jam_wita','resi','po','vendor','no_surat_jalan','jumlah_koli','area_staging','pic_kode','pic_nama','foto_id','catatan','perangkat'],
-  STAGING_IN: ['id','tanggal','po','vendor','resi','koli','area_staging','status','alasan','pic_kode','diperbarui'],
+  MASTER_VENDOR: ['id','kode','nama','pola_po','status','catatan'],
+  MASTER_EKSPEDISI: ['id','nama','status','kontak','catatan'],
+  MASTER_AREA: ['id','nama','status','catatan'],
   MASTER_HPP: ['id','vendor','status_hpp','catatan'],
+  PO_INFO: ['id','vendor','total_koli','pekan','catatan','diperbarui'],
+  UNLOADING_SESI: ['id','waktu_server','tanggal','ekspedisi','pic_kode','pic_nama','jam_mulai','jam_selesai','status','catatan'],
+  UNLOADING_RESI: ['id','waktu_server','tanggal','sesi_id','resi','po','vendor','ekspedisi','koli_list','area_staging','pic_kode'],
+  KOLI: ['id','waktu_server','tanggal','po','no_koli','resi','sesi_id','ekspedisi','status','keterangan','pic_kode','jam_wita','foto_id'],
   GR: ['id','waktu_server','tanggal','po','batch','koli','sku','pcs','pic_counting','pic_putaway','bin','status'],
   STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
   SOQ: ['id','tanggal','outlet','batch','sku','qty','diunggah_oleh'],
   ASSIGNMENT: ['id','tanggal','outlet','batch','koli','picker','bin','status','waktu'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
+
 
 
 /* ============ PEMASANGAN (jalankan sekali) ============ */
@@ -36,6 +42,7 @@ function setup() {
   });
   const first = ss.getSheets()[0];
   if (first && first.getName().indexOf('Sheet') === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
+  seedMaster_();
   folder_();
   log_('setup', '', '', 'Tab dan folder siap');
   notify_('Selesai. ' + Object.keys(TABS).length + ' tab dibuat dan folder "' + FOLDER_NAME + '" siap di Google Drive.');
@@ -247,32 +254,29 @@ function notify_(msg) {
   try { SpreadsheetApp.getActiveSpreadsheet().toast(String(msg), "WOS", 8); } catch (e) {}
 }
 
-/* ============ Aturan Staging In ============ */
-// Setiap catatan UNLOADING otomatis menghasilkan/memperbarui satu baris STAGING_IN.
-function afterWrite_(tab, row) {
-  if (tab === 'UNLOADING') stagingFrom_(row);
-}
+/* ============ Data awal master (hanya diisi bila masih kosong) ============ */
+function afterWrite_(tab, row) { /* tidak ada aturan otomatis di sisi server untuk saat ini */ }
 
-function hppTerdaftar_(po) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('MASTER_HPP');
-  if (!sh || sh.getLastRow() < 2) return null;            // belum ada master HPP: aturan HPP dilewati
-  const ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues();
-  for (let i = 0; i < ids.length; i++) if (String(ids[i][0]).trim().toUpperCase() === po.toUpperCase()) return true;
-  return false;
-}
-
-function stagingFrom_(r) {
-  const po = String(r.po || '').trim(), koli = Number(r.jumlah_koli) || 0;
-  let status = 'Ready GR', alasan = '';
-  if (!po) { status = 'Menunggu dokumen'; alasan = 'PO belum diisi'; }
-  else if (!String(r.no_surat_jalan || '').trim()) { status = 'Menunggu dokumen'; alasan = 'Surat jalan belum diisi'; }
-  else if (koli <= 0) { status = 'Menunggu dokumen'; alasan = 'Jumlah koli belum diisi'; }
-  else if (hppTerdaftar_(po) === false) { status = 'Tidak ada HPP'; alasan = 'PO belum ada di MASTER_HPP'; }
-  upsert_('STAGING_IN', {
-    id: r.id, tanggal: r.tanggal, po: po, vendor: r.vendor || '', resi: r.resi || '', koli: koli,
-    area_staging: r.area_staging || '', status: status, alasan: alasan, pic_kode: r.pic_kode || '',
-    diperbarui: Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss')
-  });
+function seedMaster_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sv = ss.getSheetByName('MASTER_VENDOR');
+  if (sv && sv.getLastRow() < 2) {
+    const A = 'Aktif', T = 'Tidak aktif', cek = 'Status perlu dicek';
+    [
+      ['INDRA-01', '1', 'INDRA-01', '', T, ''], ['INDRA-02', '1', 'INDRA-02', '', T, ''], ['INDRA-03', '1', 'INDRA-03', '', T, ''],
+      ['YOGI-01', '2', 'YOGI-01', '02-GI-01', A, 'Konveksi 1'], ['YOGI-02', '2', 'YOGI-02', '02-GI-02', A, 'Konveksi 2'],
+      ['YOGA', '3', 'YOGA', '', T, ''], ['BAYU', '4', 'BAYU', 'BY', A, ''],
+      ['KONVEKSI MKS', '00', 'KONVEKSI MKS', '', A, cek], ['CECEP', '5', 'CECEP', '', A, cek], ['KOKO', '6', 'KOKO', '', A, cek],
+      ['TEDI', '7', 'TEDI', '', A, cek], ['YADI', '8', 'YADI', '', A, cek], ['DEDI', '9', 'DEDI', '', A, cek],
+      ['ELANG', '10', 'ELANG', '', A, cek], ['AWAL', '11', 'AWAL', '', A, cek], ['DIDI', '12', 'DIDI', '', A, cek],
+      ['CUSTOM PROJECT', '13', 'CUSTOM PROJECT', '', A, cek], ['ARTA', '14', 'ARTA', '', A, cek], ['MALIBU', '15', 'MALIBU', '', A, cek]
+    ].forEach(function (r) { sv.appendRow(r); });
+  }
+  const se = ss.getSheetByName('MASTER_EKSPEDISI');
+  if (se && se.getLastRow() < 2) {
+    se.appendRow(['WUS', 'WUS', 'Aktif', '', '']);
+    se.appendRow(['CAS', 'CAS', 'Aktif', '', '']);
+  }
 }
 
 /* Saldo stok per bin dan SKU = jumlah mutasi masuk dikurangi keluar (membaca seluruh riwayat STOK_BIN) */
