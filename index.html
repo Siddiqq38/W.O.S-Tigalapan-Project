@@ -2473,10 +2473,10 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','inbound','productivity','compliance','performance','coaching','reports','master','access'];
+const ALL_PAGES=['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','wms-inventory','inbound','productivity','compliance','performance','coaching','reports','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 const HOLD_PAGES=['inbound'];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','productivity','compliance','performance','coaching','reports'],ADMIN:['dashboard','attendance','assignment','inbound','productivity','compliance']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','wms-inventory','productivity','compliance','performance','coaching','reports'],ADMIN:['dashboard','attendance','assignment','inbound','productivity','compliance']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -2494,7 +2494,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound'];if(!o.includes('wms-location'))o.push('wms-location')}return o};
+ const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory'))o.push('wms-inventory');return o};
  const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['assignment']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
@@ -3852,6 +3852,71 @@ init();
  setInterval(()=>{flush();if(sec.classList.contains('active'))pull()},20000);
  window.addEventListener('online',flush);
  window.WOSGudang={config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
+})();
+</script>
+<script>
+// WMS INVENTORY: rekap semua inbound, outbound, dan internal move sampai level item, qty, dan bin (dibaca dari tab STOK_BIN di WOS Data Gudang)
+(()=>{
+ const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const WITA=8*3600e3,dayW=d=>new Date((d||new Date()).getTime()+WITA).toISOString().slice(0,10),today=()=>dayW(),back=n=>dayW(new Date(Date.now()-n*864e5));
+ const main=document.querySelector('main'),after=document.querySelector('.nav[data-page="wms-outbound"]');if(!main||!after||!window.WOSGudang)return;
+ const sec=document.createElement('section');sec.className='page';sec.id='wms-inventory';main.appendChild(sec);
+ const nav=document.createElement('button');nav.className='nav';nav.dataset.page='wms-inventory';nav.textContent='Inventory';after.after(nav);
+ try{names['wms-inventory']=['Inventory (WMS)','Rekap stok per bin dan mutasi barang']}catch(e){}
+ let built=false,tab='bin',stok=[],hist=[],from=back(29),to=today(),q='',state='',err='',note='';
+ nav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));nav.classList.add('active');sec.classList.add('active');$('title').textContent='Inventory (WMS)';$('subtitle').textContent='Rekap stok per bin dan mutasi barang';build();load()});
+ async function call(body){const c=window.WOSGudang.config();const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)));return r.json()}
+ async function load(){
+  if(!sec.classList.contains('active')||document.hidden)return;
+  try{
+   let s=await call({action:'stok'});
+   if(!s.ok&&/tidak dikenal/.test(s.error||'')){ // skrip lama: hitung dari riwayat terbaru
+    const l=await call({action:'list',tab:'STOK_BIN'});if(!l.ok)throw new Error(l.error);note='Skrip Google belum diperbarui; saldo dihitung dari data terbaru saja.';
+    const m={};l.rows.forEach(r=>{const k=r.bin+'|'+r.sku,o=m[k]||(m[k]={bin:r.bin,sku:r.sku,item:r.item||'',masuk:0,keluar:0});o.masuk+=Number(r.qty_masuk)||0;o.keluar+=Number(r.qty_keluar)||0});
+    s={ok:true,rows:Object.values(m).map(o=>({...o,saldo:o.masuk-o.keluar}))}}
+   else if(!s.ok)throw new Error(s.error);else note='';
+   stok=s.rows;
+   const h=await call({action:'list',tab:'STOK_BIN',from,to});if(!h.ok)throw new Error(h.error);
+   hist=h.rows.sort((a,b)=>String(b.waktu_server||b.tanggal).localeCompare(String(a.waktu_server||a.tanggal)));
+   state='ok';err=''}catch(e){state='err';err=String(e&&e.message||e)}
+  draw()}
+ function build(){
+  if(built)return;built=true;
+  sec.innerHTML='<div class="toolbar"><div><h2>Inventory</h2><span class="sub">Rekap semua inbound, outbound, dan internal move sampai item, qty, dan bin</span></div><span id="inv-state" class="tag amber">Memeriksa…</span></div>'+
+  '<div class="filters" style="margin-bottom:12px"><button class="filter active" data-i="bin" type="button">Stok per bin</button><button class="filter" data-i="item" type="button">Stok per item</button><button class="filter" data-i="hist" type="button">Riwayat mutasi</button><button class="filter" data-i="move" type="button">Internal move</button></div>'+
+  '<div class="field" style="max-width:420px;margin-bottom:12px"><label for="inv-q">Cari bin / SKU / item</label><input id="inv-q" autocomplete="off"></div><div id="inv-body"></div>';
+  sec.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+   if(b.dataset.i){tab=b.dataset.i;draw();return}
+   if(b.dataset.r!==undefined){to=today();from=back(Number(b.dataset.r));load();return}
+   if(b.id==='inv-ref')load()});
+  sec.addEventListener('input',e=>{if(e.target.id==='inv-q'){q=e.target.value;draw()}});
+  sec.addEventListener('change',e=>{if(e.target.id==='inv-from'||e.target.id==='inv-to'){const a=$('inv-from').value,b=$('inv-to').value;if(a&&b&&a<=b){from=a;to=b;load()}}});
+ }
+ const num=n=>Number(n||0).toLocaleString('id-ID');
+ function draw(){
+  if(!built)return;
+  const st=$('inv-state');if(st){st.textContent=state==='err'?'Gagal terhubung'+(err?': '+err:''):state==='ok'?'Tersambung':'Memeriksa…';st.className='tag '+(state==='err'?'red':state==='ok'?'green':'amber')}
+  sec.querySelectorAll('[data-i]').forEach(b=>b.classList.toggle('active',b.dataset.i===tab));
+  const kw=q.trim().toUpperCase(),hit=r=>!kw||[r.bin,r.sku,r.item].some(v=>String(v||'').toUpperCase().includes(kw));
+  const rows=stok.filter(r=>hit(r)&&(r.saldo!==0||r.masuk||r.keluar));
+  const card=(t,v,s)=>'<div class="card"><span class="metric-label">'+t+'</span><div class="metric">'+v+'</div><span class="sub">'+s+'</span></div>';
+  let html='';
+  const nz=stok.filter(r=>r.saldo>0);
+  const head='<div class="grid three">'+card('Stok tersimpan',num(nz.reduce((a,r)=>a+r.saldo,0))+' pcs','Total saldo semua bin')+card('Bin terisi',new Set(nz.map(r=>r.bin)).size,'Bin dengan saldo lebih dari 0')+card('SKU tersimpan',new Set(nz.map(r=>r.sku)).size,'SKU dengan saldo lebih dari 0')+'</div>'+(note?'<p class="note" style="margin-top:12px">'+esc(note)+'</p>':'');
+  if(tab==='bin'){
+   html=head+'<div class="card" style="margin-top:12px;overflow:auto"><h3>Stok per bin</h3>'+(rows.length?'<table><thead><tr><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Saldo</th></tr></thead><tbody>'+rows.sort((a,b)=>String(a.bin).localeCompare(String(b.bin))||String(a.sku).localeCompare(String(b.sku))).map(r=>'<tr><td><strong>'+esc(r.bin)+'</strong></td><td>'+esc(r.sku)+'</td><td>'+esc(r.item)+'</td><td>'+num(r.masuk)+'</td><td>'+num(r.keluar)+'</td><td><strong>'+num(r.saldo)+'</strong></td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada stok. Stok terisi otomatis dari Put Away (masuk), Picking (keluar), dan Internal Move.</p>')+'</div>'}
+  else if(tab==='item'){
+   const m={};rows.forEach(r=>{const o=m[r.sku]||(m[r.sku]={sku:r.sku,item:r.item,saldo:0,bins:new Set()});if(!o.item&&r.item)o.item=r.item;o.saldo+=r.saldo;if(r.saldo>0)o.bins.add(r.bin)});
+   const list=Object.values(m).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
+   html=head+'<div class="card" style="margin-top:12px;overflow:auto"><h3>Stok per item</h3>'+(list.length?'<table><thead><tr><th>SKU</th><th>Item</th><th>Saldo</th><th>Jumlah bin</th></tr></thead><tbody>'+list.map(o=>'<tr><td><strong>'+esc(o.sku)+'</strong></td><td>'+esc(o.item)+'</td><td><strong>'+num(o.saldo)+'</strong></td><td>'+o.bins.size+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada data.</p>')+'</div>'}
+  else if(tab==='hist'){
+   const list=hist.filter(hit);
+   html='<div class="card"><h3>Riwayat mutasi</h3><div class="form-grid"><div class="field"><label for="inv-from">Dari tanggal</label><input id="inv-from" type="date" value="'+from+'"></div><div class="field"><label for="inv-to">Sampai tanggal</label><input id="inv-to" type="date" value="'+to+'"></div></div><div class="ob-actions"><button class="button secondary" data-r="0" type="button">Hari ini</button><button class="button secondary" data-r="6" type="button">7 hari</button><button class="button secondary" data-r="29" type="button">30 hari</button><button class="button secondary" id="inv-ref" type="button">Muat ulang</button></div><div style="overflow:auto;margin-top:8px">'+(list.length?'<table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Referensi</th><th>PIC</th></tr></thead><tbody>'+list.map(r=>'<tr><td>'+esc(r.tanggal)+'</td><td>'+esc(r.jenis||'-')+'</td><td>'+esc(r.bin)+'</td><td>'+esc(r.sku)+'</td><td>'+esc(r.item||'')+'</td><td>'+(Number(r.qty_masuk)?num(r.qty_masuk):'-')+'</td><td>'+(Number(r.qty_keluar)?num(r.qty_keluar):'-')+'</td><td>'+esc(r.referensi||'')+'</td><td>'+esc(r.pic_kode||'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada mutasi pada rentang ini.</p>')+'</div></div>'}
+  else{
+   html='<div class="card"><h3>Internal move (relokasi barang)</h3><p class="sub">Memindahkan barang antar bin, per item dan qty: dari bin asal ke bin tujuan. Setiap pemindahan tercatat sebagai dua mutasi (keluar dari bin asal, masuk ke bin tujuan) dengan satu nomor referensi, sehingga saldo per bin selalu seimbang dan riwayatnya bisa dilacak.</p><p class="sub">Formulir pemindahan akan dibuat di menu Location Control setelah alur dan dokumennya dijelaskan. Hasilnya otomatis muncul di Stok per bin dan Riwayat mutasi di halaman ini.</p></div>'}
+  const b=$('inv-body');if(b&&b.dataset.sig!==html){const ae=document.activeElement&&document.activeElement.id;b.dataset.sig=html;b.innerHTML=html;if(ae==='inv-from'||ae==='inv-to')$(ae).focus()}
+ }
+ setInterval(()=>{if(sec.classList.contains('active'))load()},30000);
 })();
 </script>
 </body></html>

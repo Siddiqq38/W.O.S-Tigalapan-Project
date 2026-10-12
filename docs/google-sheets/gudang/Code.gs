@@ -15,7 +15,7 @@ const TABS = {
   STAGING_IN: ['id','tanggal','po','vendor','resi','koli','area_staging','status','alasan','pic_kode','diperbarui'],
   MASTER_HPP: ['id','vendor','status_hpp','catatan'],
   GR: ['id','waktu_server','tanggal','po','batch','koli','sku','pcs','pic_counting','pic_putaway','bin','status'],
-  STOK_BIN: ['id','waktu_server','tanggal','bin','sku','qty_masuk','qty_keluar','referensi','pic_kode'],
+  STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
   SOQ: ['id','tanggal','outlet','batch','sku','qty','diunggah_oleh'],
   ASSIGNMENT: ['id','tanggal','outlet','batch','koli','picker','bin','status','waktu'],
   LOG: ['waktu','aksi','tab','id','pesan']
@@ -48,6 +48,7 @@ function doGet(e) {
     if (p.token !== TOKEN) return json_({ ok: false, error: 'token salah' });
     if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString(), tabs: Object.keys(TABS) });
     if (p.action === 'list') return json_({ ok: true, rows: list_(p.tab, p.from, p.to) });
+    if (p.action === 'stok') return json_({ ok: true, rows: stok_() });
     if (p.action === 'multi') return json_({ ok: true, data: multi_(p.q) });
     return json_({ ok: false, error: 'aksi tidak dikenal' });
   } catch (err) { return json_({ ok: false, error: String(err) }); }
@@ -272,4 +273,23 @@ function stagingFrom_(r) {
     area_staging: r.area_staging || '', status: status, alasan: alasan, pic_kode: r.pic_kode || '',
     diperbarui: Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss')
   });
+}
+
+/* Saldo stok per bin dan SKU = jumlah mutasi masuk dikurangi keluar (membaca seluruh riwayat STOK_BIN) */
+function stok_() {
+  const sh = sheet_('STOK_BIN'), H = TABS.STOK_BIN, last = sh.getLastRow();
+  if (last < 2) return [];
+  const v = sh.getRange(2, 1, last - 1, H.length).getValues();
+  const iB = H.indexOf('bin'), iS = H.indexOf('sku'), iI = H.indexOf('item'), iM = H.indexOf('qty_masuk'), iK = H.indexOf('qty_keluar');
+  const m = {};
+  v.forEach(function (r) {
+    const bin = String(r[iB] || '').trim(), sku = String(r[iS] || '').trim();
+    if (!bin && !sku) return;
+    const k = bin + '|' + sku;
+    const o = m[k] || (m[k] = { bin: bin, sku: sku, item: '', masuk: 0, keluar: 0 });
+    if (!o.item && r[iI]) o.item = String(r[iI]);
+    o.masuk += Number(r[iM]) || 0;
+    o.keluar += Number(r[iK]) || 0;
+  });
+  return Object.keys(m).map(function (k) { const o = m[k]; o.saldo = o.masuk - o.keluar; return o; });
 }
