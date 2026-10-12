@@ -250,5 +250,6 @@ function log_(aksi, tab, id, pesan) {
 
 /* Tampilkan pesan: dialog bila spreadsheet terbuka, jika tidak ditulis ke Execution log */
 function notify_(msg) {
-  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
+  Logger.log(msg);
+  try { SpreadsheetApp.getActiveSpreadsheet().toast(String(msg), "WOS", 8); } catch (e) {}
 }
