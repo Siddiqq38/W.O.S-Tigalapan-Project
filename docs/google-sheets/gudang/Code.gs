@@ -19,7 +19,14 @@ const TABS = {
   UNLOADING_SESI: ['id','waktu_server','tanggal','ekspedisi','pic_kode','pic_nama','jam_mulai','jam_selesai','status','catatan'],
   UNLOADING_RESI: ['id','waktu_server','tanggal','sesi_id','resi','po','vendor','ekspedisi','koli_list','area_staging','pic_kode'],
   KOLI: ['id','waktu_server','tanggal','po','no_koli','resi','sesi_id','ekspedisi','status','keterangan','pic_kode','jam_wita','foto_id'],
-  GR: ['id','waktu_server','tanggal','po','batch','koli','sku','pcs','pic_counting','pic_putaway','bin','status'],
+  PO_DOK: ['id','vendor','sj_item','sj_koli','sj_qty','sj_waktu','sj_oleh','hpp_item','hpp_waktu','hpp_oleh','catatan'],
+  SJ_ITEM: ['id','tanggal','po','no_koli','seq','item','qty','tipe','tgl_kirim','awb','eta','diunggah_oleh'],
+  HPP_ITEM: ['id','tanggal','po','item','kategori','jenis','qty','cogs','diunggah_oleh'],
+  GR_ASSIGN: ['id','tanggal','po','no_koli','operator','operator_nama','ditugaskan_oleh','task_id','status','mulai','selesai'],
+  GR_COUNT: ['id','tanggal','po','no_koli','seq','item','qty_sj','qty_actual','selisih','status','keterangan','foto_id','operator','jam_wita'],
+  PUTAWAY: ['id','tanggal','po','no_koli','seq','item','bin','qty','operator','jam_wita'],
+  MASTER_BIN: ['id','zona','tipe_rak','no_rak','level','bin','status','catatan'],
+  MASTER_MOKA: ['id','data','catatan'],
   STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
   SOQ: ['id','tanggal','outlet','batch','sku','qty','diunggah_oleh'],
   ASSIGNMENT: ['id','tanggal','outlet','batch','koli','picker','bin','status','waktu'],
@@ -40,7 +47,7 @@ function setup() {
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, headers.length);
   });
-  ['UNLOADING', 'STAGING_IN'].forEach(function (n) {   // tab lama yang sudah tidak dipakai
+  ['UNLOADING', 'STAGING_IN', 'GR'].forEach(function (n) {   // tab lama yang sudah tidak dipakai
     const old = ss.getSheetByName(n);
     if (old && old.getLastRow() < 2 && ss.getSheets().length > 1) ss.deleteSheet(old);
   });
