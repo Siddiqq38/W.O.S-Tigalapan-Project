@@ -30,7 +30,7 @@ const TABS = {
   STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
   SOQ: ['id','tanggal','outlet','batch','sku','qty','diunggah_oleh'],
   ASSIGNMENT: ['id','tanggal','outlet','batch','koli','picker','bin','status','waktu'],
-  PICK_DOK: ['id','tanggal','kode','outlet','file','jumlah_item','total_qty','status','diunggah_oleh','waktu','ekspedisi','eta'],
+  PICK_DOK: ['id','tanggal','kode','outlet','file','jumlah_item','total_qty','status','diunggah_oleh','waktu','ekspedisi','eta','tgl_soq','kode_outlet','alamat'],
   PICK_KOLI: ['id','tanggal','dok','koli','picker','picker_nama','status','task_id','mulai','selesai','vp_oleh','vp_selesai','tfs_oleh','tfs_waktu','area','pack_oleh','pack_waktu','load_oleh','load_waktu','rcv_oleh','rcv_waktu','rcv_ket'],
   PICK_ITEM: ['id','tanggal','dok','outlet','item','sku','kategori','soq','ket','koli','bin','qty','status','bin_actual','qty_actual','ket_pick','foto_id','picker','jam_pick','vp','vp_ket','vp_oleh','vp_jam'],
   LOG: ['waktu','aksi','tab','id','pesan']
