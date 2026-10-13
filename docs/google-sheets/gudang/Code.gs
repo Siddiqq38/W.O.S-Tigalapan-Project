@@ -30,6 +30,9 @@ const TABS = {
   STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
   SOQ: ['id','tanggal','outlet','batch','sku','qty','diunggah_oleh'],
   ASSIGNMENT: ['id','tanggal','outlet','batch','koli','picker','bin','status','waktu'],
+  PICK_DOK: ['id','tanggal','kode','outlet','file','jumlah_item','total_qty','status','diunggah_oleh','waktu'],
+  PICK_KOLI: ['id','tanggal','dok','koli','picker','picker_nama','status','task_id','mulai','selesai','vp_oleh','vp_selesai'],
+  PICK_ITEM: ['id','tanggal','dok','outlet','item','sku','kategori','soq','ket','koli','bin','qty','status','bin_actual','qty_actual','ket_pick','foto_id','picker','jam_pick','vp','vp_ket','vp_oleh','vp_jam'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 
@@ -295,15 +298,17 @@ function stok_() {
   const sh = sheet_('STOK_BIN'), H = TABS.STOK_BIN, last = sh.getLastRow();
   if (last < 2) return [];
   const v = sh.getRange(2, 1, last - 1, H.length).getValues();
-  const iB = H.indexOf('bin'), iS = H.indexOf('sku'), iI = H.indexOf('item'), iM = H.indexOf('qty_masuk'), iK = H.indexOf('qty_keluar');
+  const iB = H.indexOf('bin'), iS = H.indexOf('sku'), iI = H.indexOf('item'), iM = H.indexOf('qty_masuk'), iK = H.indexOf('qty_keluar'), iW = H.indexOf('waktu_server'), iT = H.indexOf('tanggal');
   const m = {};
   v.forEach(function (r) {
     const bin = String(r[iB] || '').trim(), sku = String(r[iS] || '').trim();
     if (!bin && !sku) return;
     const k = bin + '|' + sku;
-    const o = m[k] || (m[k] = { bin: bin, sku: sku, item: '', masuk: 0, keluar: 0 });
+    const o = m[k] || (m[k] = { bin: bin, sku: sku, item: '', masuk: 0, keluar: 0, awal: '' });
     if (!o.item && r[iI]) o.item = String(r[iI]);
     o.masuk += Number(r[iM]) || 0;
+    const wk = String(r[iW] || r[iT] || '');
+    if ((Number(r[iM]) || 0) > 0 && wk && (!o.awal || wk < o.awal)) o.awal = wk;   // waktu masuk paling awal (dasar FIFO)
     o.keluar += Number(r[iK]) || 0;
   });
   return Object.keys(m).map(function (k) { const o = m[k]; o.saldo = o.masuk - o.keluar; return o; });
