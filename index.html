@@ -3851,7 +3851,7 @@ init();
    h+='<div class="card" style="margin-top:12px"><h3>Tambah STTB / resi</h3><p class="sub">Isi dari surat jalan ekspedisi: nomor STTB dan kode PO. Total koli PO diisi sekali; layar menampilkan semua nomor koli dari 1 sampai total, dan Anda menandai yang benar-benar datang.</p>'+
    '<div class="form-grid"><div class="field"><label for="iv2-resi">No. STTB / resi</label><input id="iv2-resi" autocomplete="off" inputmode="text"></div>'+
    '<div class="field"><label for="iv2-po">Kode PO</label><input id="iv2-po" list="iv2-pol" autocomplete="off" placeholder="Contoh: BY40"><datalist id="iv2-pol">'+view('PO_INFO').map(p=>'<option value="'+esc(p.id)+'">').join('')+'</datalist><span class="sub" id="iv2-ven"></span></div>'+
-   '<div class="field"><label for="iv2-tot">Total koli satu PO</label><input id="iv2-tot" type="number" inputmode="numeric" min="1" placeholder="Contoh: 100"><span class="sub" id="iv2-totinfo"></span></div>'+
+   '<div class="field"><label for="iv2-vsel">Vendor (isi bila kode PO tidak memuat vendor)</label><select id="iv2-vsel"><option value="">- otomatis dari kode PO -</option>'+view('MASTER_VENDOR').filter(v=>v.status!=='Tidak aktif').sort((a,b)=>String(a.nama).localeCompare(String(b.nama))).map(v=>'<option>'+esc(v.nama)+'</option>').join('')+'</select></div><div class="field"><label for="iv2-tot">Total koli satu PO</label><input id="iv2-tot" type="number" inputmode="numeric" min="1" placeholder="Contoh: 100"><span class="sub" id="iv2-totinfo"></span></div>'+
    '<div class="field"><label for="iv2-area">Area staging</label><input id="iv2-area" list="iv2-arl" autocomplete="off"><datalist id="iv2-arl">'+view('MASTER_AREA').filter(a=>a.status!=='Tidak aktif').map(a=>'<option value="'+esc(a.nama)+'">').join('')+'</datalist></div></div>'+
    '<div class="ob-actions"><button class="button" id="iv2-addresi" type="button">Tambah STTB</button></div></div>';
   }
@@ -3978,7 +3978,7 @@ init();
   const ve=view('MASTER_VENDOR').sort((a,b)=>String(a.kode).localeCompare(String(b.kode),'id',{numeric:true})||String(a.nama).localeCompare(String(b.nama))),ek=view('MASTER_EKSPEDISI'),ar=view('MASTER_AREA');
   const add=(t,fields,btn)=>'<div class="form-grid" style="margin-top:10px">'+fields.map(f=>'<div class="field"><label for="iv2-m-'+t+'-'+f[0]+'">'+f[1]+'</label><input id="iv2-m-'+t+'-'+f[0]+'" autocomplete="off"></div>').join('')+'</div><div class="ob-actions"><button class="button secondary" data-madd="'+t+'" type="button">'+btn+'</button></div>';
   return '<p class="sub">Daftar ini dipakai sebagai pilihan di form unloading. Bisa diperbarui kapan saja oleh SPV atau Admin. Nonaktifkan, jangan hapus, bila vendor atau ekspedisi sudah tidak dipakai.</p>'+
-  mtable('Vendor','MASTER_VENDOR',ve,[['kode','Kode'],['nama','Nama vendor'],['pola_po','Awalan kode PO'],['catatan','Catatan']],add('MASTER_VENDOR',[['kode','Kode vendor'],['nama','Nama vendor'],['pola_po','Awalan kode PO (mis. BY)'],['catatan','Catatan']],'Tambah vendor'))+
+  mtable('Vendor','MASTER_VENDOR',ve,[['kode','Kode'],['nama','Nama vendor'],['pks','Jenis'],['pola_po','Awalan kode PO'],['email','Email'],['catatan','Catatan']],add('MASTER_VENDOR',[['kode','Kode vendor'],['nama','Nama vendor'],['pks','Jenis (PKS atau Non PKS)'],['pola_po','Awalan kode PO (mis. BY)'],['email','Email supplier'],['catatan','Catatan']],'Tambah vendor'))+
   mtable('Ekspedisi','MASTER_EKSPEDISI',ek,[['nama','Nama ekspedisi'],['kontak','Kontak'],['catatan','Catatan']],add('MASTER_EKSPEDISI',[['nama','Nama ekspedisi'],['kontak','Kontak'],['catatan','Catatan']],'Tambah ekspedisi'))+
   mtable('Area staging','MASTER_AREA',ar,[['nama','Nama area'],['catatan','Catatan']],add('MASTER_AREA',[['nama','Nama area'],['catatan','Catatan']],'Tambah area'))+
   (canAdmin()?'<div class="card" style="margin-top:12px"><h3>Master HPP ('+view('MASTER_HPP').length+' PO)</h3><p class="sub">PO yang HPP-nya sudah ada. Satu PO per baris; boleh "PO;Vendor". Koli dari PO ini berstatus Ready GR di Staging In. (Upload file HPP dari Finance menyusul.)</p><textarea id="iv2-hpp" rows="4" placeholder="BY40&#10;02-GI-02-01"></textarea><div class="ob-actions"><button class="button secondary" id="iv2-hppsave" type="button">Simpan ke Master HPP</button></div></div>':'')+kopCard()+(window.WOSGR?window.WOSGR.binCard():'');
@@ -4079,9 +4079,9 @@ init();
   if(b.dataset.inc){openIncoming(b.dataset.inc);return}
   if(b.id==='iv2-addresi')return addResi();
   if(b.dataset.total){const po=b.dataset.total,v=prompt('Total koli untuk PO '+po+' (seluruh pengiriman)');if(v&&+v>0)enq('PO_INFO',Object.assign({id:po,vendor:vendorOfPo(po),pekan:'',catatan:'',diperbarui:today()},view('PO_INFO').find(x=>x.id===po)||{},{total_koli:String(+v)}));return}
-  if(b.dataset.mt){const[t,id,act]=b.dataset.mt.split('|'),r=view(t).find(x=>x.id===id);if(!r)return;if(act==='toggle')enq(t,Object.assign({},r,{status:r.status==='Tidak aktif'?'Aktif':'Tidak aktif'}));else{const n=prompt('Ubah nama',r.nama||'');if(n&&n.trim())enq(t,Object.assign({},r,{nama:n.trim()}));if(t==='MASTER_VENDOR'){const p=prompt('Awalan kode PO (mis. BY) - kosongkan bila tidak ada',r.pola_po||'');if(p!==null)enq(t,Object.assign({},r,{nama:(n&&n.trim())||r.nama,pola_po:p.trim().toUpperCase()}))}}return}
+  if(b.dataset.mt){const[t,id,act]=b.dataset.mt.split('|'),r=view(t).find(x=>x.id===id);if(!r)return;if(act==='toggle')enq(t,Object.assign({},r,{status:r.status==='Tidak aktif'?'Aktif':'Tidak aktif'}));else{const n=prompt('Ubah nama',r.nama||'');if(n&&n.trim())enq(t,Object.assign({},r,{nama:n.trim()}));if(t==='MASTER_VENDOR'){const p=prompt('Awalan kode PO (mis. BY) - kosongkan bila tidak ada',r.pola_po||'');if(p!==null){const em=prompt('Email supplier (dipakai di file import MOKA)',r.email||'');enq(t,Object.assign({},r,{nama:(n&&n.trim())||r.nama,pola_po:p.trim().toUpperCase(),email:em===null?(r.email||''):em.trim()}))}}}return}
   if(b.dataset.madd){const t=b.dataset.madd,g=k=>($('iv2-m-'+t+'-'+k)||{value:''}).value.trim();const nama=g('nama');if(!nama)return setMsg('Isi nama dulu.',true);
-   const row={id:nama.toUpperCase(),nama,status:'Aktif',catatan:g('catatan')};if(t==='MASTER_VENDOR'){row.kode=g('kode');row.pola_po=g('pola_po').toUpperCase()}if(t==='MASTER_EKSPEDISI')row.kontak=g('kontak');enq(t,row);sec.querySelectorAll('input[id^="iv2-m-'+t+'"]').forEach(i=>i.value='');setMsg(nama+' ditambahkan.');return}
+   const row={id:nama.toUpperCase(),nama,status:'Aktif',catatan:g('catatan')};if(t==='MASTER_VENDOR'){row.kode=g('kode');row.pola_po=g('pola_po').toUpperCase();row.pks=g('pks');row.email=g('email')}if(t==='MASTER_EKSPEDISI')row.kontak=g('kontak');enq(t,row);sec.querySelectorAll('input[id^="iv2-m-'+t+'"]').forEach(i=>i.value='');setMsg(nama+' ditambahkan.');return}
   if(b.id==='iv2-hppsave'){const lines=($('iv2-hpp').value||'').split('\n').map(s=>s.trim()).filter(Boolean);lines.forEach(l=>{const p=l.split(/[;\t]/);enq('MASTER_HPP',{id:poKey(p[0]),vendor:(p[1]||'').trim(),status_hpp:'Ada',catatan:''})});$('iv2-hpp').value='';setMsg(lines.length+' PO disimpan ke Master HPP.')}
  }
  function addResi(){
@@ -4090,7 +4090,8 @@ init();
   if(!have&&!(tot>0))return setMsg('PO '+po+' belum punya total koli. Isi total koli satu PO.',true);
   const id=s.id+'|'+resi+'|'+po;if(view('UNLOADING_RESI').some(r=>r.id===id))return setMsg('STTB '+resi+' untuk PO '+po+' sudah ada di sesi ini.',true);
   if(tot>0&&tot!==have)enq('PO_INFO',Object.assign({id:po,vendor:vendorOfPo(po),pekan:'',catatan:'',diperbarui:today()},view('PO_INFO').find(x=>x.id===po)||{},{total_koli:String(tot)}));
-  const row={id,tanggal:s.tanggal,sesi_id:s.id,resi,po,vendor:vendorOfPo(po),ekspedisi:s.ekspedisi,koli_list:'',area_staging:g('area'),pic_kode:me()};
+  const vs=($('iv2-vsel')||{}).value||'';if(vs&&vs!==vendorOfPo(po))enq('PO_INFO',Object.assign({id:po,vendor:vs,total_koli:'',pekan:'',catatan:'',diperbarui:today()},view('PO_INFO').find(x=>x.id===po)||{},{vendor:vs}));
+  const row={id,tanggal:s.tanggal,sesi_id:s.id,resi,po,vendor:vs||vendorOfPo(po),ekspedisi:s.ekspedisi,koli_list:'',area_staging:g('area'),pic_kode:me()};
   curResi=id;enq('UNLOADING_RESI',row);['resi','tot'].forEach(k=>{$('iv2-'+k).value=''});setMsg('STTB '+resi+' ditambahkan ('+(tot||have)+' koli pada PO '+po+').');$('iv2-resi').focus()}
  function onChange(e){
   if(e.target.id==='iv2-filt'){filt=e.target.value;render()}
@@ -4307,7 +4308,7 @@ init();
   return h+'</div>'}
 
  // ---- put away
- const binList=()=>view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif'&&!/\.(L|R)$/i.test(b.id));
+ const binList=()=>view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif');
  function putScreen(){
   const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k)||{},items=cntOf(po,k).filter(c=>num(c.qty_actual)>0).sort((x,y)=>Number(x.seq)-Number(y.seq)),bins=binList();
   items.forEach(c=>{if(!pu[c.seq])pu[c.seq]=[{bin:'',qty:num(c.qty_actual)}]});
@@ -4339,19 +4340,21 @@ init();
 
  // ---- data entry ke MOKA
  async function loadMoka(){if(moka)return;const r=await call({action:'list',tab:'MASTER_MOKA'},true);if(!r.ok)throw new Error(r.error);const ch=r.rows.sort((a,b)=>String(a.id).localeCompare(String(b.id)));if(!ch.length){moka={rows:[],when:''};return}try{moka={rows:JSON.parse(ch.map(c=>c.data).join('')),when:(ch[0].catatan||'')}}catch(e){moka={rows:[],when:''}}}
- const mokaCols=()=>{const hi=moka&&moka.rows.findIndex(r=>r.some(c=>/VARIANT NAME/i.test(c)));if(hi==null||hi<0)return null;const h=moka.rows[hi];return{hi,h,iV:h.findIndex(c=>/VARIANT NAME/i.test(c)),iO:h.findIndex(c=>U(c)==='ORDER'),iC:h.findIndex(c=>/UNIT COST/i.test(c))}};
+ const mokaCols=()=>{const hi=moka&&moka.rows.findIndex(r=>r.some(c=>/VARIANT NAME|ITEMS NAME/i.test(c)));if(hi==null||hi<0)return null;const h=moka.rows[hi];return{hi,h,iN:h.findIndex(c=>/ITEMS NAME/i.test(c)),iV:h.findIndex(c=>/VARIANT NAME/i.test(c)),iO:h.findIndex(c=>U(c)==='ORDER'),iC:h.findIndex(c=>/UNIT COST/i.test(c)),iE:h.findIndex(c=>/SUPPLIER EMAIL/i.test(c))}};
  const norm=s=>U(s).replace(/\b(MAMU|MYNO)\b/g,'').replace(/\s+/g,' ').trim();
  function entryData(po){
   const agg={};cntOf2(po).forEach(c=>{const k=norm(c.item);if(!agg[k])agg[k]={item:c.item,qty:0};agg[k].qty+=num(c.qty_actual)});
-  const hpp=new Map(view('HPP_ITEM').filter(h=>poKey(h.po)===po).map(h=>[norm(h.item),num(h.cogs)])),mc=mokaCols(),idx=new Map();
-  if(mc)moka.rows.slice(mc.hi+1).forEach((r,i)=>{const k=norm(r[mc.iV]);if(k&&!idx.has(k))idx.set(k,r)});
-  return Object.values(agg).map(x=>{const k=norm(x.item),row=idx.get(k);return Object.assign(x,{cogs:hpp.get(k)||0,moka:row||null})}).sort((a,b)=>a.item.localeCompare(b.item))}
+  const hpp=new Map(view('HPP_ITEM').filter(h=>poKey(h.po)===po).map(h=>[norm(h.item),num(h.cogs)])),mc=mokaCols(),exact=new Map(),loose=new Map();
+  if(mc)moka.rows.slice(mc.hi+1).forEach(r=>{const nm=U(r[mc.iN>=0?mc.iN:mc.iV]||r[mc.iV]);if(!nm)return;if(!exact.has(nm))exact.set(nm,r);const k=norm(nm);if(k&&!loose.has(k))loose.set(k,r)});
+  return Object.values(agg).map(x=>{const k=norm(x.item),row=exact.get(U(x.item))||loose.get(k);return Object.assign(x,{cogs:hpp.get(k)||0,moka:row||null})}).sort((a,b)=>a.item.localeCompare(b.item))}
  const cntOf2=po=>view('GR_COUNT').filter(c=>poKey(c.po)===po);
+ function supplierEmail(po){const name=U(vendorOfPo(po));if(!name)return '';const v=view('MASTER_VENDOR').find(x=>U(x.nama)===name||U(x.id)===name);return v&&v.email||''}
  function csvOut(po){
   const mc=mokaCols(),rows=entryData(po).filter(x=>x.moka&&x.qty>0);if(!mc||!rows.length)return say('Tidak ada item yang cocok dengan template MOKA.',true);
-  const esc2=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"',lines=[mc.h.map(esc2).join(',')];
-  rows.forEach(x=>{const r=x.moka.slice();if(mc.iO>=0)r[mc.iO]=x.qty;if(mc.iC>=0&&x.cogs)r[mc.iC]=x.cogs;lines.push(r.map(esc2).join(','))});
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));a.download='Import-MOKA-'+po+'-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();say('File import MOKA dibuat ('+rows.length+' item).')}
+  const email=supplierEmail(po),q=v=>{v=String(v==null?'':v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v},fmt=n=>(Math.round(n*1000)/1000).toLocaleString('id-ID',{maximumFractionDigits:3});
+  const lines=[mc.h.map(q).join(',')];
+  rows.forEach(x=>{const r=x.moka.slice();while(r.length<mc.h.length)r.push('');if(mc.iO>=0)r[mc.iO]=String(x.qty);if(mc.iC>=0&&x.cogs)r[mc.iC]=fmt(x.cogs);if(mc.iE>=0&&email)r[mc.iE]=email;lines.push(r.map(q).join(','))});
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\r\n')+'\r\n'],{type:'text/csv'}));a.download='Import-MOKA-'+po+'-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();say('File import MOKA dibuat ('+rows.length+' item'+(email?', email supplier '+email:', email supplier belum ada di master vendor')+').')}
  async function uploadMoka(file){
   try{const rows=await readRows(file);const hi=rows.findIndex(r=>r.some(c=>/VARIANT NAME/i.test(String(c))));if(hi<0)throw new Error('Template MOKA tidak dikenali (kolom Variant Name tidak ada).');
    const clean=rows.slice(hi).filter(r=>r.some(c=>String(c).trim())),json=JSON.stringify(clean),parts=[];for(let i=0;i<json.length;i+=40000)parts.push(json.slice(i,i+40000));
@@ -4370,7 +4373,7 @@ init();
   return h+'</div>'}
 
  // ---- master bin
- function binCard(){if(!canAdmin())return '';const n=view('MASTER_BIN').length;return '<div class="card" style="margin-top:12px"><h3>Master bin (lokasi gudang)</h3><p class="sub">'+(n?n+' lokasi terdaftar. ':'Belum ada master bin. ')+'Impor file Excel master lokasi (kolom Location, Zone, Rack Type, No Rak, Level, Bin). Format kode bin: Blok-Rak.Bin, misalnya A1.1 = blok A, rak 1, bin 1. Lokasi berakhiran .L dan .R dianggap rak, bukan bin simpan.</p><input id="gr-binfile" type="file" accept=".xlsx,.xls,.csv"><p class="sub" id="gr-bininfo"></p></div>'}
+ function binCard(){if(!canAdmin())return '';const n=view('MASTER_BIN').length;return '<div class="card" style="margin-top:12px"><h3>Master bin (lokasi gudang)</h3><p class="sub">'+(n?n+' lokasi terdaftar. ':'Belum ada master bin. ')+'Impor file Excel master lokasi (kolom Location, Zone, Rack Type, No Rak, Level, Bin). Format kode bin: Blok-Rak.Bin, misalnya A1.1 = blok A, rak 1, bin 1.  Semua lokasi (termasuk yang berakhiran .L dan .R) bisa dipakai untuk put away.</p><input id="gr-binfile" type="file" accept=".xlsx,.xls,.csv"><p class="sub" id="gr-bininfo"></p></div>'}
  async function importBin(file){
   const info=t=>{const e=$('gr-bininfo');if(e)e.textContent=t};
   try{info('Membaca…');const rows=await readRows(file),hi=rows.findIndex(r=>r.some(c=>/^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Location tidak ditemukan.');

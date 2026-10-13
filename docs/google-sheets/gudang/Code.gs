@@ -11,7 +11,7 @@ const MAX_READ_ROWS = 4000;              // baris terakhir yang dibaca per permi
 
 // Daftar tab dan judul kolom. Kolom pertama selalu "id" (kunci unik).
 const TABS = {
-  MASTER_VENDOR: ['id','kode','nama','pola_po','status','catatan'],
+  MASTER_VENDOR: ['id','kode','nama','pola_po','status','catatan','pks','email','alamat','telp'],
   MASTER_EKSPEDISI: ['id','nama','status','kontak','catatan'],
   MASTER_AREA: ['id','nama','status','catatan'],
   MASTER_HPP: ['id','vendor','status_hpp','catatan'],
