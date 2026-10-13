@@ -3734,7 +3734,7 @@ init();
  // ---- menu WMS
  const FEAT={
   'wms-location':[['Stok Opname'],['Cycle Count'],['Relokasi / Internal Move'],['Other']],
-  'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing'],['Staging'],['Loading'],['Shipping'],['Unloading Outlet']],
+  'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing & Staging'],['Loading'],['Shipping'],['Receiving Outlet']],
   'gr':[['Counting'],['Put Away'],['Data Entry (PO ke MOKA)']]
  };
  function phBlock(key){const f=FEAT[key];return '<div class="filters" data-ph="'+key+'" style="margin-bottom:12px">'+f.map((x,i)=>'<button type="button" class="filter'+(i?'':' active')+'" data-p="'+esc(x[0])+'">'+esc(x[0])+'</button>').join('')+'</div><div class="card" data-phbody="'+key+'"></div>'}
@@ -4527,17 +4527,17 @@ init();
   const docs=view('PICK_DOK').sort((a,b)=>String(b.tanggal+b.id).localeCompare(String(a.tanggal+a.id)));
   let h='<div class="card"><h3 style="margin:0">Upload SOQ</h3><p class="sub">Pilih file Excel SOQ dengan nama seperti <strong>SOQ LLO-01 MAMU PALOPO 2026.10.14</strong> (kode shipment, outlet, tanggal). Sistem membaca daftar item, mengelompokkan ke koli, lalu Admin menentukan picker.</p><input id="ob-file" type="file" accept=".xlsx,.xls,.csv"></div>';
   if(!docs.length)return h+'<p class="sub" style="margin-top:12px">Belum ada SOQ.</p>';
-  return h+docs.map(d=>{const it=itemsOf(d.id),ks=koliOf(d.id),done=ks.filter(k=>['Siap verifikasi','Perbaikan','Siap packing'].includes(k.status)).length,ver=ks.filter(k=>k.status==='Siap packing').length,can=!started(d.id);
+  return h+docs.map(d=>{const it=itemsOf(d.id),ks=koliOf(d.id),done=ks.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status)).length,ver=ks.filter(k=>k.status==='Siap TFS').length,can=!started(d.id);
    return '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><span class="tag '+(d.status==='Picking'?'amber':'')+'">'+esc(d.status)+'</span></div><p class="sub">'+esc(d.jumlah_item)+' item · '+esc(d.total_qty)+' pcs'+(ks.length?' · '+ks.length+' koli · picking selesai '+done+' · lolos verifikasi '+ver:'')+'</p>'+
    (ks.length?'<p class="sub">'+ks.sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'Koli '+esc(k.koli)+': '+esc(k.picker_nama||k.picker)+' ('+esc(k.status)+')').join(' · ')+'</p>':'')+
    '<div class="ob-actions">'+(can?'<button class="button" data-obedit="'+esc(d.id)+'" type="button">'+(ks.length?'Atur ulang koli dan picker':'Atur koli dan picker')+'</button> <button class="button secondary" data-obdel="'+esc(d.id)+'" type="button" style="color:#b3261e">Hapus</button>':'<span class="sub">Sudah dikerjakan, tidak bisa diatur ulang.</span>')+'</div></div>'}).join('')}
 
  // ---- tab Picking: daftar tugas
- const STC={'Ditugaskan':'','Picking':'dt','Siap verifikasi':'dtm','Perbaikan':'dtm','Siap packing':'ok'};
+ const STC={'Ditugaskan':'','Picking':'dt','Siap verifikasi':'dtm','Perbaikan':'dtm','Siap TFS':'ok'};
  function listKoli(mode){
   const me=code(),adm=canAdmin();let list=view('PICK_KOLI');
   if(mode==='pick')list=list.filter(k=>adm?(!filterOp||k.picker===filterOp):k.picker===me);else if(adm&&filterOp)list=list.filter(k=>k.picker===filterOp);
-  if(mode==='vp')list=list.filter(k=>['Siap verifikasi','Perbaikan','Siap packing'].includes(k.status));
+  if(mode==='vp')list=list.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status));
   let h='';
   if(adm)h+='<div class="field" style="max-width:320px"><label for="ob-fop">Picker</label><select id="ob-fop"><option value="">Semua picker</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
   if(!list.length)return h+'<p class="sub">'+(mode==='pick'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap diverifikasi.')+'</p>';
@@ -4545,17 +4545,17 @@ init();
   return h+Object.keys(by).sort().reverse().map(dk=>{const d=view('PICK_DOK').find(x=>x.id===dk)||{kode:dk,outlet:'',tanggal:''};return '<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><div class="kl">'+by[dk].sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<button type="button" class="kb '+(STC[k.status]||'')+'" data-obopen="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc((k.picker_nama||k.picker||'').split(' ')[0])+'</small><small>'+esc(k.status)+'</small></button>').join('')+'</div></div>'}).join('')}
 
  // ---- picking koli
- const lineNo=r=>{const m=/\|L(\d+)(?:\|(\d+))?$/.exec(r.id);return m?[num(m[1]),num(m[2])]:[0,0]};
- const koliRows=k=>itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)).sort((a,b)=>{const x=lineNo(a),y=lineNo(b);return x[0]-y[0]||x[1]-y[1]});
+ const lineNo=r=>{const m=/\|L(\d+)(?:\|(\d+))?(?:\|X(\d+))?$/.exec(r.id);return m?[num(m[1]),num(m[2]),num(m[3])]:[0,0,0]};
+ const koliAll=k=>itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)),koliRows=k=>koliAll(k).filter(r=>r.kategori!=='OTHER').sort((a,b)=>{const x=lineNo(a),y=lineNo(b);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]}),koliOthers=k=>koliAll(k).filter(r=>r.kategori==='OTHER').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
  const koliById=id=>view('PICK_KOLI').find(k=>k.id===id);
  function updKoli(k,patch){enq('PICK_KOLI',Object.assign({},k,patch))}
  function taskAccept(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t&&t.status==='baru'){t.status='diterima';t.by2=k.picker;t.ackAt=stIso()}})}
  function taskMaybeDone(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}
- function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':'vp',id};pull(true);draw()}
+ function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':'tfs',id};pull(true);draw()}
  function stokOut(r,bin,sku,qty){if(!(qty>0)||!bin)return;enq('STOK_BIN',{id:'SB|PK|'+r.id,tanggal:today(),jenis:'PICKING',bin,sku:sku||U(r.item),item:r.item,qty_masuk:'0',qty_keluar:String(qty),referensi:r.dok+' koli '+r.koli,pic_kode:code(),catatan:''})}
- function pickRow(r,status,binA,qtyA,ket,video){
+ function pickRow(r,status,binA,qtyA,ket,video,cb){
   const row=Object.assign({},r,{status,bin_actual:binA,qty_actual:String(qtyA),ket_pick:ket||'',picker:code(),jam_pick:nowHM()});
-  const fin=()=>{enq('PICK_ITEM',row);stokOut(r,binA,r.sku,qtyA);draw()};
+  const fin=()=>{enq('PICK_ITEM',row);stokOut(r,binA,r.sku,qtyA);if(cb)cb();draw()};
   if(video)G.blobB64(video).then(b64=>{let q=[];try{q=JSON.parse(localStorage.getItem('wos-gd-queue-v1')||'[]')}catch(e){}q.push({a:'photo',data:b64,mime:video.type||'video/webm',name:('PK_'+r.id).replace(/[^A-Za-z0-9]+/g,'_')+(/mp4/.test(video.type)?'.mp4':'.webm'),rowId:r.id,date:today(),kategori:'PICK'});try{localStorage.setItem('wos-gd-queue-v1',JSON.stringify(q))}catch(e){}fin()},()=>fin());else fin()}
  function silangModal(r){
   const bins=view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif');
@@ -4566,18 +4566,18 @@ init();
    if(!R.get()&&!confirm('Simpan tanpa video bukti?'))return;
    pickRow(r,'Selisih',ba,num(qa),m.querySelector('#ob-kt').value.trim(),R.get());R.close();m.remove()}}
  function drawPickScreen(){
-  const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),ro=['Siap verifikasi','Perbaikan','Siap packing'].includes(k.status),mine=k.picker===code()||canAdmin(),done=rows.length&&rows.every(r=>r.status!=='Menunggu');
+  const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),ro=['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status),mine=k.picker===code()||canAdmin(),done=rows.length&&rows.every(r=>r.status!=='Menunggu');
   const pcs=rows.reduce((a,r)=>a+num(r.qty),0),act=rows.reduce((a,r)=>a+num(r.qty_actual),0);
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
-  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong></td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+'</td><td><strong>'+esc(r.qty)+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act!==pcs?' · <strong style="color:#b3261e">selisih '+(act-pcs)+'</strong>':'')+'</p>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong></td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+'</td><td><strong>'+(/\|X\d+$/.test(r.id)?'+':esc(r.qty))+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag green">✓ '+(/\|X\d+$/.test(r.id)?esc(r.bin_actual)+' · '+esc(r.qty_actual)+' pcs':'Sesuai')+'</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':''):r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(mine&&!PASTTFS.includes(k.status)&&num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0)>0?'<div><button class="button secondary" data-obadd="'+esc(r.id)+'" type="button">+ Ditemukan di bin lain (kurang '+(num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0))+')</button></div>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act!==pcs?' · <strong style="color:#b3261e">selisih '+(act-pcs)+'</strong>':'')+'</p>';
   if(!ro&&mine)h+='<div class="ob-actions"><button class="button" data-obdone="1" type="button"'+(done?'':' disabled')+'>Selesai picking koli ini</button></div>';
-  if(ro)h+='<p class="note">Picking selesai. Lanjut di tab <strong>Verification Pick</strong>.</p>';
+  if(ro)h+='<p class="note">Picking selesai. Lanjut di tab <strong>Verification Pick</strong>. Bila masih ada barang kurang yang ditemukan di bin lain, tombol Ditemukan di bin lain tetap bisa dipakai sebelum TFS.</p>';
   return h+'</div>'}
 
  // ---- verification pick
  const REASONS=['Item salah','Qty kurang','Qty lebih','Barang rusak / cacat','Lainnya'];
- function vpState(k){const rows=koliRows(k).filter(r=>num(r.qty_actual)>0);if(rows.some(r=>r.vp==='Salah'))return 'Perbaikan';if(rows.length&&rows.every(r=>r.vp==='Sesuai'||r.vp==='Dikoreksi'))return 'Siap packing';return 'Siap verifikasi'}
- function setVp(r,vp,ket){enq('PICK_ITEM',Object.assign({},r,{vp,vp_ket:ket||'',vp_oleh:code(),vp_jam:nowHM()}));const k2=koliById(r.dok+'|K'+r.koli);if(!k2)return;const st=vpState(k2);if(st!==k2.status)updKoli(k2,{status:st,vp_oleh:code(),vp_selesai:st==='Siap packing'?stIso():''});draw()}
+ function vpState(k){const rows=koliRows(k).filter(r=>num(r.qty_actual)>0);if(rows.some(r=>r.vp==='Salah'))return 'Perbaikan';if(rows.length&&rows.every(r=>r.vp==='Sesuai'||r.vp==='Dikoreksi'))return 'Siap TFS';return 'Siap verifikasi'}
+ function setVp(r,vp,ket){enq('PICK_ITEM',Object.assign({},r,{vp,vp_ket:ket||'',vp_oleh:code(),vp_jam:nowHM()}));const k2=koliById(r.dok+'|K'+r.koli);if(!k2)return;const st=vpState(k2);if(st!==k2.status)updKoli(k2,{status:st,vp_oleh:code(),vp_selesai:st==='Siap TFS'?stIso():''});draw()}
  function salahModal(r){
   const m=G.modal('<h3>Verifikasi: tidak sesuai</h3><p class="sub">'+esc(r.item)+' · qty '+esc(r.qty_actual||r.qty)+'</p><label style="font-weight:600">Jenis kesalahan</label><select id="vp-r" style="width:100%">'+REASONS.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select><label style="font-weight:600;margin-top:8px;display:block">Keterangan</label><input id="vp-k" style="width:100%" placeholder="Jelaskan kesalahannya"><div class="ob-actions" style="margin-top:10px"><button class="button" id="vp-ok" type="button">Simpan</button><button class="button secondary" id="vp-x" type="button">Batal</button></div>');
   m.querySelector('#vp-x').onclick=()=>m.remove();m.querySelector('#vp-ok').onclick=()=>{const t=m.querySelector('#vp-r').value,kt=m.querySelector('#vp-k').value.trim();if(!kt){alert('Isi keterangan kesalahan.');return}setVp(r,'Salah',t+': '+kt);m.remove()}}
@@ -4586,9 +4586,84 @@ init();
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Verifikasi · '+esc(d.kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
   if(self)h+='<p class="note" style="color:#b3261e">Verifikasi harus dilakukan orang lain, bukan picker koli ini.</p>';
   h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty diambil</th><th>Verifikasi</th><th>Cek</th></tr></thead><tbody>'+rows.filter(r=>num(r.qty_actual)>0).map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+'</td><td><strong>'+esc(r.qty_actual)+'</strong></td><td>'+(r.vp==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':r.vp==='Dikoreksi'?'<span class="tag green">✓ Dikoreksi</span>':r.vp==='Salah'?'<span class="tag red">✗ '+esc(r.vp_ket)+'</span>':'<span class="sub">belum dicek</span>')+'</td><td>'+(r.vp==='Salah'?'<button class="button" data-obfix="'+esc(r.id)+'" type="button">Sudah dikoreksi</button>':(self?'':'<button class="button" data-obvok="'+esc(r.id)+'" type="button">✓</button> <button class="button secondary" data-obvno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button>'))+'</td></tr>').join('')+'</tbody></table></div>';
-  if(k.status==='Siap packing')h+='<p class="note">Semua item lolos verifikasi. Koli siap masuk tahap <strong>Packing</strong> (menyusul).</p>';
+  if(k.status==='Siap TFS')h+='<p class="note">Semua item lolos verifikasi. Koli siap masuk tahap <strong>Transfer Stok (TFS ke MOKA)</strong>.</p>';
   else if(k.status==='Perbaikan')h+='<p class="note" style="color:#b3261e">Ada item yang salah. Picker mengambil barang yang seharusnya, lalu tekan Sudah dikoreksi.</p>';
   return h+'</div>'}
+
+ // ---- ditemukan di bin lain (kekurangan pada baris yang di-silang)
+ function tambahBinModal(r){
+  const bins=view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif'),short=Math.max(0,num(r.qty)-num(r.qty_actual));
+  const m=G.modal('<h3>Barang ditemukan di bin lain</h3><p class="sub">'+esc(r.item)+' · kurang <strong>'+short+'</strong> pcs dari bin '+esc(r.bin)+'</p><datalist id="ob-bins2">'+bins.slice(0,3000).map(b=>'<option value="'+esc(b.id)+'">').join('')+'</datalist><label style="font-weight:600">Bin tempat barang ditemukan</label><input id="ob-xb" list="ob-bins2" style="width:100%" placeholder="Contoh A1.1"><label style="font-weight:600;margin-top:8px;display:block">Qty diambil dari bin ini</label><input id="ob-xq" type="number" inputmode="numeric" min="1" value="'+short+'" style="width:100%"><label style="font-weight:600;margin-top:8px;display:block">Keterangan</label><input id="ob-xk" style="width:100%" placeholder="Contoh: salah put away"><div id="ob-xrec" style="margin-top:8px"></div><div class="ob-actions" style="margin-top:10px"><button class="button" id="ob-xok" type="button">Simpan</button><button class="button secondary" id="ob-xx" type="button">Batal</button></div>');
+  const R=G.recorder(m.querySelector('#ob-xrec'));m.querySelector('#ob-xx').onclick=()=>{R.close();m.remove()};
+  m.querySelector('#ob-xok').onclick=()=>{if(R.recording()){alert('Hentikan rekaman dulu.');return}const ba=U(m.querySelector('#ob-xb').value),q=num(m.querySelector('#ob-xq').value);
+   if(!ba||!(q>0)){alert('Isi bin dan qty.');return}if(bins.length&&!bins.some(b=>U(b.id)===ba)){alert('Bin "'+ba+'" tidak ada di master bin.');return}
+   if(!R.get()&&!confirm('Simpan tanpa video bukti?'))return;
+   const n=itemsOf(r.dok).filter(x=>x.id.startsWith(r.id+'|X')).length+1,r2=Object.assign({},r,{id:r.id+'|X'+n,qty:'0',bin:ba,ket_pick:'',vp:'',vp_ket:'',vp_oleh:'',vp_jam:'',foto_id:''});
+   pickRow(r2,'Sesuai',ba,q,'Tambahan: ditemukan di bin lain (kurang dari bin '+r.bin+')'+(m.querySelector('#ob-xk').value.trim()?'. '+m.querySelector('#ob-xk').value.trim():''),R.get(),()=>{const k=koliById(r.dok+'|K'+r.koli);if(k&&SETS.vp.includes(k.status)){const st=vpState(k);if(st!==k.status)updKoli(k,{status:st,vp_selesai:''})}});
+   R.close();m.remove()}}
+
+ // ---- daftar per SOQ untuk tahap setelah verifikasi
+ const SETS={vp:['Siap verifikasi','Perbaikan','Siap TFS','Siap packing'],tfs:['Siap TFS','Siap packing','Selesai TFS'],pack:['Selesai TFS','Staging'],load:['Staging','Dimuat'],rcv:['Shipping','Diterima','Diterima-Masalah'],ship:['Shipping','Diterima','Diterima-Masalah']};
+ const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah'];
+ const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'ok','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm'});
+ const dokOf=id=>view('PICK_DOK').find(d=>d.id===id)||{id,kode:id,outlet:'',tanggal:''};
+ function dokGroups(set){const by={};view('PICK_KOLI').filter(k=>set.includes(k.status)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:by[id].sort((a,b)=>num(a.koli)-num(b.koli))}))}
+ const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
+ const chip=(k,attr,extra)=>'<button type="button" class="kb '+(STC2[k.status]||'')+(extra||'')+'" '+attr+'="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc(k.status)+'</small>'+(k.area?'<small>'+esc(k.area)+'</small>':'')+'</button>';
+ const none=t=>'<p class="sub">'+t+'</p>';
+
+ // ---- cetak surat jalan dan STTB
+ const PCSS='<style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#111}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #444;padding:5px 7px;text-align:left;vertical-align:top}th{background:#eee}h2{margin:0}.sig{display:flex;gap:10px;margin-top:20px}.sig div{flex:1;text-align:center;font-size:12px}.sig i{display:block;height:64px;border-bottom:1px solid #111}@media print{button{display:none}}</style>';
+ function printWin(title,html){const w=window.open('','_blank');if(!w){say('Pop-up diblokir browser. Izinkan pop-up untuk mencetak.',true);return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+PCSS+'</head><body>'+html+'<p><button onclick="window.print()">Cetak</button></p></body></html>');w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},500)}
+ const sigs=l=>'<div class="sig">'+l.map(x=>'<div><i></i>'+esc(x)+'</div>').join('')+'</div>';
+ const koliItems=k=>koliRows(k).filter(r=>num(r.qty_actual)>0).concat(koliOthers(k));
+ function printSJ(dok){
+  const d=dokOf(dok),ks=koliOf(dok).filter(k=>PASTTFS.includes(k.status)).sort((a,b)=>num(a.koli)-num(b.koli));if(!ks.length)return say('Belum ada koli yang selesai TFS.',true);
+  let tot=0,rows='';ks.forEach(k=>{const its=koliItems(k);its.forEach((r,i)=>{tot+=num(r.qty_actual);rows+='<tr>'+(i?'':'<td rowspan="'+its.length+'"><strong>'+esc(k.koli)+'</strong></td>')+'<td>'+esc(r.item)+(r.kategori==='OTHER'?' <em>(other)</em>':'')+'</td><td style="text-align:right">'+esc(r.qty_actual)+'</td><td>'+esc(r.kategori==='OTHER'?r.ket_pick:'')+'</td></tr>'})});
+  printWin('Surat Jalan '+d.kode,'<h2>SURAT JALAN</h2><p>DC 38 Tigalapan Indonesia · No. SJ-'+esc(d.kode)+'-'+esc(String(d.tanggal).replace(/-/g,''))+'</p><p>Kepada: <strong>'+esc(d.outlet)+'</strong> · Kode shipment '+esc(d.kode)+' · Tanggal '+esc(d.tanggal)+(d.ekspedisi?' · Ekspedisi '+esc(d.ekspedisi):'')+'</p><table><thead><tr><th>Koli</th><th>Item</th><th>Qty</th><th>Keterangan</th></tr></thead><tbody>'+rows+'</tbody></table><p>Total '+ks.length+' koli · '+tot+' pcs</p>'+sigs(['Admin DC 38','Penerima']))}
+ function printSTTB(dok){
+  const d=dokOf(dok),ks=koliOf(dok).sort((a,b)=>num(a.koli)-num(b.koli));
+  printWin('STTB '+d.kode,'<h2>STTB · SURAT TANDA TERIMA BARANG</h2><p>DC 38 Tigalapan Indonesia · No. STTB-'+esc(d.kode)+'-'+esc(String(d.tanggal).replace(/-/g,''))+'</p><p>Tujuan: <strong>'+esc(d.outlet)+'</strong> · Kode shipment '+esc(d.kode)+' · Tanggal '+esc(d.tanggal)+'</p><table><thead><tr><th>No</th><th>Koli</th><th>Jumlah item</th><th>Total pcs</th><th>Keterangan</th></tr></thead><tbody>'+ks.map((k,i)=>{const its=koliItems(k);return '<tr><td>'+(i+1)+'</td><td>Koli '+esc(k.koli)+'</td><td>'+its.length+'</td><td style="text-align:right">'+its.reduce((a,r)=>a+num(r.qty_actual),0)+'</td><td></td></tr>'}).join('')+'</tbody></table><p>Jumlah koli: <strong>'+ks.length+'</strong></p>'+sigs(['Pengirim','Penerima','Ekspedisi Internal','Ekspedisi Eksternal','Penerima']))}
+ const printBtns=id=>'<span><button class="button secondary" data-obsj="'+esc(id)+'" type="button">🖨 Surat Jalan</button> <button class="button secondary" data-obsttb="'+esc(id)+'" type="button">🖨 STTB</button></span>';
+
+ // ---- Transfer Stok (TFS ke MOKA)
+ function drawTfsList(){const g=dokGroups(SETS.tfs);if(!g.length)return none('Belum ada koli yang lolos verifikasi.');
+  return g.map(x=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+(x.ks.some(k=>k.status==='Selesai TFS')?printBtns(x.d.id):'')+'</div><p class="sub">Selesai TFS '+x.ks.filter(k=>k.status==='Selesai TFS').length+' dari '+x.ks.length+' koli yang siap.</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obopen')).join('')+'</div></div>').join('')}
+ const cp=(t)=>'<button class="button secondary" data-obcp="'+esc(t)+'" type="button" title="Copy" style="padding:2px 8px">📋</button>';
+ function drawTfsScreen(){
+  const k=koliById(cur.id);if(!k){cur=null;return ''}const d=dokOf(k.dok),rows=koliRows(k).filter(r=>num(r.qty_actual)>0),oth=koliOthers(k),done=k.status==='Selesai TFS',locked=PASTTFS.includes(k.status)&&!done;
+  let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">TFS · '+esc(d.kode)+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.outlet)+' · status <strong>'+esc(k.status)+'</strong>. Salin Item dan Qty satu per satu ke halaman Transfer Stok di MOKA.</p>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+' '+cp(r.item)+'</td><td><strong>'+esc(r.qty_actual)+'</strong> '+cp(r.qty_actual)+'</td></tr>').join('')+'</tbody></table></div>';
+  h+='<h4 style="margin:14px 0 4px">Other (tambahan manual)</h4><p class="sub">Contoh: surat jalan, barang POP titipan marketing, dan lainnya. Tidak ikut stok bin.</p>';
+  if(oth.length)h+='<div style="overflow:auto"><table><thead><tr><th>Other</th><th>Qty</th><th>Keterangan</th><th></th></tr></thead><tbody>'+oth.map(r=>'<tr><td>'+esc(r.item)+' '+cp(r.item)+'</td><td><strong>'+esc(r.qty_actual)+'</strong> '+cp(r.qty_actual)+'</td><td>'+esc(r.ket_pick)+'</td><td>'+(locked?'':'<button class="button secondary" data-obdelo="'+esc(r.id)+'" type="button" style="color:#b3261e">Hapus</button>')+'</td></tr>').join('')+'</tbody></table></div>';
+  if(!locked)h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><input id="ob-on" placeholder="Nama (mis. Surat jalan, POP)" style="flex:2;min-width:160px"><input id="ob-oq" type="number" inputmode="numeric" min="1" placeholder="Qty" style="flex:1;min-width:70px"><input id="ob-ot" placeholder="Keterangan" style="flex:2;min-width:140px"><button class="button" data-obaddo="1" type="button">+ Tambah</button></div>';
+  h+='<div style="margin-top:14px"><label style="font-weight:600;display:flex;gap:8px;align-items:center"><input type="checkbox" data-obtfs="1"'+(done?' checked':'')+(locked?' disabled':'')+'> Koli ini sudah selesai TFS di MOKA</label></div>';
+  if(done)h+='<p class="note">TFS selesai ('+esc(k.tfs_oleh||'')+'). Cetak dokumen pengiriman dari daftar koli, lalu lanjut ke tab <strong>Packing &amp; Staging</strong>.</p><div class="ob-actions">'+printBtns(k.dok)+'</div>';
+  return h+'</div>'}
+
+ // ---- Packing dan Staging (satu kesatuan)
+ const AREAS=['Staging Out City','Staging In City'];let packSel=new Set(),packArea=AREAS[0];
+ function drawPack(){const g=dokGroups(SETS.pack);if(!g.length)return none('Belum ada koli yang selesai TFS.');
+  return '<p class="sub">Koli yang sudah selesai TFS dijahit (karung) dan dibawa ke area staging. Ketuk koli yang sudah dipacking, pilih area, lalu simpan.</p><div class="field" style="max-width:260px"><label for="ob-area">Area staging</label><select id="ob-area">'+AREAS.map(a=>'<option'+(a===packArea?' selected':'')+'>'+esc(a)+'</option>').join('')+'</select></div>'+
+  g.map(x=>{const todo=x.ks.filter(k=>k.status==='Selesai TFS');return '<div class="card" style="margin-top:10px">'+head(x.d)+'<div class="kl">'+x.ks.map(k=>chip(k,'data-obpk',packSel.has(k.id)?' dt':'')).join('')+'</div>'+(todo.length?'<div class="ob-actions"><button class="button" data-obpack="'+esc(x.d.id)+'" type="button">Selesai packing, masuk staging ('+todo.filter(k=>packSel.has(k.id)).length+' koli)</button> <button class="button secondary" data-obpall="'+esc(x.d.id)+'" type="button">Pilih semua</button></div>':'<p class="sub">Semua koli sudah di staging.</p>')+'</div>'}).join('')}
+
+ // ---- Loading (bisa dipegang driver)
+ const shipInfo={};
+ function drawLoad(){const g=dokGroups(SETS.load);if(!g.length)return none('Belum ada koli di staging.');
+  return '<p class="sub">Ketuk koli satu per satu saat naik ke kendaraan (hijau = sudah dimuat).</p>'+g.map(x=>{const n=x.ks.filter(k=>k.status==='Dimuat').length,si=shipInfo[x.d.id]||{};return '<div class="card" style="margin-top:10px">'+head(x.d)+'<p class="sub">Dimuat '+n+' dari '+x.ks.length+' koli</p><div class="kl">'+x.ks.map(k=>chip(k,'data-oblt')).join('')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><input data-obeks="'+esc(x.d.id)+'" placeholder="Ekspedisi / kendaraan" value="'+esc(si.eks||x.d.ekspedisi||'')+'" style="flex:2;min-width:180px"><label class="sub" style="display:flex;gap:6px;align-items:center">Estimasi tiba <input type="date" data-obeta="'+esc(x.d.id)+'" value="'+esc(si.eta||x.d.eta||'')+'"></label></div><div class="ob-actions"><button class="button" data-obship="'+esc(x.d.id)+'" type="button"'+(n?'':' disabled')+'>Selesai loading, kirim ('+n+' koli)</button></div></div>'}).join('')}
+
+ // ---- Shipping (manifest incoming untuk outlet)
+ function drawShipTab(){const g=dokGroups(SETS.ship);if(!g.length)return none('Belum ada kiriman.');
+  return g.map(x=>{const d=x.d,on=x.ks.filter(k=>k.status==='Shipping').length;return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(d)+'<span class="tag '+(on?'amber':'green')+'">'+(on?'On delivery':'Sudah diterima')+'</span></div><p class="sub">Manifest incoming untuk <strong>'+esc(d.outlet)+'</strong> · '+x.ks.length+' koli · ekspedisi '+esc(d.ekspedisi||'-')+' · estimasi tiba '+esc(d.eta||'-')+' · berangkat '+esc((x.ks[0].load_waktu||'').replace('T',' ').slice(0,16))+'</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obnone')).join('')+'</div>'+printBtns(d.id)+'</div>'}).join('')}
+
+ // ---- Receiving Outlet (pola sama dengan Receiving DC 38)
+ function drawRcv(){const g=dokGroups(SETS.rcv);if(!g.length)return none('Belum ada kiriman menuju outlet.');
+  return '<p class="sub">Ketuk koli yang sampai: Diterima, atau Bermasalah dengan keterangan.</p>'+g.map(x=>{const left=x.ks.filter(k=>k.status==='Shipping').length;return '<div class="card" style="margin-top:10px">'+head(x.d)+'<p class="sub">Estimasi tiba '+esc(x.d.eta||'-')+' · belum diterima '+left+' dari '+x.ks.length+' koli</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obrcv')).join('')+'</div></div>'}).join('')}
+ function rcvModal(k){
+  const m=G.modal('<h3>Koli '+esc(k.koli)+' · '+esc(dokOf(k.dok).outlet)+'</h3><p class="sub">Status sekarang: '+esc(k.status)+'</p><label style="font-weight:600">Keterangan (wajib bila bermasalah)</label><input id="rc-k" style="width:100%" placeholder="Contoh: karung robek"><div class="ob-actions" style="margin-top:10px"><button class="button" id="rc-ok" type="button">✓ Diterima</button> <button class="button secondary" id="rc-no" type="button" style="color:#b3261e">✗ Bermasalah</button> <button class="button secondary" id="rc-x" type="button">Batal</button></div>');
+  const set=(st,ket)=>{updKoli(k,{status:st,rcv_oleh:code(),rcv_waktu:stIso(),rcv_ket:ket});const rest=koliOf(k.dok).filter(x=>x.id!==k.id&&x.status!=='Diterima'&&x.status!=='Diterima-Masalah').length;if(!rest){const d=dokOf(k.dok);enq('PICK_DOK',Object.assign({},d,{status:'Diterima'}))}m.remove()};
+  m.querySelector('#rc-x').onclick=()=>m.remove();m.querySelector('#rc-ok').onclick=()=>set('Diterima',m.querySelector('#rc-k').value.trim());
+  m.querySelector('#rc-no').onclick=()=>{const t=m.querySelector('#rc-k').value.trim();if(!t){alert('Isi keterangan masalahnya.');return}set('Diterima-Masalah',t)}}
 
  // ---- tampilan
  function draw(){
@@ -4596,9 +4671,14 @@ init();
   let h=(loadErr?'<p class="note" style="color:#b3261e">Data outbound belum bisa dimuat: '+esc(loadErr)+'. Pastikan skrip Google gudang sudah diperbarui (jalankan setup dan deploy versi baru).</p>':'')+(msg?'<p class="note" style="color:'+(msgBad?'#b3261e':'#1b7a46')+'">'+esc(msg)+'</p>':'');
   if(tabName==='Picking List')h+=edit?drawEdit():drawList();
   else if(tabName==='Picking')h+=cur&&cur.mode==='pick'?drawPickScreen():listKoli('pick');
-  else h+=cur&&cur.mode==='vp'?drawVpScreen():listKoli('vp');
+  else if(tabName==='Verification Pick')h+=cur&&cur.mode==='vp'?drawVpScreen():listKoli('vp');
+  else if(tabName==='Transfer Stok (TFS ke MOKA)')h+=cur&&cur.mode==='tfs'?drawTfsScreen():drawTfsList();
+  else if(tabName==='Packing & Staging')h+=drawPack();
+  else if(tabName==='Loading')h+=drawLoad();
+  else if(tabName==='Shipping')h+=drawShipTab();
+  else h+=drawRcv();
   if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(id&&$(id))$(id).focus()}}
- const NAMES=['Picking List','Picking','Verification Pick'];
+ const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet'];
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
@@ -4612,10 +4692,26 @@ init();
   if(t.dataset.obdone){const k=koliById(cur.id);if(k){updKoli(k,{status:'Siap verifikasi',selesai:stIso()});taskMaybeDone(k);cur=null;say('Picking koli '+k.koli+' selesai. Lanjut verifikasi.')}return}
   if(t.dataset.obvok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obvok);if(r)setVp(r,'Sesuai','');return}
   if(t.dataset.obvno){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obvno);if(r)salahModal(r);return}
+  if(t.dataset.obadd){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obadd);if(r)tambahBinModal(r);return}
+  if(t.dataset.obcp){const v=t.dataset.obcp,done=()=>{t.textContent='✓';setTimeout(()=>{t.textContent='📋'},900)};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(done,()=>{});else{const ta=document.createElement('textarea');ta.value=v;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done()}catch(x){}ta.remove()}return}
+  if(t.dataset.obsj){printSJ(t.dataset.obsj);return}
+  if(t.dataset.obsttb){printSTTB(t.dataset.obsttb);return}
+  if(t.dataset.obaddo){const k=koliById(cur.id),nm=$('ob-on').value.trim(),q=num($('ob-oq').value);if(!nm||!(q>0))return say('Isi nama dan qty Other.',true);enq('PICK_ITEM',{id:k.id+'|O'+Date.now().toString(36),tanggal:k.tanggal,dok:k.dok,outlet:dokOf(k.dok).outlet,item:nm,sku:'',kategori:'OTHER',soq:'0',ket:'',koli:String(k.koli),bin:'',qty:'0',status:'Sesuai',qty_actual:String(q),ket_pick:$('ob-ot').value.trim(),vp:'Sesuai',vp_oleh:code(),vp_jam:nowHM(),picker:code(),jam_pick:nowHM()});return}
+  if(t.dataset.obdelo){enqDel('PICK_ITEM',t.dataset.obdelo);return}
+  if(t.dataset.obpk){const k=koliById(t.dataset.obpk);if(k&&k.status==='Selesai TFS'){packSel.has(k.id)?packSel.delete(k.id):packSel.add(k.id);draw()}return}
+  if(t.dataset.obpall){koliOf(t.dataset.obpall).filter(k=>k.status==='Selesai TFS').forEach(k=>packSel.add(k.id));draw();return}
+  if(t.dataset.obpack){const ks=koliOf(t.dataset.obpack).filter(k=>k.status==='Selesai TFS'&&packSel.has(k.id));if(!ks.length)return say('Ketuk koli yang sudah dipacking dulu.',true);ks.forEach(k=>{updKoli(k,{status:'Staging',area:packArea,pack_oleh:code(),pack_waktu:stIso()});packSel.delete(k.id)});say(ks.length+' koli masuk '+packArea+'.');return}
+  if(t.dataset.oblt){const k=koliById(t.dataset.oblt);if(k){k.status==='Staging'?updKoli(k,{status:'Dimuat',load_oleh:code(),load_waktu:stIso()}):updKoli(k,{status:'Staging',load_oleh:'',load_waktu:''})}return}
+  if(t.dataset.obship){const id=t.dataset.obship,all=koliOf(id),ld=all.filter(k=>k.status==='Dimuat'),left=all.filter(k=>k.status==='Staging').length,si=shipInfo[id]||{};if(!ld.length)return;if(left&&!confirm(left+' koli belum dimuat dan tetap di staging. Kirim yang sudah dimuat saja?'))return;const d=dokOf(id),now=stIso();ld.forEach(k=>updKoli(k,{status:'Shipping',load_waktu:now}));enq('PICK_DOK',Object.assign({},d,{status:left?'Loading':'Shipping',ekspedisi:si.eks!=null?si.eks:(d.ekspedisi||''),eta:si.eta!=null?si.eta:(d.eta||'')}));say(ld.length+' koli dikirim ke '+d.outlet+'. Manifest incoming tersedia di tab Shipping dan Receiving Outlet.');return}
+  if(t.dataset.obrcv){const k=koliById(t.dataset.obrcv);if(k)rcvModal(k);return}
   if(t.dataset.obfix){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obfix);if(r)setVp(r,'Dikoreksi',r.vp_ket);return}});
  document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='ob-file'&&t.files[0]){uploadModal(t.files[0]);t.value='';return}
   if(t.id==='ob-fop'){filterOp=t.value;draw();return}
+  if(t.id==='ob-area'){packArea=t.value;return}
+  if(t.dataset&&t.dataset.obeks){(shipInfo[t.dataset.obeks]=shipInfo[t.dataset.obeks]||{}).eks=t.value;return}
+  if(t.dataset&&t.dataset.obeta){(shipInfo[t.dataset.obeta]=shipInfo[t.dataset.obeta]||{}).eta=t.value;return}
+  if(t.dataset&&t.dataset.obtfs&&cur){const k=koliById(cur.id);if(k){if(t.checked&&['Siap TFS','Siap packing'].includes(k.status))updKoli(k,{status:'Selesai TFS',tfs_oleh:code(),tfs_waktu:stIso()});else if(!t.checked&&k.status==='Selesai TFS')updKoli(k,{status:'Siap TFS',tfs_oleh:'',tfs_waktu:''})}draw();return}
   if(t.id==='ob-cap'&&edit){const v=Math.max(1,num(t.value));edit.cap=v;try{localStorage.setItem(CAPK,String(v))}catch(x){}return}
   if(t.dataset&&t.dataset.obk&&edit){const l=edit.lines.find(x=>x.id===t.dataset.obk);if(l){l.koli=Math.max(0,Math.floor(num(t.value)));draw()}return}
   if(t.dataset&&t.dataset.obp&&edit){edit.pk[t.dataset.obp]=t.value;return}});
