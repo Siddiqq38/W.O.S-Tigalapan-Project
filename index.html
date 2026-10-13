@@ -3568,7 +3568,7 @@ init();
  // ---- 5R: bukti foto/video ke Google Drive + metadata approval ke tab LAPORAN_5R
  const DK='wos-5r-drive-v1',R5MAX=7.5*1024*1024;let r5Seen={},r5Busy=false,r5Big={},r5Err='';
  const dmap=()=>rj(DK,{}),dset=(f,d)=>{const m=dmap();m[f]=d;try{raw.call(localStorage,DK,JSON.stringify(m))}catch(e){}};
- const blobB64=b=>new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=()=>rej(fr.error);fr.readAsDataURL(b)});
+ const blobB64=b=>new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).replace(/^[\s\S]*?;base64,/,''));fr.onerror=()=>rej(fr.error);fr.readAsDataURL(b)});
  function shrink2(url,max,q,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',q).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
  const r5Sig=r=>{const p=r.report||{};return JSON.stringify([p.at,p.approval,p.reviewedAt||0,(p.reviewHistory||[]).length])};
  async function r5Upload(row){
@@ -3761,7 +3761,7 @@ init();
  function dropLocal(tab,id){const k=TABKEY[tab];if(!k)return;D[k]=D[k].filter(x=>x.id!==id)}
  async function flush(){if((busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paintState();return}busy=true;busyAt=Date.now();
   try{while(q.length){
-   if(q[0].a==='photo'){const it=q[0],r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok)throw new Error(r.error);q=queue();q.shift();q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q)}
+   if(q[0].a==='photo'){const it=q[0],r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){const q2=queue();if(q2[0]&&q2[0].a==='photo'){q2[0].tries=(q2[0].tries||0)+1;if(q2[0].tries>=3)q2.shift();saveQ(q2)}throw new Error(r.error)}q=queue();q.shift();q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q)}
    else{let n=0;while(n<q.length&&n<40&&(q[n].a==='append'||q[n].a==='delete'))n++;const items=q.slice(0,n),r=await call({action:'batch',ops:items.map(x=>x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})});if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row)});q=queue();q.splice(0,n);saveQ(q)}
    q=queue()}
    state='ok';err=''}catch(e){state='err';err=String(e&&e.message||e)}
@@ -4049,7 +4049,7 @@ init();
    const jenis=q('#iv2-pj').value,ket=q('#iv2-pk').value.trim(),text=jenis+(ket?': '+ket:''),row=mkKoli(r,n,fin?'Bermasalah':'Datang-Masalah',text),base=row.id.replace(/[^A-Za-z0-9]+/g,'_');
    const queuePhoto=(b64,mime,ext)=>{const qq=queue();qq.push({a:'photo',data:b64,mime,name:base+ext,rowId:row.id,date:row.tanggal,kategori:'Receiving'});saveQ(qq)};
    const done=(b64,mime,ext)=>{if(b64)queuePhoto(b64,mime,ext);enq('KOLI',row);close()};
-   if(vblob){const fr=new FileReader();fr.onload=()=>done(String(fr.result).split(',')[1],vblob.type||'video/webm',/mp4/.test(vblob.type)?'.mp4':'.webm');fr.onerror=()=>done(null);fr.readAsDataURL(vblob)}
+   if(vblob){const fr=new FileReader();fr.onload=()=>done(String(fr.result).replace(/^[\s\S]*?;base64,/,''),vblob.type||'video/webm',/mp4/.test(vblob.type)?'.mp4':'.webm');fr.onerror=()=>done(null);fr.readAsDataURL(vblob)}
    else if(pfile)shrink(pfile,b64=>done(b64,'image/jpeg','.jpg'));else done(null)}};
  function koliBatch(s,filterFn,toStatus){const K=kmap(),out=[];view('UNLOADING_RESI').filter(r=>r.sesi_id===s.id).forEach(r=>universe(r).forEach(n=>{const k=K.get(poKey(r.po)+'|'+n);if(filterFn(k,n)&&!out.some(o=>o.po===poKey(r.po)&&o.n===n))out.push({po:poKey(r.po),n,r,k})}));return out}
  function onClick(e){
@@ -4279,7 +4279,7 @@ init();
    rec.start(1000);t0=Date.now();q('#gr-vrec').hidden=true;q('#gr-vstop').hidden=false;tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);info('Merekam… '+s+' / 15 detik');if(s>=15&&rec.state==='recording')rec.stop()},300)};
   q('#gr-vstop').onclick=()=>{if(rec&&rec.state==='recording')rec.stop()};
   return{get:()=>blob,recording:()=>!!(rec&&rec.state==='recording'),close:()=>{try{if(rec&&rec.state==='recording')rec.stop()}catch(e){}stopS()}}}
- function blobB64(b){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(b)})}
+ function blobB64(b){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).replace(/^[\s\S]*?;base64,/,''));fr.onerror=rej;fr.readAsDataURL(b)})}
 
  // ---- counting
  const cntOf=(po,k)=>view('GR_COUNT').filter(c=>poKey(c.po)===po&&Number(c.no_koli)===Number(k));
@@ -4343,7 +4343,7 @@ init();
  const mokaCols=()=>{const hi=moka&&moka.rows.findIndex(r=>r.some(c=>/VARIANT NAME|ITEMS NAME/i.test(c)));if(hi==null||hi<0)return null;const h=moka.rows[hi];return{hi,h,iN:h.findIndex(c=>/ITEMS NAME/i.test(c)),iV:h.findIndex(c=>/VARIANT NAME/i.test(c)),iO:h.findIndex(c=>U(c)==='ORDER'),iC:h.findIndex(c=>/UNIT COST/i.test(c)),iE:h.findIndex(c=>/SUPPLIER EMAIL/i.test(c))}};
  const norm=s=>U(s).replace(/\b(MAMU|MYNO)\b/g,'').replace(/\s+/g,' ').trim();
  function entryData(po){
-  const agg={};cntOf2(po).forEach(c=>{const k=norm(c.item);if(!agg[k])agg[k]={item:c.item,qty:0};agg[k].qty+=num(c.qty_actual)});
+  const agg={};view('PUTAWAY').filter(p=>poKey(p.po)===po).forEach(c=>{const k=norm(c.item);if(!agg[k])agg[k]={item:c.item,qty:0};agg[k].qty+=num(c.qty)});
   const hpp=new Map(view('HPP_ITEM').filter(h=>poKey(h.po)===po).map(h=>[norm(h.item),num(h.cogs)])),mc=mokaCols(),exact=new Map(),loose=new Map();
   if(mc)moka.rows.slice(mc.hi+1).forEach(r=>{const nm=U(r[mc.iN>=0?mc.iN:mc.iV]||r[mc.iV]);if(!nm)return;if(!exact.has(nm))exact.set(nm,r);const k=norm(nm);if(k&&!loose.has(k))loose.set(k,r)});
   return Object.values(agg).map(x=>{const k=norm(x.item),row=exact.get(U(x.item))||loose.get(k);return Object.assign(x,{cogs:hpp.get(k)||0,moka:row||null})}).sort((a,b)=>a.item.localeCompare(b.item))}
@@ -4364,12 +4364,12 @@ init();
  function drawEntry(){
   if(!canAdmin())return '<p class="note">Data Entry ke MOKA hanya untuk Admin atau SPV.</p>';
   if(!moka){loadMoka().then(draw).catch(e=>{moka={rows:[],when:''};loadErr=String(e.message||e);draw()});return '<p class="sub">Memuat template MOKA…</p>'}
-  const pos=[...new Set(view('GR_COUNT').map(c=>poKey(c.po)))].sort();if(!entryPo&&pos.length)entryPo=pos[0];
-  let h='<div class="card"><h3>Template MOKA</h3><p class="sub">'+(moka.rows.length?'Template terpasang: '+esc(moka.when)+'. Unggah ulang bila daftar item MOKA berubah.':'Belum ada template. Unggah file template import PO dari MOKA (Excel atau CSV, kolom Variant Name, Order, Unit Cost).')+'</p><input id="gr-moka" type="file" accept=".xlsx,.xls,.csv"></div>';
-  h+='<div class="card" style="margin-top:12px"><h3>Buat file import PO ke MOKA</h3><p class="sub">Qty diambil dari hasil counting (qty actual) dan Unit Cost dari HPP (COGS). Hanya item yang ada di PO ini yang masuk ke file.</p><div class="field" style="max-width:320px"><label for="gr-epo">PO</label><select id="gr-epo">'+pos.map(p=>'<option'+(p===entryPo?' selected':'')+'>'+esc(p)+'</option>').join('')+'</select></div>';
+  const pos=[...new Set(view('PUTAWAY').map(c=>poKey(c.po)))].sort();if(!entryPo&&pos.length)entryPo=pos[0];
+  let h='<details class="card"><summary><strong>Template MOKA</strong> <span class="sub">('+(moka.rows.length?'terpasang: '+esc(moka.when):'belum terpasang')+')</span></summary><p class="sub">Daftar item MOKA sudah disiapkan sistem, admin tidak perlu mengunggah apa pun untuk membuat file import. Unggah ulang hanya bila ada item baru di MOKA (file Import - Items Purchase Order dari MOKA, header tidak diubah).</p><input id="gr-moka" type="file" accept=".xlsx,.xls,.csv"></details>';
+  h+='<div class="card" style="margin-top:12px"><h3>Buat file import PO ke MOKA</h3><p class="sub">Hanya item yang sudah selesai put away yang masuk ke file. Qty diambil dari hasil put away dan Unit Cost dari HPP (COGS). Kolom lain mengikuti template MOKA dan email supplier terisi otomatis.</p><div class="field" style="max-width:320px"><label for="gr-epo">PO</label><select id="gr-epo">'+pos.map(p=>'<option'+(p===entryPo?' selected':'')+'>'+esc(p)+'</option>').join('')+'</select></div>';
   if(entryPo){const d=entryData(entryPo),ok=d.filter(x=>x.moka&&x.cogs&&x.qty>0),miss=d.filter(x=>!x.moka||!x.cogs);
    h+='<p class="sub">'+d.length+' item · siap '+ok.length+(miss.length?' · <span style="color:#b3261e">perlu dicek '+miss.length+'</span>':'')+'</p><div style="overflow:auto;max-height:340px"><table><thead><tr><th>Item</th><th>Qty actual</th><th>COGS</th><th>MOKA</th></tr></thead><tbody>'+d.map(x=>'<tr><td>'+esc(x.item)+'</td><td>'+x.qty+'</td><td>'+(x.cogs?x.cogs.toLocaleString('id-ID'):'<span class="tag red">tidak ada HPP</span>')+'</td><td>'+(x.moka?'<span class="tag green">cocok</span>':'<span class="tag red">tidak ada di template</span>')+'</td></tr>').join('')+'</tbody></table></div><div class="ob-actions"><button class="button" data-gcsv="1" type="button"'+(ok.length||d.some(x=>x.moka)?'':' disabled')+'>Unduh file import MOKA (CSV)</button></div>'}
-  else h+='<p class="sub">Belum ada hasil counting.</p>';
+  else h+='<p class="sub">Belum ada item yang selesai put away.</p>';
   return h+'</div>'}
 
  // ---- master bin
