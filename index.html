@@ -4353,7 +4353,7 @@ init();
   const mc=mokaCols(),rows=entryData(po).filter(x=>x.moka&&x.qty>0);if(!mc||!rows.length)return say('Tidak ada item yang cocok dengan template MOKA.',true);
   const email=supplierEmail(po),q=v=>{v=String(v==null?'':v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v},fmt=n=>(Math.round(n*1000)/1000).toLocaleString('id-ID',{maximumFractionDigits:3});
   const lines=[mc.h.map(q).join(',')];
-  rows.forEach(x=>{const r=x.moka.slice();while(r.length<mc.h.length)r.push('');if(mc.iO>=0)r[mc.iO]=String(x.qty);if(mc.iC>=0&&x.cogs)r[mc.iC]=fmt(x.cogs);if(mc.iE>=0&&email)r[mc.iE]=email;lines.push(r.map(q).join(','))});
+  rows.forEach(x=>{const r=x.moka.slice();while(r.length<mc.h.length)r.push('');if(mc.iO>=0)r[mc.iO]=String(x.qty);if(mc.iC>=0)r[mc.iC]=x.cogs?fmt(x.cogs):'';if(mc.iE>=0&&email)r[mc.iE]=email;lines.push(r.map(q).join(','))});
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\r\n')+'\r\n'],{type:'text/csv'}));a.download='Import-MOKA-'+po+'-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();say('File import MOKA dibuat ('+rows.length+' item'+(email?', email supplier '+email:', email supplier belum ada di master vendor')+').')}
  async function uploadMoka(file){
   try{const rows=await readRows(file);const hi=rows.findIndex(r=>r.some(c=>/VARIANT NAME/i.test(String(c))));if(hi<0)throw new Error('Template MOKA tidak dikenali (kolom Variant Name tidak ada).');
