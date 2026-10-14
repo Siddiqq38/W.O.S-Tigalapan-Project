@@ -303,17 +303,18 @@ function stok_() {
   const sh = sheet_('STOK_BIN'), H = TABS.STOK_BIN, last = sh.getLastRow();
   if (last < 2) return [];
   const v = sh.getRange(2, 1, last - 1, H.length).getValues();
-  const iB = H.indexOf('bin'), iS = H.indexOf('sku'), iI = H.indexOf('item'), iM = H.indexOf('qty_masuk'), iK = H.indexOf('qty_keluar'), iW = H.indexOf('waktu_server'), iT = H.indexOf('tanggal');
+  const iB = H.indexOf('bin'), iS = H.indexOf('sku'), iI = H.indexOf('item'), iM = H.indexOf('qty_masuk'), iK = H.indexOf('qty_keluar'), iW = H.indexOf('waktu_server'), iT = H.indexOf('tanggal'), iJ = H.indexOf('jenis'), iP = H.indexOf('pic_kode');
   const m = {};
   v.forEach(function (r) {
     const bin = String(r[iB] || '').trim(), sku = String(r[iS] || '').trim();
     if (!bin && !sku) return;
     const k = bin + '|' + sku;
-    const o = m[k] || (m[k] = { bin: bin, sku: sku, item: '', masuk: 0, keluar: 0, awal: '' });
+    const o = m[k] || (m[k] = { bin: bin, sku: sku, item: '', masuk: 0, keluar: 0, awal: '', akhir: '', oleh: '', jenis_akhir: '' });
     if (!o.item && r[iI]) o.item = String(r[iI]);
     o.masuk += Number(r[iM]) || 0;
     const wk = String(r[iW] || r[iT] || '');
-    if ((Number(r[iM]) || 0) > 0 && wk && (!o.awal || wk < o.awal)) o.awal = wk;   // waktu masuk paling awal (dasar FIFO)
+    if ((Number(r[iM]) || 0) > 0 && wk && (!o.awal || wk < o.awal)) o.awal = wk;
+    if ((Number(r[iM]) || 0) > 0 && wk && (!o.akhir || wk > o.akhir)) { o.akhir = wk; o.oleh = String(r[iP] || ''); o.jenis_akhir = String(r[iJ] || ''); }   // waktu masuk paling awal (dasar FIFO)
     o.keluar += Number(r[iK]) || 0;
   });
   return Object.keys(m).map(function (k) { const o = m[k]; o.saldo = o.masuk - o.keluar; return o; });

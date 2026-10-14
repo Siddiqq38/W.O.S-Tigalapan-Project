@@ -4822,7 +4822,7 @@ init();
  const staffOps=()=>Object.entries((()=>{try{return staffMaster}catch(e){return{}}})()).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
  const isSpv=()=>['supervisor','manager'].includes(level());
  const NAMES=['Layout','Stok Opname','Cycle Count','Internal Move','Adjustment','Saldo Awal'];
- let body=null,tabName='Layout',cur=null,msg='',msgBad=false,loading=false,loadedAt=0,loadErr='',stokRows=[],filterOp='',mapMode='stok',selRack='',selBin='',ry=-28,moves=[],movesAt=0,recN=15,soN=30,cnt={},mv={from:'',sku:'',qty:'',to:'',alasan:'Konsolidasi'},adjForm={bin:'',sku:'',fisik:'',alasan:''},savedMsg='';
+ let body=null,tabName='Layout',cur=null,msg='',msgBad=false,loading=false,loadedAt=0,loadErr='',stokRows=[],filterOp='',mapMode='stok',selRack='',selRacks=[],mapZoom=1,selBin='',ry=-28,moves=[],movesAt=0,recN=15,soN=30,cnt={},mv={from:'',sku:'',qty:'',to:'',alasan:'Konsolidasi'},adjForm={bin:'',sku:'',fisik:'',alasan:''},savedMsg='';
  const say=(t,bad)=>{msg=t;msgBad=!!bad;draw()};
  if(!document.getElementById('lc-style')){const st=document.createElement('style');st.id='lc-style';st.textContent='.lc-map{display:grid;grid-template-columns:42px 14px 42px 14px 42px 42px 14px 42px 42px 14px 42px 42px 14px 42px 42px 14px 42px;grid-template-rows:repeat(23,30px) 14px 30px;gap:3px;min-width:720px;padding:8px;background:#f2f2f2;border-radius:10px}.lc-c{border:1px solid #6b7b8c;border-radius:4px;font-size:10px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;line-height:1.1;color:#223}.lc-c.sel{outline:3px solid #b5532a;z-index:2}.lc-c.na{opacity:.35;cursor:default}.lc-c i{position:absolute;left:0;bottom:0;height:4px;background:#2e9b5a;opacity:.85}.lc-row{display:flex;gap:3px}.lc-row .lc-c{flex:1;min-height:30px}.lc-z-g{background:#dce9f7}.lc-z-s{background:#dfe6ee}.lc-z-b{background:#f9e7a8}.lc-z-lp{background:#fff}.lc-scene{position:relative;margin:30px auto;transform-style:preserve-3d;touch-action:none;cursor:grab}.lc-persp{perspective:1100px;overflow:hidden;background:linear-gradient(#f7f9fc,#e3e9f1);border-radius:12px}.lc-cube{position:absolute;transform-style:preserve-3d}.lc-cube .f{position:absolute;box-sizing:border-box;border:1px solid rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font:700 11px Arial;color:#222}.lc-bin .f{cursor:pointer}.lc-lg{display:inline-block;width:12px;height:12px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-2px;border:1px solid #666}';document.head.appendChild(st)}
 
@@ -4838,11 +4838,10 @@ init();
  async function loadMoves(){if(Date.now()-movesAt<60000)return;movesAt=Date.now();try{const r=await call({action:'list',tab:'STOK_BIN',from:back(60),to:today()},true);if(r.ok){moves=r.rows;draw()}}catch(e){}}
  let ohC={s:null,p:null,m:null};
  function oh(){const pend=view('STOK_BIN');if(ohC.s===stokRows&&ohC.p===pend)return ohC.m;
-  const m=new Map(),aw=new Map(),add=(bin,sku,item,q,awal)=>{const k=bin+'|'+sku;let o=m.get(k);if(!o){o={bin,sku,item:item||sku,qty:0,awal:''};m.set(k,o)}o.qty+=q;if(awal&&(!o.awal||awal<o.awal))o.awal=awal};
-  stokRows.forEach(r=>add(r.bin,r.sku,r.item,num(r.saldo),r.awal));pend.forEach(r=>add(r.bin,r.sku,r.item,num(r.qty_masuk)-num(r.qty_keluar),null));
+  const m=new Map(),add=(bin,sku,item,q,awal,akhir,oleh,jn)=>{const k=bin+'|'+sku;let o=m.get(k);if(!o){o={bin,sku,item:item||sku,qty:0,awal:'',akhir:'',oleh:'',jn:''};m.set(k,o)}o.qty+=q;if(awal&&(!o.awal||awal<o.awal))o.awal=awal;if(akhir&&(!o.akhir||akhir>o.akhir)){o.akhir=akhir;o.oleh=oleh||'';o.jn=jn||''}};
+  stokRows.forEach(r=>add(r.bin,r.sku,r.item,num(r.saldo),r.awal,r.akhir,r.oleh,r.jenis_akhir));pend.forEach(r=>{const q=num(r.qty_masuk)-num(r.qty_keluar);add(r.bin,r.sku,r.item,q,null,num(r.qty_masuk)>0?stIso().replace('T',' ').slice(0,19):'',r.pic_kode,r.jenis)});
   const byBin=new Map();m.forEach(o=>{if(o.qty!==0){(byBin.get(o.bin)||byBin.set(o.bin,[]).get(o.bin)).push(o)}});
-  ohC={s:stokRows,p:pend,m:{map:m,byBin}};return ohC.m}
- const binTotal=b=>(oh().byBin.get(b)||[]).reduce((a,o)=>a+o.qty,0);
+  ohC={s:stokRows,p:pend,m:{map:m,byBin}};return ohC.m} const binTotal=b=>(oh().byBin.get(b)||[]).reduce((a,o)=>a+o.qty,0);
  const masterBins=()=>view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif');
  const binKey=id=>{const m=/^([A-Z]+)(\d+)\.(\w+)$/.exec(id);if(!m)return[9,id,0,0];const b=m[3];return[m[1].length>1?2:1,m[1],Number(m[2]),/^\d+$/.test(b)?Number(b):(b==='L'?1000:1001)]};
  const cmpBin=(a,b)=>{const x=binKey(a),y=binKey(b);return x[0]-y[0]||String(x[1]).localeCompare(String(y[1]))||x[2]-y[2]||x[3]-y[3]};
@@ -4855,26 +4854,25 @@ init();
  // ---- layout gudang
  // Denah dijiplak dari gambar lampiran (957 x 631 px = 30 m x 20 m). Penomoran mengikuti skema blok (diputar 90 derajat berlawanan arah jarum jam).
  const PLAN=(()=>{
-  const cells=[],seq=(p,a,b)=>{const o=[];for(let i=a;i<=b;i++)o.push(p+i);return o},rev=a=>a.slice().reverse(),pad=(a,n)=>a.concat(Array(Math.max(0,n-a.length)).fill(''));
-  const run=(ids,x,y,w,h)=>{let cx=x;ids.forEach((id,i)=>{cells.push({id,x:cx,y,w:w[i],h});cx+=w[i]})};
-  const col=(ids,x,w,ys,h)=>ids.forEach((id,i)=>cells.push({id,x,y:ys[i],w,h})),dk=(ids,x,y,w,h)=>ids.forEach((id,i)=>cells.push({id,x:x+i*w,y,w,h,dark:true}));
-  run(seq('A',1,23),13,17,[35,35,36,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36],26);
-  col(rev(seq('B',1,11)),13,26,[113,151,188,225,262,300,337,374,412,449,486],36);
-  col(rev(seq('H',1,16)),914,26,[17,54,91,129,166,203,240,278,315,352,389,427,464,501,538,576],36);
-  run(seq('G',1,23),45,592,[45,35,35,36,36,35,35,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36],26);
+  const cells=[],seq=(p,a,b)=>{const o=[];for(let i=a;i<=b;i++)o.push(p+i);return o},rev=a=>a.slice().reverse();
+  const run=(ids,x,y,w,h,g)=>{let cx=x;ids.forEach((id,i)=>{cells.push({id,x:cx,y,w:w[i],h,g});cx+=w[i]})};
+  const col=(ids,x,w,ys,h,g)=>ids.forEach((id,i)=>cells.push({id,x,y:ys[i],w,h:h,g})),dk=(ids,x,y,w,h,g)=>ids.forEach((id,i)=>cells.push({id,x:x+i*w,y,w,h,dark:true,g}));
+  run(seq('A',1,23),13,17,[35,35,36,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36],26,'A');
+  col(rev(seq('B',1,11)),13,26,[113,151,188,225,262,300,337,374,412,449,486],36,'B');
+  col(rev(seq('H',1,16)),914,26,[17,54,91,129,166,203,240,278,315,352,389,427,464,501,538,576],36,'H');
+  run(seq('G',1,23),45,592,[45,35,35,36,36,35,35,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36],26,'G');
   const w7=[30,29,30,29,30,29,30],w11=[30,29,30,29,30,29,29,30,29,29,30];
-  run(seq('LP1.',11,17),240,81,w7,23);run(pad(seq('LP1.',5,10),7),240,111,w7,22);
-  run(pad(seq('LP2.',11,20),11),509,81,w11,23);run(pad(seq('LP2.',1,10),11),509,111,w11,22);
-  dk(seq('LP1.',1,4),85,96,38,39);
+  run(seq('LP1.',12,18),240,81,w7,23,'LP1');run(seq('LP1.',5,11),240,111,w7,22,'LP1');dk(seq('LP1.',1,4),85,96,38,39,'LP1');
+  run(seq('LP2.',12,22),509,81,w11,23,'LP2');run(seq('LP2.',1,11),509,111,w11,22,'LP2');
   const wC=[46,46,46,46,45,45,45,45],wD=[45,45,46,45,45,45,45,45];
-  run(seq('C',1,8),86,182,wC,26);run(seq('C',9,16),86,210,wC,26);run(seq('D',1,8),509,182,wD,26);run(seq('D',9,16),509,210,wD,26);
+  run(seq('C',1,8),86,182,wC,26,'C');run(seq('C',9,16),86,210,wC,26,'C');run(seq('D',1,8),509,182,wD,26,'D');run(seq('D',9,16),509,210,wD,26,'D');
   const m1=[30,30,29,30,29,30,30,29,30,30,30],m2=[30,29,30,29,30,29,29,30,29,30,30];
-  run(seq('LP3.',11,20).concat('LP3.22'),85,287,m1,23);run(seq('LP3.',1,10).concat('LP3.21'),85,316,m1,23);
-  run(seq('LP4.',11,20).concat('LP4.22'),508,287,m2,23);run(seq('LP4.',1,10).concat('LP4.21'),508,316,m2,23);
+  run(seq('LP3.',12,22),85,287,m1,23,'LP3');run(seq('LP3.',1,11),85,316,m1,23,'LP3');run(seq('LP4.',12,22),508,287,m2,23,'LP4');run(seq('LP4.',1,11),508,316,m2,23,'LP4');
   const e1=[36,36,36,36,35,36,35,36,36,35],f1=[36,35,36,35,36,35,36,35,35,36];
-  run(seq('E',1,10),85,393,e1,27);run(seq('E',11,20),85,423,e1,26);run(seq('F',1,10),508,393,f1,27);run(seq('F',11,20),508,423,f1,26);
-  dk(seq('LP5.',1,10),84,502,38,38);dk(seq('LP6.',1,10),506,501,38,38);
-  return{W:957,H:631,cells,ids:new Set(cells.map(c=>c.id).filter(Boolean))}})(); let rackIdx={m:null,n:-1};
+  run(seq('E',1,10),85,393,e1,27,'E');run(seq('E',11,20),85,423,e1,26,'E');run(seq('F',1,10),508,393,f1,27,'F');run(seq('F',11,20),508,423,f1,26,'F');
+  dk(seq('LP5.',1,10),84,502,38,38,'LP5a');dk(seq('LP5.',11,20),506,501,38,38,'LP5b');
+  const box={};cells.forEach(c=>{const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:0,y2:0});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});
+  return{W:957,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}})(); let rackIdx={m:null,n:-1};
  function rackIndex(){const mb=masterBins();if(rackIdx.m&&rackIdx.n===mb.length)return rackIdx.m;const m=new Map();mb.forEach(b=>{let r=/^([A-Z]+\d+)\./.exec(b.id);const k=r&&!/^LP/.test(b.id)?r[1]:b.id;(m.get(k)||m.set(k,{id:k,zona:b.zona||'',bins:[]}).get(k)).bins.push(b)});m.forEach(r=>r.bins.sort((a,b)=>cmpBin(a.id,b.id)));rackIdx={m,n:mb.length};return m}
  function rackKey(id){return /^LP\d+\.\d+$/.test(id)?null:id}
  function rackStat(r){let occ=0,qty=0,old=0,never=0;const lm=lastMap();r.bins.forEach(b=>{const q=binTotal(b.id);if(q>0){occ++;qty+=q;const d=daysAgo(lm.get(b.id));if(d>180)old++;if(d===9999)never++}});return{occ,qty,old,never,total:r.bins.length}}
@@ -4884,17 +4882,20 @@ init();
  function cellClass(r){const z=U(r.zona);return z.indexOf('GOLDEN')>=0?'lc-z-g':z.indexOf('SILVER')>=0?'lc-z-s':z.indexOf('BRONZE')>=0?'lc-z-b':'lc-z-lp'}
  function drawMap(){
   const R=rackIndex();let g='';
-  PLAN.cells.forEach(c=>{const r=R.get(c.id),fs=c.w<32?8:9;
+  PLAN.cells.forEach(c=>{const r=R.get(c.id),fs=/^LP/.test(c.id)&&c.w<=31?7:c.w<32?8:9;
    if(!c.id){g+='<rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#fafafa" stroke="#c4ccd6"/>';return}
    if(!r){g+='<g opacity=".4"><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#f4f4f4" stroke="#8a97a6"/><text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" text-anchor="middle" fill="#789">'+esc(c.id)+'</text></g>';return}
-   const s=rackStat(r),pct=s.total?s.occ/s.total:0,z=U(r.zona);
+   const s=rackStat(r),pct=s.total?s.occ/s.total:0,z=U(r.zona),on=selRacks.includes(c.id);
    let fill=c.dark?'#9aa0a8':z.indexOf('GOLDEN')>=0?'#cfe0f5':z.indexOf('SILVER')>=0?'#e3e9f0':z.indexOf('BRONZE')>=0?'#f9e7a8':'#ffffff';
    if(mapMode==='hitung')fill=!s.occ?'#f4f4f4':s.never?'#f7b9b0':s.old?'#fbd89c':'#bfe6cb';
-   g+='<g data-lcrack="'+esc(c.id)+'" style="cursor:pointer"><title>'+esc(c.id+' · '+s.occ+'/'+s.total+' bin terisi · '+s.qty+' pcs')+'</title><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="'+fill+'" stroke="'+(selRack===c.id?'#b5532a':'#5f6f80')+'" stroke-width="'+(selRack===c.id?2.5:1)+'"/>'+(mapMode==='stok'&&pct?'<rect x="'+(c.x+1)+'" y="'+(c.y+c.h-4)+'" width="'+((c.w-2)*pct)+'" height="3" fill="#2e9b5a"/>':'')+'<text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" font-weight="700" text-anchor="middle" fill="'+(c.dark?'#fff':'#223')+'" pointer-events="none">'+esc(c.id)+'</text></g>'});
+   g+='<g data-lcrack="'+esc(c.id)+'" style="cursor:pointer"><title>'+esc(c.id+' · '+s.occ+'/'+s.total+' bin terisi · '+s.qty+' pcs')+'</title><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="'+fill+'" stroke="'+(on?'#b5532a':'#5f6f80')+'" stroke-width="'+(on?2.5:1)+'"/>'+(mapMode==='stok'&&pct?'<rect x="'+(c.x+1)+'" y="'+(c.y+c.h-4)+'" width="'+((c.w-2)*pct)+'" height="3" fill="#2e9b5a"/>':'')+'<text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" font-weight="700" text-anchor="middle" fill="'+(c.dark?'#fff':'#223')+'" pointer-events="none">'+esc(c.id)+'</text></g>'});
+  const yellow='<g fill="none" stroke="#f2c200" stroke-width="3" pointer-events="none">'+PLAN.box.map(b=>'<rect x="'+(b.x1-3)+'" y="'+(b.y1-3)+'" width="'+(b.x2-b.x1+6)+'" height="'+(b.y2-b.y1+6)+'" rx="2"/>').join('')+'</g>';
   const dash='<g stroke="#9aa5b1" stroke-dasharray="4 4" stroke-width="1"><line x1="270" y1="44" x2="270" y2="586"/><line x1="534" y1="44" x2="534" y2="586"/><line x1="797" y1="44" x2="797" y2="586"/><line x1="40" y1="309" x2="912" y2="309"/></g>';
+  const lt=(x,y,t,rot)=>'<text x="'+x+'" y="'+y+'" font-size="9" font-weight="700" fill="#8b6b00" text-anchor="middle" letter-spacing="1"'+(rot?' transform="rotate(-90 '+x+' '+y+')"':'')+'>'+t+'</text>';
+  const aisles=[[62,1],[158,2],[262,3],[366,4],[476,5],[566,6]].map(a=>lt(150,a[0]+3,'LORONG '+a[1])+lt(700,a[0]+3,'LORONG '+a[1])).join('')+lt(62,330,'LORONG 1.A',1)+lt(490,330,'LORONG 1.B',1)+lt(903,330,'LORONG 1.C',1);
   const doors='<rect x="5" y="49" width="16" height="62" fill="#4aa896" stroke="#2a6b5e"/><text transform="translate(16 80) rotate(-90)" font-size="8" text-anchor="middle" fill="#fff" font-weight="700">INBOUND</text><rect x="5" y="523" width="16" height="63" fill="#e8636a" stroke="#9b2c33"/><text transform="translate(16 554) rotate(-90)" font-size="8" text-anchor="middle" fill="#fff" font-weight="700">OUTBOUND</text>';
   const scale='<g font-size="9" fill="#456"><line x1="600" y1="620" x2="919" y2="620" stroke="#456" stroke-width="2"/><text x="760" y="617" text-anchor="middle">10 m</text></g>';
-  return '<div style="overflow:auto"><svg viewBox="0 0 957 631" style="width:100%;min-width:780px;max-width:1150px;background:#f7f7f7;border:2px solid #7d8794;border-radius:6px"><rect x="4" y="8" width="948" height="618" fill="none" stroke="#9aa5b1"/>'+dash+g+doors+scale+'</svg></div><p class="sub">Denah skala 30 m × 20 m. Pintu hijau = inbound, merah = outbound. Kotak kosong tanpa nomor belum dipakai.</p>'} const legend=()=>mapMode==='stok'?'<span class="lc-lg" style="background:#cfe0f5"></span>Golden<span class="lc-lg" style="background:#e3e9f0"></span>Silver<span class="lc-lg" style="background:#f9e7a8"></span>Bronze<span class="lc-lg" style="background:#9aa0a8"></span>Palet plastik · garis hijau = persen bin terisi':'<span class="lc-lg" style="background:#bfe6cb"></span>dihitung &lt;180 hari<span class="lc-lg" style="background:#fbd89c"></span>&gt;180 hari<span class="lc-lg" style="background:#f7b9b0"></span>belum pernah dihitung<span class="lc-lg" style="background:#f4f4f4"></span>kosong';
+  return '<div style="overflow:auto;max-height:78vh"><svg viewBox="0 0 957 631" style="width:'+(mapZoom*100)+'%;min-width:'+Math.round(780*mapZoom)+'px;'+(mapZoom>1?'':'max-width:1150px;')+'background:#f7f7f7;border:2px solid #7d8794;border-radius:6px"><rect x="4" y="8" width="948" height="618" fill="none" stroke="#9aa5b1"/>'+dash+aisles+yellow+g+doors+scale+'</svg></div><p class="sub">Denah skala 30 m × 20 m. Pintu hijau = inbound, merah = outbound, garis kuning = batas blok rak. Klik beberapa rak sekaligus untuk membandingkan.</p>'} const legend=()=>mapMode==='stok'?'<span class="lc-lg" style="background:#cfe0f5"></span>Golden<span class="lc-lg" style="background:#e3e9f0"></span>Silver<span class="lc-lg" style="background:#f9e7a8"></span>Bronze<span class="lc-lg" style="background:#9aa0a8"></span>Palet plastik · garis hijau = persen bin terisi':'<span class="lc-lg" style="background:#bfe6cb"></span>dihitung &lt;180 hari<span class="lc-lg" style="background:#fbd89c"></span>&gt;180 hari<span class="lc-lg" style="background:#f7b9b0"></span>belum pernah dihitung<span class="lc-lg" style="background:#f4f4f4"></span>kosong';
 
  // ---- rak 3D
  function cube(w,h,d,color,inner,attrs,extra){
@@ -4905,27 +4906,35 @@ init();
    f('width:'+w+'px;height:'+d+'px;top:'+(h-d)/2+'px','rotateX(90deg) translateZ('+h/2+'px)')+f('width:'+w+'px;height:'+d+'px;top:'+(h-d)/2+'px','rotateX(-90deg) translateZ('+h/2+'px)')+'</div>'}
  function rack3D(id){
   const r=rackIndex().get(id);if(!r)return '';
+  const t=v=>v===1000?-2:v===1001?-1:v,ord=(a,b)=>t(binKey(a.id)[3])-t(binKey(b.id)[3]);
   const lv=new Map();r.bins.forEach(b=>{const l=num(b.level)||0;(lv.get(l)||lv.set(l,[]).get(l)).push(b)});
   let levels=[...lv.keys()].sort((a,b)=>b-a);
-  if(levels.length===1&&levels[0]===0){const arr=r.bins.slice();lv.clear();levels=[];for(let i=0;i<arr.length;i+=2){const k=1000-i;levels.push(k);lv.set(k,arr.slice(i,i+2))}}
-  levels.forEach(l=>lv.get(l).sort((a,b)=>{const x=binKey(a.id)[3],y=binKey(b.id)[3];const t=v=>v===1000?-2:v===1001?-1:v;return t(x)-t(y)}));
-  const W=84,H=50,D=66,GX=8,GY=12,cols=Math.max(...levels.map(l=>lv.get(l).length)),sw=cols*(W+GX),sh=levels.length*(H+GY);
+  if(levels.length===1&&levels[0]===0){const arr=r.bins.slice().sort(ord);lv.clear();levels=[];for(let i=0;i<arr.length;i+=2){const k=1000-i;levels.push(k);lv.set(k,arr.slice(i,i+2))}}
+  levels.forEach(l=>lv.get(l).sort(ord));
+  const W=100,H=62,D=64,PH=13,GX=6,RH=H+PH+8,cols=Math.max(...levels.map(l=>lv.get(l).length)),sw=cols*(W+GX),sh=levels.length*RH;
   let h='';
   [0,cols].forEach(i=>{h+=cube(6,sh+4,D+14,'#3a3f47','',null,'left:'+(i*(W+GX)-GX/2-3)+'px;top:-2px')});
-  levels.forEach((l,li)=>{h+=cube(sw,6,D+14,'#c9a46a','',null,'left:-4px;top:'+(li*(H+GY)+H+2)+'px');
-   lv.get(l).forEach((b,bi)=>{const t=binTotal(b.id),its=(oh().byBin.get(b.id)||[]).length,short=b.id.split('.').pop();const col=selBin===b.id?'#e0782b':t>0?'#f4c25b':'#dfe9f5';
-    h+=cube(W,H,D,col,'<span>'+esc(short)+(t>0?'<br>'+t:'')+'</span>','data-lcbin="'+esc(b.id)+'"','left:'+(bi*(W+GX))+'px;top:'+(li*(H+GY))+'px')})});
-  return '<div class="lc-persp"><div style="height:'+(sh+70)+'px;padding-top:10px"><div class="lc-scene" id="lc-scene" style="width:'+sw+'px;height:'+sh+'px;transform:rotateX(-14deg) rotateY('+ry+'deg)">'+h+'</div></div></div>'}
- function binDetail(id){
+  levels.forEach((l,li)=>{lv.get(l).forEach((b,bi)=>{
+   const its=(oh().byBin.get(b.id)||[]).slice().sort((x,y)=>y.qty-x.qty),tot=its.reduce((a,o)=>a+o.qty,0),short=b.id.split('.').pop(),x=bi*(W+GX),y=li*RH,sel=selBin===b.id,at='data-lcbin="'+esc(b.id)+'"';
+   h+=cube(W,H,D,sel?'rgba(224,120,43,.35)':'rgba(223,233,245,.30)','',at,'left:'+x+'px;top:'+y+'px');
+   if(its.length){const nm=its[0].item.length>26?its[0].item.slice(0,25)+'…':its[0].item;h+=cube(W-14,H-20,D-18,sel?'#e0782b':'#f4c25b','<span style="text-align:center;font:600 9px/1.15 Arial;padding:2px"> '+esc(nm)+(its.length>1?' <i>+'+(its.length-1)+' item</i>':'')+'<br><b style="font-size:11px">'+tot+'</b></span>',at,'left:'+(x+7)+'px;top:'+(y+H-(H-20))+'px')}
+   h+=cube(W+GX,PH,D+10,'#c9a46a','<b style="font-size:10px;color:#3b2a10;letter-spacing:.5px">'+esc(short)+'</b>',at,'left:'+(x-GX/2)+'px;top:'+(y+H)+'px')})});
+  return '<div class="lc-persp" style="flex:1;min-width:'+(sw+80)+'px"><div style="height:'+(sh+60)+'px;padding-top:10px"><div class="lc-scene" style="width:'+sw+'px;height:'+sh+'px;transform:rotateX(-12deg) rotateY('+ry+'deg)">'+h+'</div></div></div>'}
+ function rackTable(id){
+  const r=rackIndex().get(id);if(!r)return '';const rows=[];
+  r.bins.forEach(b=>(oh().byBin.get(b.id)||[]).forEach(o=>rows.push({b:b.id,o})));
+  return '<table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Masuk terakhir</th><th>Oleh</th></tr></thead><tbody>'+(rows.length?rows.map(x=>'<tr><td><strong>'+esc(x.b)+'</strong></td><td>'+esc(x.o.item)+'</td><td><strong>'+x.o.qty+'</strong></td><td>'+(x.o.akhir?esc(String(x.o.akhir).slice(0,16))+(x.o.jn?' <span class="sub">'+esc(x.o.jn)+'</span>':''):'<span class="sub">-</span>')+'</td><td>'+(x.o.oleh?esc(nameOf(x.o.oleh)):'<span class="sub">-</span>')+'</td></tr>').join(''):'<tr><td colspan="5" class="sub">Rak kosong.</td></tr>')+'</tbody></table>'} function binDetail(id){
   const items=(oh().byBin.get(id)||[]).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))),lm=lastMap().get(id),mb=masterBins().find(b=>b.id===id)||{};
   return '<div class="card" style="margin-top:10px"><h3 style="margin:0">Bin '+esc(id)+' <span class="sub">'+esc(mb.zona||'')+(mb.level?' · level '+esc(mb.level):'')+' · total '+items.reduce((a,o)=>a+o.qty,0)+' pcs</span></h3><p class="sub">Terakhir dihitung: '+(lm?esc(lm)+' ('+daysAgo(lm)+' hari lalu)':'<strong style="color:#b3261e">belum pernah dihitung</strong>')+'</p><datalist id="lc-abins">'+masterBins().map(b=>b.id).sort(cmpBin).slice(0,3000).map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist>'+
-  (items.length?'<div style="overflow:auto"><table><thead><tr><th>Item</th><th>On hand</th><th>FIFO</th><th>Pindahkan</th></tr></thead><tbody>'+items.map(o=>'<tr><td>'+esc(o.item)+'</td><td><strong>'+o.qty+'</strong></td><td>'+esc((o.awal||'').slice(0,10))+'</td><td style="white-space:nowrap"><input data-lcmq="'+esc(o.sku)+'" type="number" min="1" max="'+o.qty+'" value="'+o.qty+'" style="width:70px"> ke <input data-lcmt="'+esc(o.sku)+'" list="lc-abins" placeholder="bin / lokasi tujuan" style="width:140px"> <button class="button" data-lcmvnow="'+esc(o.sku)+'" data-lcmvbin="'+esc(id)+'" type="button">Pindah</button></td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Bin kosong.</p>')+
+  (items.length?'<div style="overflow:auto"><table><thead><tr><th>Item</th><th>On hand</th><th>FIFO</th><th>Masuk terakhir</th><th>Pindahkan</th></tr></thead><tbody>'+items.map(o=>'<tr><td>'+esc(o.item)+'</td><td><strong>'+o.qty+'</strong></td><td>'+esc((o.awal||'').slice(0,10))+'</td><td>'+(o.akhir?esc(String(o.akhir).slice(0,16))+'<div class="sub">'+esc(o.oleh?nameOf(o.oleh):'')+'</div>':'-')+'</td><td style="white-space:nowrap"><input data-lcmq="'+esc(o.sku)+'" type="number" min="1" max="'+o.qty+'" value="'+o.qty+'" style="width:70px"> ke <input data-lcmt="'+esc(o.sku)+'" list="lc-abins" placeholder="bin / lokasi tujuan" style="width:140px"> <button class="button" data-lcmvnow="'+esc(o.sku)+'" data-lcmvbin="'+esc(id)+'" type="button">Pindah</button></td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Bin kosong.</p>')+
   '<div class="ob-actions"><button class="button secondary" data-lcadj="'+esc(id)+'" type="button">Adjust stok bin</button>'+(canAdmin()?' <button class="button secondary" data-lctask="'+esc(id)+'" type="button">Buat task hitung</button>':'')+'</div></div>'} function drawLayout(){
-  let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><div class="filters" style="margin:0"><button class="filter'+(mapMode==='stok'?' active':'')+'" data-lcmode="stok" type="button">Isi stok</button><button class="filter'+(mapMode==='hitung'?' active':'')+'" data-lcmode="hitung" type="button">Status hitung</button></div><span class="sub">'+legend()+'</span></div>'+drawMap();
-  if(selRack){const R=rackIndex().get(selRack);if(R){const s=rackStat(R);h+='<div class="card" style="margin-top:10px"><h3 style="margin:0">Rak '+esc(selRack)+' <span class="sub">'+esc(R.zona)+' · '+s.occ+' dari '+s.total+' bin terisi · '+s.qty+' pcs</span></h3><div class="ob-actions" style="margin:6px 0"><button class="button secondary" data-lcrot="-30" type="button">⟲ Putar</button><button class="button secondary" data-lcrot="30" type="button">Putar ⟳</button><button class="button secondary" data-lcrot="0" type="button">Depan</button><span class="sub">Geser untuk memutar. Ketuk kotak bin untuk melihat isinya.</span></div>'+rack3D(selRack)+'</div>'}}
+  let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><div class="filters" style="margin:0"><button class="filter'+(mapMode==='stok'?' active':'')+'" data-lcmode="stok" type="button">Isi stok</button><button class="filter'+(mapMode==='hitung'?' active':'')+'" data-lcmode="hitung" type="button">Status hitung</button></div><label class="sub">Zoom <select data-lczoom="1">'+[1,1.3,1.6,2].map(z=>'<option value="'+z+'"'+(mapZoom===z?' selected':'')+'>'+Math.round(z*100)+'%</option>').join('')+'</select></label><span class="sub">'+legend()+'</span></div>'+drawMap();
+  const sel=selRacks.filter(id=>rackIndex().get(id));
+  if(sel.length){
+   h+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">Rak dipilih: '+sel.map(esc).join(', ')+'</h3><div class="ob-actions" style="margin:0"><button class="button secondary" data-lcrot="-30" type="button">⟲ Putar</button><button class="button secondary" data-lcrot="30" type="button">Putar ⟳</button><button class="button secondary" data-lcrot="0" type="button">Depan</button><button class="button secondary" data-lcclr="1" type="button">Kosongkan pilihan</button></div></div><p class="sub">Geser rak untuk memutar. Ketuk kotak bin untuk detail dan pindah barang. Papan coklat menunjukkan nomor bin, kotak kuning di atasnya item dan qty.</p><div style="display:flex;flex-wrap:wrap;gap:10px">'+sel.map(rack3D).join('')+'</div>'+
+    sel.map(id=>{const R=rackIndex().get(id),s=rackStat(R);return '<h4 style="margin:12px 0 4px">Rak '+esc(id)+' <span class="sub">'+esc(R.zona)+' · '+s.occ+' dari '+s.total+' bin terisi · '+s.qty+' pcs</span></h4>'+rackTable(id)}).join('')+'</div>'}
   if(selBin)h+=binDetail(selBin);
   return h}
-
  // ---- task LC (stok opname dan cycle count)
  const taskBy=(jenis)=>tasks().filter(t=>t.jenis===jenis);
  function listTasks(jenis){
@@ -5057,9 +5066,10 @@ init();
  document.addEventListener('click',e=>{const t=e.target.closest('[data-lcrack],[data-lcbin],button');if(!t||!body||!body.contains(t))return;const d=t.dataset;
   if(d.lcbin){if(window.__lcDrag)return;selBin=d.lcbin;draw();return}
   if(d.lcmvnow){const tr=t.closest('tr'),bin=d.lcmvbin,sku=d.lcmvnow,q=num(tr.querySelector('[data-lcmq]').value),to=tr.querySelector('[data-lcmt]').value,sel=(oh().byBin.get(bin)||[]).find(o=>o.sku===sku);const err=moveCore(bin,sel,q,to,'Re-slotting');if(err)say(err,true);else selBin=bin;return}
-  if(d.lcrack){selRack=d.lcrack;const R=rackIndex().get(d.lcrack);selBin=R&&R.bins.length===1?R.bins[0].id:'';draw();return}
+  if(d.lcrack){const i=selRacks.indexOf(d.lcrack);if(i>=0)selRacks.splice(i,1);else{selRacks.push(d.lcrack);const R=rackIndex().get(d.lcrack);if(R&&R.bins.length===1)selBin=R.bins[0].id}draw();return}
+  if(d.lcclr){selRacks=[];selBin='';draw();return}
   if(d.lcmode){mapMode=d.lcmode;draw();return}
-  if(d.lcrot!=null){ry=d.lcrot==='0'?-28:ry+Number(d.lcrot);const s=$('lc-scene');if(s)s.style.transform='rotateX(-14deg) rotateY('+ry+'deg)';return}
+  if(d.lcrot!=null){ry=d.lcrot==='0'?-28:ry+Number(d.lcrot);document.querySelectorAll('.lc-scene').forEach(s=>{s.style.transform='rotateX(-12deg) rotateY('+ry+'deg)'});return}
   if(d.lcmove){mv.from=d.lcmove;mv.sku='';tabName='Internal Move';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lcadj){adjForm.bin=d.lcadj;adjForm.sku='';tabName='Adjustment';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lctask){const m=G.modal('<h3>Task hitung bin '+esc(d.lctask)+'</h3><label style="font-weight:600">Operator</label>'+opSelect('lc-mop')+'<div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-mok" type="button">Buat task cycle count</button><button class="button secondary" id="lc-mx" type="button">Batal</button></div>');m.querySelector('#lc-mx').onclick=()=>m.remove();m.querySelector('#lc-mok').onclick=()=>{const op=m.querySelector('#lc-mop').value;if(!op)return;mkTask(d.lctask,'CC',op);m.remove();say('Task cycle count bin '+d.lctask+' dibuat.')};return}
@@ -5078,6 +5088,7 @@ init();
   if(d.lcsago){importSaldo();return}});
  document.addEventListener('change',e=>{const t=e.target,d=t.dataset||{};
   if(t.id==='lc-fop'){filterOp=t.value;draw();return}
+  if(d.lczoom){mapZoom=Number(t.value)||1;draw();return}
   if(t.id==='lc-son'){soN=Math.max(1,num(t.value));draw();return}
   if(t.id==='lc-recn'){recN=Math.max(1,num(t.value));draw();return}
   if(t.id==='lc-safile'&&t.files[0]){readSaldo(t.files[0]);return}
@@ -5089,8 +5100,8 @@ init();
   if(d.lcmv==='qty')mv.qty=t.value;if(d.lcaf==='fisik'||d.lcaf==='alasan')adjForm[d.lcaf]=t.value});
  // putar rak 3D dengan geser
  let drag=null;
- document.addEventListener('pointerdown',e=>{const s=e.target.closest&&e.target.closest('#lc-scene');if(!s)return;drag={x:e.clientX,ry0:ry,moved:false};window.__lcDrag=false});
- document.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x;if(Math.abs(dx)>5){drag.moved=true;window.__lcDrag=true}if(drag.moved){ry=drag.ry0+dx*0.5;const s=$('lc-scene');if(s)s.style.transform='rotateX(-14deg) rotateY('+ry+'deg)'}});
+ document.addEventListener('pointerdown',e=>{const s=e.target.closest&&e.target.closest('.lc-scene');if(!s)return;drag={x:e.clientX,ry0:ry,moved:false};window.__lcDrag=false});
+ document.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x;if(Math.abs(dx)>5){drag.moved=true;window.__lcDrag=true}if(drag.moved){ry=drag.ry0+dx*0.5;document.querySelectorAll('.lc-scene').forEach(s=>{s.style.transform='rotateX(-12deg) rotateY('+ry+'deg)'})}});
  document.addEventListener('pointerup',()=>{if(drag){const m=drag.moved;drag=null;setTimeout(()=>{window.__lcDrag=false},50)}});
  setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!document.querySelector('.iv2-modal')&&!(cur&&cur.mode==='count'))pull(false)},30000);
  window.WOSLC={render,has:n=>NAMES.includes(n),pull};
