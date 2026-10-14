@@ -2628,7 +2628,7 @@ function refresh(){if(!account)return;navVisibility();operatorContent();lockAtte
 function enableData(){if(!window.__wosLite||window.__wosNeedData)return;window.__wosNeedData=true;setTimeout(()=>{try{document.getElementById('ob-refresh')?.click()}catch(e){}try{loadGoodReceiptProgress()}catch(e){}try{loadPublishedInboundQueue()}catch(e){}},100)}
 function start(u){
  me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
- accountBox();applyModes();refresh();masterPanel();if(account.level!=='OPERATOR')enableData();setInterval(()=>{if(!document.hidden)masterPanel()},3000);
+ accountBox();applyModes();refresh();masterPanel();if(account.level!=='OPERATOR')setTimeout(()=>{window.requestIdleCallback?requestIdleCallback(enableData,{timeout:3000}):enableData()},2500);setInterval(()=>{if(!document.hidden)masterPanel()},3000);
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
  setInterval(()=>{if(!document.hidden)refresh()},3000);
@@ -3355,7 +3355,7 @@ init();
   const run=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500)return;render()};
   let tick=0;const settled=()=>{const D=collect();return D.health.length&&D.okSrc===D.health.length&&D.snap&&D.gr.length};
   const run2=()=>{if(document.hidden||!dash.classList.contains('active'))return;if(Date.now()-(window.__lastScroll||0)<1500){setTimeout(run2,1700);return}render()};
-  render();setInterval(()=>{if(document.hidden||!dash.classList.contains('active')||(window.__wosLite&&!window.__wosNeedData))return;tick++;if(tick%4===0||!settled())run2()},5000);
+  render();setInterval(()=>{if(document.hidden||!dash.classList.contains('active')||(window.__wosLite&&!window.__wosNeedData))return;tick++;if(tick%5===0)run2()},5000);
   try{const pg=renderGoodReceiptProgress;renderGoodReceiptProgress=function(s){pg(s);setTimeout(run2,300)}}catch(e){}
   try{const pf=renderFinalInbound;renderFinalInbound=function(s,l){pf(s,l);setTimeout(run2,300)}}catch(e){}
   ['outbound-snapshot-updated','kpi-source-updated'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(run,300)));
@@ -3734,7 +3734,7 @@ init();
  // ---- menu WMS
  const FEAT={
   'wms-location':[['Stok Opname'],['Cycle Count'],['Relokasi / Internal Move'],['Other']],
-  'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing & Staging'],['Loading'],['Shipping'],['Receiving Outlet']],
+  'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing & Staging'],['Loading'],['Shipping'],['Receiving Outlet'],['GR Outlet'],['Antrian Masalah']],
   'gr':[['Counting'],['Put Away'],['Data Entry (PO ke MOKA)']]
  };
  function phBlock(key){const f=FEAT[key];return '<div class="filters" data-ph="'+key+'" style="margin-bottom:12px">'+f.map((x,i)=>'<button type="button" class="filter'+(i?'':' active')+'" data-p="'+esc(x[0])+'">'+esc(x[0])+'</button>').join('')+'</div><div class="card" data-phbody="'+key+'"></div>'}
@@ -3752,8 +3752,8 @@ init();
 
  // ---- koneksi dan antrean (dikirim bertahap, tahan sinyal putus)
  let state='',err='',busy=false,busyAt=0;
- const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem'};
- let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[]};let dv=0;
+ const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de'};
+ let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[]};let dv=0;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
  async function call(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
@@ -4199,9 +4199,9 @@ init();
  // ---- muat data GR (surat jalan, HPP, hasil counting, put away, master bin)
  async function pullGR(force){
   if(loading||(!force&&Date.now()-loadedAt<20000))return;loading=true;
-  try{const f=back(60),to=today(),q=['SJ_ITEM:'+f+':'+to,'HPP_ITEM:'+f+':'+to,'GR_COUNT:'+f+':'+to,'PUTAWAY:'+f+':'+to,'MASTER_BIN::','GR_ASSIGN:'+f+':'+to,'PO_DOK::'].join(',');
+  try{const f=back(60),to=today(),q=['SJ_ITEM:'+f+':'+to,'HPP_ITEM:'+f+':'+to,'GR_COUNT:'+f+':'+to,'PUTAWAY:'+f+':'+to,'MASTER_BIN::','GR_ASSIGN:'+f+':'+to,'PO_DOK::','DATA_ENTRY:'+f+':'+to].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   setData('SJ_ITEM',g('SJ_ITEM',f,to));setData('HPP_ITEM',g('HPP_ITEM',f,to));setData('GR_COUNT',g('GR_COUNT',f,to));setData('PUTAWAY',g('PUTAWAY',f,to));setData('MASTER_BIN',g('MASTER_BIN'));setData('GR_ASSIGN',g('GR_ASSIGN',f,to));setData('PO_DOK',g('PO_DOK'));
+   setData('SJ_ITEM',g('SJ_ITEM',f,to));setData('HPP_ITEM',g('HPP_ITEM',f,to));setData('GR_COUNT',g('GR_COUNT',f,to));setData('PUTAWAY',g('PUTAWAY',f,to));setData('MASTER_BIN',g('MASTER_BIN'));setData('GR_ASSIGN',g('GR_ASSIGN',f,to));setData('PO_DOK',g('PO_DOK'));setData('DATA_ENTRY',g('DATA_ENTRY',f,to));
    loadedAt=Date.now();loadErr=''}catch(e){loadErr=String(e&&e.message||e)}
   loading=false;draw();A.render()}
 
@@ -4365,14 +4365,16 @@ init();
    view('MASTER_MOKA').forEach(r=>enqDel('MASTER_MOKA',r.id));
    parts.forEach((p,i)=>enq('MASTER_MOKA',{id:'C'+String(i+1).padStart(3,'0'),data:p,catatan:today()+' '+(clean.length-1)+' item'}));
    moka={rows:clean,when:today()+' '+(clean.length-1)+' item'};say('Template MOKA disimpan ('+(clean.length-1)+' item).')}catch(e){say('Gagal membaca template: '+(e&&e.message||e),true)}}
+ function deMark(x,on){const id=entryPo+'|'+norm(x.item);if(on)enq('DATA_ENTRY',{id,tanggal:today(),po:entryPo,item:x.item,qty:String(x.qty),oleh:code(),jam:stIso()});else enqDel('DATA_ENTRY',id)}
  function drawEntry(){
+
   if(!canAdmin())return '<p class="note">Data Entry ke MOKA hanya untuk Admin atau SPV.</p>';
   if(!moka){loadMoka().then(draw).catch(e=>{moka={rows:[],when:''};loadErr=String(e.message||e);draw()});return '<p class="sub">Memuat template MOKA…</p>'}
   const pos=[...new Set(view('PUTAWAY').map(c=>poKey(c.po)))].sort();if(!entryPo&&pos.length)entryPo=pos[0];
   let h='<details class="card"><summary><strong>Template MOKA</strong> <span class="sub">('+(moka.rows.length?'terpasang: '+esc(moka.when):'belum terpasang')+')</span></summary><p class="sub">Daftar item MOKA sudah disiapkan sistem, admin tidak perlu mengunggah apa pun untuk membuat file import. Unggah ulang hanya bila ada item baru di MOKA (file Import - Items Purchase Order dari MOKA, header tidak diubah).</p><input id="gr-moka" type="file" accept=".xlsx,.xls,.csv"></details>';
   h+='<div class="card" style="margin-top:12px"><h3>Buat file import PO ke MOKA</h3><p class="sub">Hanya item yang sudah selesai put away yang masuk ke file. Qty diambil dari hasil put away dan Unit Cost dari HPP (COGS). Kolom lain mengikuti template MOKA dan email supplier terisi otomatis.</p><div class="field" style="max-width:320px"><label for="gr-epo">PO</label><select id="gr-epo">'+pos.map(p=>'<option'+(p===entryPo?' selected':'')+'>'+esc(p)+'</option>').join('')+'</select></div>';
-  if(entryPo){const d=entryData(entryPo),ok=d.filter(x=>x.moka&&x.cogs&&x.qty>0),miss=d.filter(x=>!x.moka||!x.cogs);
-   h+='<p class="sub">'+d.length+' item · siap '+ok.length+(miss.length?' · <span style="color:#b3261e">perlu dicek '+miss.length+'</span>':'')+'</p><div style="overflow:auto;max-height:340px"><table><thead><tr><th>Item</th><th>Qty actual</th><th>COGS</th><th>File import (hanya item ini)</th></tr></thead><tbody>'+d.map(x=>'<tr><td>'+esc(x.item)+'</td><td>'+x.qty+'</td><td>'+(x.cogs?x.cogs.toLocaleString('id-ID'):'<span class="tag red">tidak ada HPP</span>')+'</td><td>'+(x.moka&&x.qty>0?'<button class="button secondary" data-gcsv1="'+esc(norm(x.item))+'" type="button">Unduh file</button>':'<span class="tag red">tidak ada di template</span>')+'</td></tr>').join('')+'</tbody></table></div><div class="ob-actions"><button class="button" data-gcsv="1" type="button"'+(ok.length||d.some(x=>x.moka)?'':' disabled')+'>Unduh file import MOKA (CSV)</button> <span class="sub">Semua item di atas dalam satu file. Untuk PO sebagian (satu koli atau satu item), pakai tombol Unduh file di baris item.</span></div>'}
+  if(entryPo){const deDone=new Set(view('DATA_ENTRY').filter(r=>poKey(r.po)===entryPo).map(r=>norm(r.item))),d=entryData(entryPo),ok=d.filter(x=>x.moka&&x.cogs&&x.qty>0),miss=d.filter(x=>!x.moka||!x.cogs);
+   h+='<p class="sub">'+(d.length&&d.every(x=>deDone.has(norm(x.item)))?'<span class="tag green">✓ Data entry PO ini selesai</span> ':'')+'Data entry MOKA: '+d.filter(x=>deDone.has(norm(x.item))).length+' dari '+d.length+' item selesai · '+d.length+' item · siap '+ok.length+(miss.length?' · <span style="color:#b3261e">perlu dicek '+miss.length+'</span>':'')+'</p><div style="overflow:auto;max-height:340px"><table><thead><tr><th>Item</th><th>Qty actual</th><th>COGS</th><th>File import (hanya item ini)</th><th>Sudah di-entry di MOKA</th></tr></thead><tbody>'+d.map(x=>'<tr><td>'+esc(x.item)+'</td><td>'+x.qty+'</td><td>'+(x.cogs?x.cogs.toLocaleString('id-ID'):'<span class="tag red">tidak ada HPP</span>')+'</td><td>'+(x.moka&&x.qty>0?'<button class="button secondary" data-gcsv1="'+esc(norm(x.item))+'" type="button">Unduh file</button>':'<span class="tag red">tidak ada di template</span>')+'</td><td><label><input type="checkbox" data-gde="'+esc(norm(x.item))+'"'+(deDone.has(norm(x.item))?' checked':'')+'> selesai</label></td></tr>').join('')+'</tbody></table></div><div class="ob-actions"><button class="button" data-gcsv="1" type="button"'+(ok.length||d.some(x=>x.moka)?'':' disabled')+'>Unduh file import MOKA (CSV)</button> <button class="button secondary" data-gdeall="1" type="button">✓ Tandai semua selesai di-entry</button> <span class="sub">Semua item di atas dalam satu file. Untuk PO sebagian (satu koli atau satu item), pakai tombol Unduh file di baris item.</span></div>'}
   else h+='<p class="sub">Belum ada item yang selesai put away.</p>';
   return h+'</div>'}
 
@@ -4412,8 +4414,10 @@ init();
   if(t.dataset.psave){savePut();return}
   if(t.dataset.gcsv){csvOut(entryPo);return}
   if(t.dataset.gcsv1){csvOut(entryPo,t.dataset.gcsv1);return}
+  if(t.dataset.gdeall){entryData(entryPo).filter(x=>x.qty>0).forEach(x=>deMark(x,true));return}
  });
  document.addEventListener('change',e=>{const t=e.target;
+  if(t.dataset&&t.dataset.gde){const x=entryData(entryPo).find(y=>norm(y.item)===t.dataset.gde);if(x)deMark(x,t.checked);return}
   if(t.id==='gr-fop'){filterOp=t.value;draw();return}
   if(t.id==='gr-epo'){entryPo=t.value;draw();return}
   if(t.id==='gr-moka'&&t.files[0]){uploadMoka(t.files[0]);return}
@@ -4439,12 +4443,14 @@ init();
  const say=(t,bad)=>{msg=t;msgBad=!!bad;draw()};
  if(!document.getElementById('ob2-style')){const st=document.createElement('style');st.id='ob2-style';st.textContent='.kl{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px;margin:10px 0}.kb{padding:12px 4px;border-radius:10px;border:2px solid #cfc3bb;background:#fff;font-size:16px;font-weight:700;cursor:pointer;color:#3b2a20;touch-action:manipulation}.kb.dt{background:#e6f5ec;border-color:#8fd0a8;color:#1d6a3d}.kb.dtm{background:#fff0ee;border-color:#e08a82;color:#9b1c13}.kb.ok{background:#d6efdd;border-color:#2e9b5a;color:#14663a}.kb small{display:block;font-size:10px;font-weight:600}.iv2-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9996;display:flex;align-items:center;justify-content:center;padding:14px}.iv2-modal .box{background:#fff;color:#222;border-radius:14px;padding:18px;width:100%;max-width:440px;max-height:90vh;overflow:auto}';document.head.appendChild(st)}
 
+ (()=>{if(document.getElementById('wms-tab-colors'))return;const C=['#2f7bd6','#e0782b','#2e9b5a','#8e4ec6','#d1362b','#0e9aa7','#c9a227','#d6459b','#5b6bd6','#7a8b2e'];let css='.kb.lk{opacity:.5}';['#wms-inbound','#wms-outbound','#wms-inventory','#wms-location'].forEach(p=>C.forEach((c,i)=>{const q=p+' .filters .filter:nth-child('+(i+1)+')';css+=q+'{border:2px solid '+c+'44;border-bottom:4px solid '+c+'}'+q+'.active{background:'+c+';border-color:'+c+';color:#fff}'+q+':hover{background:'+c+'22}'}));const st=document.createElement('style');st.id='wms-tab-colors';st.textContent=css;document.head.appendChild(st)})();
  // ---- muat data outbound
+
  async function pull(force){
   if(loading||(!force&&Date.now()-loadedAt<20000))return;loading=true;
-  try{const f=back(30),to=back(-14),q=['PICK_DOK:'+f+':'+to,'PICK_KOLI:'+f+':'+to,'PICK_ITEM:'+f+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).join(',');
+  try{const f=back(30),to=back(-14),q=['PICK_DOK:'+f+':'+to,'PICK_KOLI:'+f+':'+to,'PICK_ITEM:'+f+':'+to,'PICK_GR:'+f+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).concat(view('MASTER_EKSPEDISI').length?[]:['MASTER_EKSPEDISI::']).join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   setData('PICK_DOK',g('PICK_DOK',f,to));setData('PICK_KOLI',g('PICK_KOLI',f,to));setData('PICK_ITEM',g('PICK_ITEM',f,to));if(r.data['MASTER_BIN||'])setData('MASTER_BIN',g('MASTER_BIN'));
+   setData('PICK_DOK',g('PICK_DOK',f,to));setData('PICK_KOLI',g('PICK_KOLI',f,to));setData('PICK_ITEM',g('PICK_ITEM',f,to));setData('PICK_GR',g('PICK_GR',f,to));if(r.data['MASTER_BIN||'])setData('MASTER_BIN',g('MASTER_BIN'));if(r.data['MASTER_EKSPEDISI||'])setData('MASTER_EKSPEDISI',g('MASTER_EKSPEDISI'));
    loadedAt=Date.now();loadErr=''}catch(e){loadErr=String(e&&e.message||e)}
   loading=false;draw()}
 
@@ -4477,31 +4483,45 @@ init();
    enq('PICK_DOK',{id,tanggal:tgl,kode,outlet,file:file.name,jumlah_item:String(items.length),total_qty:String(items.reduce((a,x)=>a+x.qty,0)),status:'Diupload',diunggah_oleh:code(),waktu:stIso(),tgl_soq:q('#ob-tsq').value||tgl,kode_outlet:U(q('#ob-ko').value),alamat:q('#ob-al').value.trim()});
    m.remove();openEdit(id);say('SOQ '+kode+' '+outlet+' tersimpan. Atur koli dan picker di bawah.')}}
 
- // ---- editor koli + picker
- const cap=()=>{try{return Number(localStorage.getItem(CAPK))||300}catch(e){return 300}};
- function suggest(lines,c){const bins=[];lines.slice().sort((a,b)=>prio(b.ket)-prio(a.ket)||b.qty-a.qty).forEach(l=>{let b=bins.find(x=>x.sum+l.qty<=c);if(!b){b={no:bins.length+1,sum:0};bins.push(b)}b.sum+=l.qty;l.koli=b.no});
-  const order=[];lines.forEach(l=>{if(!order.includes(l.koli))order.push(l.koli)});lines.forEach(l=>{l.koli=order.indexOf(l.koli)+1});return lines}
+ // ---- editor koli + picker (batas isi koli: lengan pendek 280 pcs, lengan panjang 225 pcs; satu item bisa terbagi ke beberapa koli)
+ const CAP2K='wos-ob-cap2-v1';
+ const caps=()=>{try{const o=JSON.parse(localStorage.getItem(CAP2K)||'null');return{p:Number(o&&o.p)||280,j:Number(o&&o.j)||225}}catch(e){return{p:280,j:225}}};
+ const isPjg=n=>/\bPJG\b|PANJANG/i.test(String(n||''));
+ const capOf=(item,c)=>isPjg(item)?c.j:c.p;
+ function suggest(lines,c){
+  const kolis=[];lines.forEach(l=>{l.parts=[]});
+  const order=lines.map((l,i)=>({l,i})).sort((a,b)=>prio(b.l.ket)-prio(a.l.ket)||b.l.qty-a.l.qty);
+  order.forEach(({l})=>{const cp=capOf(l.item,c);let rem=l.qty;
+   while(rem>=cp){kolis.push({load:1,parts:[{l,qty:cp}]});rem-=cp}
+   if(rem>0){const f=rem/cp;let k=kolis.find(x=>x.load+f<=1.0001);if(!k){k={load:0,parts:[]};kolis.push(k)}k.load+=f;k.parts.push({l,qty:rem})}});
+  const first=k=>Math.min(...k.parts.map(p=>lines.indexOf(p.l)));
+  kolis.sort((a,b)=>first(a)-first(b)).forEach((k,i)=>k.parts.forEach(p=>{const ex=p.l.parts.find(x=>x.koli===i+1);if(ex)ex.qty+=p.qty;else p.l.parts.push({koli:i+1,qty:p.qty})}));
+  return lines}
  function openEdit(dok){
-  const items=itemsOf(dok),lines=[],seen=new Set();
-  items.sort((a,b)=>num(lineBase(a.id).split('|L')[1])-num(lineBase(b.id).split('|L')[1])).forEach(r=>{const b=lineBase(r.id);if(seen.has(b))return;seen.add(b);lines.push({id:b,item:r.item,kat:r.kategori,ket:r.ket,qty:num(r.soq),koli:num(r.koli)||0})});
-  const pk={};koliOf(dok).forEach(k=>{pk[k.koli]=k.picker});
-  if(lines.some(l=>!l.koli))suggest(lines,cap());
-  edit={dok,lines,pk,cap:cap()};cur=null;draw()}
+  const items=itemsOf(dok),by=new Map();
+  items.sort((a,b)=>lineNo(a)[0]-lineNo(b)[0]||lineNo(a)[1]-lineNo(b)[1]||lineNo(a)[2]-lineNo(b)[2]).forEach(r=>{const b=lineBase(r.id);let l=by.get(b);if(!l){l={id:b,item:r.item,kat:r.kategori,ket:r.ket,qty:num(r.soq),manual:r.kategori==='MANUAL',parts:[]};by.set(b,l)}
+   if(num(r.koli)>0&&r.status!=='Draft'){const p=l.parts.find(x=>x.koli===num(r.koli));if(p)p.qty+=num(r.qty);else l.parts.push({koli:num(r.koli),qty:num(r.qty)})}});
+  const lines=[...by.values()],pk={};koliOf(dok).forEach(k=>{pk[k.koli]=k.picker});
+  if(lines.some(l=>!l.parts.length||l.parts.reduce((a,p)=>a+p.qty,0)!==l.qty))suggest(lines,caps());
+  edit={dok,lines,pk,caps:caps()};cur=null;draw()}
+
  function standby(){const out=new Set();try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null'),pl=(r&&r.plans&&r.plans[today()])||{},d=new Date(Date.now()+8*3600e3),now=d.getUTCHours()*60+d.getUTCMinutes(),tm=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec(t||'');return m?Number(m[1])*60+Number(m[2]):-1};
    Object.entries(pl).forEach(([c,sl])=>(sl||[]).forEach(s=>{if(s.roleId==='picker'&&now>=tm(s.from)&&now<tm(s.to))out.add(c)}))}catch(e){}return out}
  function pickerOpts(sel){const sb=standby(),all=staffOps(),a=all.filter(([c])=>sb.has(c)),b=all.filter(([c])=>!sb.has(c)),o=([c,p],s)=>'<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+(s?'● ':'')+esc(p.name)+' ('+esc(c)+')'+(s?' · standby picker':'')+'</option>';
   return '<option value="">Pilih picker</option>'+a.map(x=>o(x,true)).join('')+b.map(x=>o(x,false)).join('')}
+ const koliSet=e=>[...new Set(e.lines.flatMap(l=>l.parts.map(p=>p.koli)).filter(Boolean))].sort((a,b)=>a-b);
  function drawEdit(){
   const e=edit,d=view('PICK_DOK').find(x=>x.id===e.dok);if(!d){edit=null;return ''}
-  const ks=[...new Set(e.lines.map(l=>l.koli).filter(Boolean))].sort((a,b)=>a-b);
-  return '<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Atur picking · '+esc(d.kode)+' · '+esc(d.outlet)+'</h3><p class="sub">Tanggal '+esc(d.tanggal)+'. Sistem sudah mengelompokkan item ke koli (maks. kira-kira <input id="ob-cap" type="number" min="1" value="'+e.cap+'" style="width:80px"> pcs per koli). Nomor koli bisa diubah dan picker dipilih per koli.</p>'+
-  '<div style="overflow:auto"><table><thead><tr><th>Item</th><th>SOQ</th><th>KET</th><th>Koli</th></tr></thead><tbody>'+e.lines.map(l=>'<tr><td>'+esc(l.item)+'</td><td><strong>'+l.qty+'</strong></td><td>'+(prio(l.ket)===2?'<span class="tag red">'+esc(l.ket)+'</span>':esc(l.ket))+'</td><td><input type="number" min="1" data-obk="'+esc(l.id)+'" value="'+(l.koli||'')+'" style="width:70px"></td></tr>').join('')+'</tbody></table></div>'+
+  const ks=koliSet(e);
+  return '<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Atur picking · '+esc(d.kode)+' · '+esc(d.outlet)+'</h3><p class="sub">Tanggal '+esc(d.tanggal)+'. Batas isi 1 koli: lengan pendek <input id="ob-capp" type="number" min="1" value="'+e.caps.p+'" style="width:70px"> pcs, lengan panjang (PJG) <input id="ob-capj" type="number" min="1" value="'+e.caps.j+'" style="width:70px"> pcs. Item yang melebihi batas dibagi ke beberapa koli. Nomor koli dan jumlahnya bisa diubah.</p>'+
+  '<div style="overflow:auto"><table><thead><tr><th>Item</th><th>SOQ</th><th>KET</th><th>Pembagian koli (koli × qty)</th></tr></thead><tbody>'+e.lines.map(l=>{const sum=l.parts.reduce((a,p)=>a+num(p.qty),0),rem=l.qty-sum;return '<tr><td>'+esc(l.item)+(l.manual?' <span class="tag amber">manual</span> <button class="button secondary" data-obdell="'+esc(l.id)+'" type="button" style="color:#b3261e;padding:2px 8px">Hapus</button>':'')+'</td><td><strong>'+l.qty+'</strong></td><td>'+(prio(l.ket)===2?'<span class="tag red">'+esc(l.ket)+'</span>':esc(l.ket))+'</td><td>'+l.parts.map((p,i)=>'<div style="display:flex;gap:4px;align-items:center;margin:2px 0">Koli <input type="number" min="1" data-obpk2="'+esc(l.id)+'||'+i+'||koli" value="'+(p.koli||'')+'" style="width:60px"> × <input type="number" min="1" data-obpk2="'+esc(l.id)+'||'+i+'||qty" value="'+(p.qty||'')+'" style="width:76px"> pcs'+(l.parts.length>1?' <button class="button secondary" data-obprm="'+esc(l.id)+'||'+i+'" type="button" style="padding:2px 8px">&times;</button>':'')+'</div>').join('')+'<div><span class="tag '+(rem===0?'green':rem>0?'amber':'red')+'">'+(rem===0?'pas':rem>0?'sisa '+rem:'lebih '+(-rem))+'</span> <button class="button secondary" data-obpadd="'+esc(l.id)+'" type="button" style="padding:2px 8px">+ pecah ke koli lain</button></div></td></tr>'}).join('')+'</tbody></table></div>'+
+  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><input id="ob-mn" list="ob-mnl" placeholder="Tambah item manual (nama item)" style="flex:2;min-width:200px"><datalist id="ob-mnl">'+[...new Set(view('PICK_ITEM').map(r=>r.item).concat(view('STOK_BIN').map(r=>r.item)))].filter(Boolean).slice(0,500).map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist><input id="ob-mq" type="number" min="1" placeholder="Qty" style="width:90px"><input id="ob-mk" placeholder="KET (opsional)" style="width:130px"><button class="button secondary" data-obaddm="1" type="button">+ Tambah item</button></div>'+
   '<div class="ob-actions" style="margin:8px 0"><button class="button secondary" data-obsug="1" type="button">Kelompokkan ulang otomatis</button></div>'+
-  '<h4 style="margin:12px 0 4px">Picker per koli</h4>'+ks.map(k=>{const sum=e.lines.filter(l=>l.koli===k).reduce((a,l)=>a+l.qty,0),n=e.lines.filter(l=>l.koli===k).length;return '<div style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap"><strong style="min-width:130px">Koli '+k+' <span class="sub">'+n+' item · '+sum+' pcs</span></strong><select data-obp="'+k+'" style="flex:1;min-width:200px">'+pickerOpts(e.pk[k])+'</select></div>'}).join('')+
+  '<h4 style="margin:12px 0 4px">Picker per koli</h4>'+ks.map(k=>{const ps=e.lines.flatMap(l=>l.parts.filter(p=>p.koli===k).map(p=>({l,p}))),sum=ps.reduce((a,x)=>a+num(x.p.qty),0),fill=Math.round(100*ps.reduce((a,x)=>a+num(x.p.qty)/capOf(x.l.item,e.caps),0));return '<div style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap"><strong style="min-width:190px">Koli '+k+' <span class="sub">'+ps.length+' baris · '+sum+' pcs · isi '+fill+'%</span></strong><select data-obp="'+k+'" style="flex:1;min-width:200px">'+pickerOpts(e.pk[k])+'</select></div>'}).join('')+
   '<div class="ob-actions" style="margin-top:12px"><button class="button" data-obmake="1" type="button"'+(busyMk?' disabled':'')+'>'+(busyMk?'Menyusun bin…':'Buat picking dan kirim tugas')+'</button></div><p class="sub">Bin dipilih otomatis dari stok yang put away-nya paling dulu (FIFO).</p></div>'}
  async function makePicking(){
-  const e=edit;if(!e||busyMk)return;const ks=[...new Set(e.lines.map(l=>l.koli))];
-  if(e.lines.some(l=>!(l.koli>=1)))return say('Semua item harus punya nomor koli.',true);
+  const e=edit;if(!e||busyMk)return;const ks=koliSet(e);
+  for(const l of e.lines){const sum=l.parts.reduce((a,p)=>a+num(p.qty),0);if(sum!==l.qty)return say('Pembagian koli untuk "'+l.item+'" ('+sum+') belum sama dengan SOQ ('+l.qty+').',true);if(l.parts.some(p=>!(num(p.koli)>=1)||!(num(p.qty)>0)))return say('Lengkapi nomor koli dan qty untuk "'+l.item+'".',true)}
   if(ks.some(k=>!e.pk[k]))return say('Pilih picker untuk setiap koli.',true);
   if(started(e.dok))return say('Picking ini sudah mulai dikerjakan, tidak bisa diatur ulang.',true);
   busyMk=true;draw();
@@ -4510,16 +4530,16 @@ init();
    const stock=s.rows.map(r=>({bin:r.bin,sku:r.sku,key:norm(r.sku||r.item),free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0);
    const d=view('PICK_DOK').find(x=>x.id===e.dok),old=itemsOf(e.dok),rows=[],short=[];
    old.forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(e.dok).forEach(r=>enqDel('PICK_KOLI',r.id));
-   [...e.lines].sort((a,b)=>a.koli-b.koli).forEach(l=>{let need=l.qty,n=0;const key=norm(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
-    const base=Object.assign({tanggal:d.tanggal,dok:e.dok,outlet:d.outlet,item:l.item,kategori:l.kat,soq:String(l.qty),ket:l.ket,koli:String(l.koli),status:'Menunggu'});
-    c.forEach(r=>{if(need<=0)return;const t=Math.min(need,r.free);r.free-=t;need-=t;rows.push(Object.assign({},base,{id:n?l.id+'|'+n:l.id,sku:r.sku,bin:r.bin,qty:String(t)}));n++});
-    if(need>0){rows.push(Object.assign({},base,{id:n?l.id+'|'+n:l.id,sku:'',bin:'',qty:String(need),ket_pick:'Stok tidak cukup di bin manapun'}));short.push(l.item+' kurang '+need)}});
+   e.lines.forEach(l=>{const key=norm(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
+    [...l.parts].sort((a,b)=>num(a.koli)-num(b.koli)).forEach((p,pi)=>{let need=num(p.qty),n=0;const pid=l.id+'|P'+(pi+1),base={tanggal:d.tanggal,dok:e.dok,outlet:d.outlet,item:l.item,kategori:l.manual?'MANUAL':l.kat,soq:String(l.qty),ket:l.ket,koli:String(p.koli),status:'Menunggu'};
+     c.forEach(r=>{if(need<=0||r.free<=0)return;const t=Math.min(need,r.free);r.free-=t;need-=t;rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:r.sku,bin:r.bin,qty:String(t)}));n++});
+     if(need>0){rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:'',bin:'',qty:String(need),ket_pick:l.manual&&!c.length?'Item manual (tanpa stok bin)':'Stok tidak cukup di bin manapun'}));if(!(l.manual&&!c.length))short.push(l.item+' kurang '+need)}})});
    rows.forEach(r=>enq('PICK_ITEM',r));
-   ks.sort((a,b)=>a-b).forEach(k=>{const p=e.pk[k],tid='TP-'+Math.random().toString(36).slice(2,8);
+   ks.forEach(k=>{const p=e.pk[k],tid='TP-'+Math.random().toString(36).slice(2,8);
     enq('PICK_KOLI',{id:e.dok+'|K'+k,tanggal:d.tanggal,dok:e.dok,koli:String(k),picker:p,picker_nama:nameOf(p),status:'Ditugaskan',task_id:tid,mulai:'',selesai:'',vp_oleh:'',vp_selesai:''});
-    const items=e.lines.filter(l=>l.koli===k),pcs=items.reduce((a,l)=>a+l.qty,0);
+    const pcs=e.lines.reduce((a,l)=>a+l.parts.filter(x=>x.koli===k).reduce((b,x)=>b+num(x.qty),0),0);
     taskEdit(arr=>arr.push({id:tid,day:today(),at:stIso(),title:'Picking '+d.kode+' '+d.outlet+' koli '+k,qty:pcs+' pcs',by:code(),to:p,status:'baru',kind:'picking'}))});
-   enq('PICK_DOK',Object.assign({},d,{status:'Picking'}));
+   enq('PICK_DOK',Object.assign({},d,{status:'Picking',jumlah_item:String(e.lines.length),total_qty:String(e.lines.reduce((a,l)=>a+l.qty,0))}));
    edit=null;busyMk=false;tabName='Picking List';say('Picking dibuat untuk '+ks.length+' koli.'+(short.length?' Perhatian stok kurang: '+short.join('; ')+'.':''),!!short.length)}
   catch(x){busyMk=false;say('Gagal membuat picking: '+(x&&x.message||x),true)}}
 
@@ -4547,17 +4567,17 @@ init();
   return h+Object.keys(by).sort().reverse().map(dk=>{const d=view('PICK_DOK').find(x=>x.id===dk)||{kode:dk,outlet:'',tanggal:''};return '<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><div class="kl">'+by[dk].sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<button type="button" class="kb '+(STC[k.status]||'')+'" data-obopen="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc((k.picker_nama||k.picker||'').split(' ')[0])+'</small><small>'+esc(k.status)+'</small></button>').join('')+'</div></div>'}).join('')}
 
  // ---- picking koli
- const lineNo=r=>{const m=/\|L(\d+)(?:\|(\d+))?(?:\|X(\d+))?$/.exec(r.id);return m?[num(m[1]),num(m[2]),num(m[3])]:[0,0,0]};
- const koliAll=k=>itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)),koliRows=k=>koliAll(k).filter(r=>r.kategori!=='OTHER').sort((a,b)=>{const x=lineNo(a),y=lineNo(b);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]}),koliOthers=k=>koliAll(k).filter(r=>r.kategori==='OTHER').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+ const lineNo=r=>{const m=/\|L(\d+)(?:\|P(\d+))?(?:\|(\d+))?(?:\|X(\d+))?$/.exec(r.id);return m?[num(m[1]),num(m[2]),num(m[3]),num(m[4])]:[0,0,0,0]};
+ const koliAll=k=>itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)),koliRows=k=>koliAll(k).filter(r=>r.kategori!=='OTHER').sort((a,b)=>{const x=lineNo(a),y=lineNo(b);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]||x[3]-y[3]}),koliOthers=k=>koliAll(k).filter(r=>r.kategori==='OTHER').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
  const koliById=id=>view('PICK_KOLI').find(k=>k.id===id);
  function updKoli(k,patch){enq('PICK_KOLI',Object.assign({},k,patch))}
  function taskAccept(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t&&t.status==='baru'){t.status='diterima';t.by2=k.picker;t.ackAt=stIso()}})}
  function taskMaybeDone(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}
- function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':'tfs',id};pull(true);draw()}
+ function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();pull(true);draw()}
  function stokOut(r,bin,sku,qty){if(!(qty>0)||!bin)return;enq('STOK_BIN',{id:'SB|PK|'+r.id,tanggal:today(),jenis:'PICKING',bin,sku:sku||U(r.item),item:r.item,qty_masuk:'0',qty_keluar:String(qty),referensi:r.dok+' koli '+r.koli,pic_kode:code(),catatan:''})}
  function pickRow(r,status,binA,qtyA,ket,video,cb){
   const row=Object.assign({},r,{status,bin_actual:binA,qty_actual:String(qtyA),ket_pick:ket||'',picker:code(),jam_pick:nowHM()});
-  const fin=()=>{enq('PICK_ITEM',row);stokOut(r,binA,r.sku,qtyA);if(cb)cb();draw()};
+  const fin=()=>{enq('PICK_ITEM',row);stokOut(r,binA,r.sku,qtyA);if(cb)cb();draw();setTimeout(refreshStok,3500)};
   if(video)G.blobB64(video).then(b64=>{let q=[];try{q=JSON.parse(localStorage.getItem('wos-gd-queue-v1')||'[]')}catch(e){}q.push({a:'photo',data:b64,mime:video.type||'video/webm',name:('PK_'+r.id).replace(/[^A-Za-z0-9]+/g,'_')+(/mp4/.test(video.type)?'.mp4':'.webm'),rowId:r.id,date:today(),kategori:'PICK'});try{localStorage.setItem('wos-gd-queue-v1',JSON.stringify(q))}catch(e){}fin()},()=>fin());else fin()}
  function silangModal(r){
   const bins=view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif');
@@ -4571,7 +4591,7 @@ init();
   const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),ro=['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status),mine=k.picker===code()||canAdmin(),done=rows.length&&rows.every(r=>r.status!=='Menunggu');
   const pcs=rows.reduce((a,r)=>a+num(r.qty),0),act=rows.reduce((a,r)=>a+num(r.qty_actual),0);
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
-  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong></td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+'</td><td><strong>'+(/\|X\d+$/.test(r.id)?'+':esc(r.qty))+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag green">✓ '+(/\|X\d+$/.test(r.id)?esc(r.bin_actual)+' · '+esc(r.qty_actual)+' pcs':'Sesuai')+'</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':''):r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(mine&&!PASTTFS.includes(k.status)&&num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0)>0?'<div><button class="button secondary" data-obadd="'+esc(r.id)+'" type="button">+ Ditemukan di bin lain (kurang '+(num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0))+')</button></div>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act!==pcs?' · <strong style="color:#b3261e">selisih '+(act-pcs)+'</strong>':'')+'</p>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong>'+ohTag(r)+'</td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+'</td><td><strong>'+(/\|X\d+$/.test(r.id)?'+':esc(r.qty))+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag green">✓ '+(/\|X\d+$/.test(r.id)?esc(r.bin_actual)+' · '+esc(r.qty_actual)+' pcs':'Sesuai')+'</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':''):r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(mine&&!PASTTFS.includes(k.status)&&num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0)>0?'<div><button class="button secondary" data-obadd="'+esc(r.id)+'" type="button">+ Ditemukan di bin lain (kurang '+(num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0))+')</button></div>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin||r.kategori==='MANUAL'?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act<pcs?' · <strong style="color:#b3261e">SOO '+(pcs-act)+' pcs (stok tidak terpenuhi)</strong>':done&&act>pcs?' · lebih '+(act-pcs)+' pcs':'')+'</p>';
   if(!ro&&mine)h+='<div class="ob-actions"><button class="button" data-obdone="1" type="button"'+(done?'':' disabled')+'>Selesai picking koli ini</button></div>';
   if(ro)h+='<p class="note">Picking selesai. Lanjut di tab <strong>Verification Pick</strong>. Bila masih ada barang kurang yang ditemukan di bin lain, tombol Ditemukan di bin lain tetap bisa dipakai sebelum TFS.</p>';
   return h+'</div>'}
@@ -4605,11 +4625,12 @@ init();
    R.close();m.remove()}}
 
  // ---- daftar per SOQ untuk tahap setelah verifikasi
- const SETS={vp:['Siap verifikasi','Perbaikan','Siap TFS','Siap packing'],tfs:['Siap TFS','Siap packing','Selesai TFS'],pack:['Selesai TFS','Staging'],load:['Staging','Dimuat'],rcv:['Shipping','Diterima','Diterima-Masalah'],ship:['Shipping','Diterima','Diterima-Masalah']};
- const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah'];
- const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'ok','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm'});
+ const SETS={vp:['Siap verifikasi','Perbaikan','Siap TFS','Siap packing'],tfs:['Siap TFS','Siap packing','Selesai TFS'],pack:['Selesai TFS','Staging'],load:['Staging','Dimuat'],rcv:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],ship:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],gr:['Diterima','Diterima-Masalah','GR Selesai']};
+ const RECEIVED=['Diterima','Diterima-Masalah','GR Selesai'];
+ const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
+ const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'ok','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm','GR Selesai':'ok'});
  const dokOf=id=>view('PICK_DOK').find(d=>d.id===id)||{id,kode:id,outlet:'',tanggal:''};
- function dokGroups(set){const by={};view('PICK_KOLI').filter(k=>set.includes(k.status)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:by[id].sort((a,b)=>num(a.koli)-num(b.koli))}))}
+ function dokGroups(set,all){const by={};view('PICK_KOLI').filter(k=>set.includes(k.status)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
  const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
  const chip=(k,attr,extra)=>'<button type="button" class="kb '+(STC2[k.status]||'')+(extra||'')+'" '+attr+'="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc(k.status)+'</small>'+(k.area?'<small>'+esc(k.area)+'</small>':'')+'</button>';
  const none=t=>'<p class="sub">'+t+'</p>';
@@ -4627,7 +4648,7 @@ init();
   const d=dokOf(dok),ks=koliOf(dok).sort((a,b)=>num(a.koli)-num(b.koli));if(!ks.length)return say('Belum ada koli.',true);
   let rows='',tot=0;
   ks.forEach(k=>{
-   const by=new Map();koliRows(k).forEach(r=>{const b=lineBase(r.id),o=by.get(b)||{item:r.item,soq:num(r.soq),act:0,ket:''};o.act+=num(r.qty_actual)||(r.status==='Menunggu'?num(r.qty):0);by.set(b,o)});
+   const by=new Map();koliRows(k).forEach(r=>{const b=lineBase(r.id),o=by.get(b)||{item:r.item,soq:0,act:0,ket:''};o.soq+=num(r.qty);o.act+=num(r.qty_actual)||(r.status==='Menunggu'?num(r.qty):0);by.set(b,o)});
    const its=[...by.values()].map(o=>({item:o.item,soq:o.soq,act:o.act,ket:''})).concat(koliOthers(k).map(r=>({item:r.item+' (other)',soq:'',act:num(r.qty_actual),ket:r.ket_pick||''})));
    its.forEach((o,i)=>{tot+=num(o.act);rows+='<tr>'+'<td>'+esc(o.item)+'</td><td style="text-align:center">'+esc(o.soq)+'</td><td style="text-align:center">'+esc(o.act)+'</td><td></td>'+(i?'':'<td rowspan="'+its.length+'" style="text-align:center;font-size:20px;font-weight:700;vertical-align:middle">'+esc(k.koli)+'</td>')+'<td style="text-align:center">'+esc(k.picker)+'</td><td>'+esc(o.ket)+'</td></tr>'})});
   printWin('Surat Jalan '+d.kode,'<h2 style="text-align:center">DELIVERY ORDER '+esc(d.outlet)+' TGL. '+tglPanjang(d.tgl_soq||d.tanggal)+'</h2><p style="margin:6px 0"><strong>PLAN:</strong> '+DCHEAD+'<br><strong>TRANSFER TO:</strong> '+esc(d.kode_outlet||d.outlet)+'<br><strong>ALAMAT:</strong> '+esc(d.alamat||'')+'<br><strong>Kode shipment:</strong> '+esc(d.kode)+' · No. SJ-'+esc(d.kode)+'-'+esc(String(d.tanggal).replace(/-/g,''))+'</p><table><thead><tr><th>Items Name (Do Not Edit)</th><th>SOQ FIX</th><th>ACTUAL ORDER</th><th>G.R</th><th>NO. KOLI</th><th>PIC</th><th>KETERANGAN</th></tr></thead><tbody>'+rows+'</tbody></table><p>Total '+ks.length+' koli · '+tot+' pcs</p>'+sigs(['Admin DC 38','Penerima']))}
@@ -4658,22 +4679,68 @@ init();
   g.map(x=>{const todo=x.ks.filter(k=>k.status==='Selesai TFS');return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+printBtns(x.d.id)+'</div><div class="kl">'+x.ks.map(k=>chip(k,'data-obpk',packSel.has(k.id)?' dt':'')).join('')+'</div>'+(todo.length?'<div class="ob-actions"><button class="button" data-obpack="'+esc(x.d.id)+'" type="button">Selesai packing, masuk staging ('+todo.filter(k=>packSel.has(k.id)).length+' koli)</button> <button class="button secondary" data-obpall="'+esc(x.d.id)+'" type="button">Pilih semua</button></div>':'<p class="sub">Semua koli sudah di staging.</p>')+'</div>'}).join('')}
 
  // ---- Loading (bisa dipegang driver)
+ const wita=iso=>{const t=Date.parse(iso);return isFinite(t)?new Date(t+8*3600e3).toISOString().slice(0,16).replace('T',' '):''};
  const shipInfo={};
- function drawLoad(){const g=dokGroups(SETS.load);if(!g.length)return none('Belum ada koli di staging.');
-  return '<p class="sub">Ketuk koli satu per satu saat naik ke kendaraan (hijau = sudah dimuat).</p>'+g.map(x=>{const n=x.ks.filter(k=>k.status==='Dimuat').length,si=shipInfo[x.d.id]||{};return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+'<button class="button secondary" data-obsttb="'+esc(x.d.id)+'" type="button">🖨 STTB (acuan loading)</button></div><p class="sub">Dimuat '+n+' dari '+x.ks.length+' koli</p><div class="kl">'+x.ks.map(k=>chip(k,'data-oblt')).join('')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><input data-obeks="'+esc(x.d.id)+'" placeholder="Ekspedisi / kendaraan" value="'+esc(si.eks||x.d.ekspedisi||'')+'" style="flex:2;min-width:180px"><label class="sub" style="display:flex;gap:6px;align-items:center">Estimasi tiba <input type="date" data-obeta="'+esc(x.d.id)+'" value="'+esc(si.eta||x.d.eta||'')+'"></label></div><div class="ob-actions"><button class="button" data-obship="'+esc(x.d.id)+'" type="button"'+(n?'':' disabled')+'>Selesai loading, kirim ('+n+' koli)</button></div></div>'}).join('')}
+ const METODE=['Direct','Indirect'],KATEGORI=['DTD (Door to Door)','Port to Door','PTP (Port to Port)'];
+ const sel=(attr,id,opts,val,ph)=>'<select '+attr+'="'+esc(id)+'"><option value="">'+esc(ph)+'</option>'+opts.map(o=>'<option'+(o===val?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>';
+ function drawLoad(){const g=dokGroups(SETS.load,true);if(!g.length)return none('Belum ada koli di staging.');
+  const eks=(A.activeEks?A.activeEks():[]).map(x=>x.nama);
+  return '<p class="sub">Ketuk koli satu per satu saat naik ke kendaraan (hijau = sudah dimuat). Koli abu-abu belum selesai packing dan staging.</p>'+g.map(x=>{const id=x.d.id,n=x.ks.filter(k=>k.status==='Dimuat').length,si=shipInfo[id]||{},me=si.metode||x.d.metode||'',ka=si.kategori||x.d.kategori||'',ek=si.eks!=null?si.eks:(x.d.ekspedisi||''),ind=me==='Indirect';
+   return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+'<button class="button secondary" data-obsttb="'+esc(id)+'" type="button">🖨 STTB (acuan loading)</button></div><p class="sub">Dimuat '+n+' dari '+x.ks.length+' koli (sesuai STTB)</p><div class="kl">'+x.ks.map(k=>['Staging','Dimuat'].includes(k.status)?chip(k,'data-oblt'):chip(k,'data-obnone',' lk')).join('')+'</div>'+
+   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px"><label class="sub">Mode pengiriman'+sel('data-obmet',id,METODE,me,'Pilih mode')+'</label><label class="sub">Kategori'+sel('data-obkat',id,KATEGORI,ka,ind?'Pilih kategori':'(hanya Indirect)')+'</label><label class="sub">'+(ind?'Ekspedisi (eksternal)':'Driver / kendaraan internal')+(ind?sel('data-obeks',id,eks.concat(ek&&!eks.includes(ek)?[ek]:[]).concat(['(Lainnya)']),ek,'Pilih ekspedisi'):'<input data-obeks="'+esc(id)+'" value="'+esc(ek)+'" placeholder="Nama driver / plat" style="width:100%">')+'</label><label class="sub">Estimasi tiba<input type="date" data-obeta="'+esc(id)+'" value="'+esc(si.eta||x.d.eta||'')+'" style="width:100%"></label></div>'+
+   '<div class="ob-actions"><button class="button" data-obship="'+esc(id)+'" type="button"'+(n?'':' disabled')+'>Selesai loading, kirim ('+n+' koli)</button></div></div>'}).join('')}
 
  // ---- Shipping (manifest incoming untuk outlet)
  function drawShipTab(){const g=dokGroups(SETS.ship);if(!g.length)return none('Belum ada kiriman.');
-  return g.map(x=>{const d=x.d,on=x.ks.filter(k=>k.status==='Shipping').length;return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(d)+'<span class="tag '+(on?'amber':'green')+'">'+(on?'On delivery':'Sudah diterima')+'</span></div><p class="sub">Manifest incoming untuk <strong>'+esc(d.outlet)+'</strong> · '+x.ks.length+' koli · ekspedisi '+esc(d.ekspedisi||'-')+' · estimasi tiba '+esc(d.eta||'-')+' · berangkat '+esc((x.ks[0].load_waktu||'').replace('T',' ').slice(0,16))+'</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obnone')).join('')+'</div>'+printBtns(d.id)+'</div>'}).join('')}
+  return g.map(x=>{const d=x.d,on=x.ks.filter(k=>k.status==='Shipping').length,got=x.ks.filter(k=>RECEIVED.includes(k.status));return '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(d)+'<span class="tag '+(on?'amber':'green')+'">'+(on?'On delivery':'Sudah diterima toko')+'</span></div><p class="sub">Manifest incoming untuk <strong>'+esc(d.outlet)+'</strong> · '+x.ks.length+' koli · mode <strong>'+esc(d.metode||'-')+'</strong>'+(d.kategori?' · '+esc(d.kategori):'')+' · '+(d.metode==='Direct'?'driver ':'ekspedisi ')+'<strong>'+esc(d.ekspedisi||'-')+'</strong> · estimasi tiba '+esc(d.eta||'-')+' · berangkat '+esc(wita(x.ks[0].load_waktu))+'</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obnone')).join('')+'</div>'+
+   (got.length?'<div class="sub">'+got.map(k=>'Koli '+esc(k.koli)+': diterima oleh <strong>'+esc(k.rcv_nama||k.rcv_oleh)+'</strong> · '+esc(wita(k.rcv_waktu))+(k.status==='Diterima-Masalah'?' · <span style="color:#b3261e">'+esc(k.rcv_ket)+'</span>':'')).join('<br>')+'</div>':'')+printBtns(d.id)+'</div>'}).join('')}
 
  // ---- Receiving Outlet (pola sama dengan Receiving DC 38)
  function drawRcv(){const g=dokGroups(SETS.rcv);if(!g.length)return none('Belum ada kiriman menuju outlet.');
-  return '<p class="sub">Ketuk koli yang sampai: Diterima, atau Bermasalah dengan keterangan.</p>'+g.map(x=>{const left=x.ks.filter(k=>k.status==='Shipping').length;return '<div class="card" style="margin-top:10px">'+head(x.d)+'<p class="sub">Estimasi tiba '+esc(x.d.eta||'-')+' · belum diterima '+left+' dari '+x.ks.length+' koli</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obrcv')).join('')+'</div></div>'}).join('')}
+  return '<p class="sub">Tim toko mengetuk koli yang sampai. Tanggal dan jam terima tercatat otomatis. Setelah itu lanjut ke tab GR Outlet.</p>'+g.map(x=>{const left=x.ks.filter(k=>k.status==='Shipping').length;return '<div class="card" style="margin-top:10px">'+head(x.d)+'<p class="sub">Estimasi tiba '+esc(x.d.eta||'-')+' · belum diterima '+left+' dari '+x.ks.length+' koli</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obrcv')).join('')+'</div></div>'}).join('')}
  function rcvModal(k){
-  const m=G.modal('<h3>Koli '+esc(k.koli)+' · '+esc(dokOf(k.dok).outlet)+'</h3><p class="sub">Status sekarang: '+esc(k.status)+'</p><label style="font-weight:600">Keterangan (wajib bila bermasalah)</label><input id="rc-k" style="width:100%" placeholder="Contoh: karung robek"><div class="ob-actions" style="margin-top:10px"><button class="button" id="rc-ok" type="button">✓ Diterima</button> <button class="button secondary" id="rc-no" type="button" style="color:#b3261e">✗ Bermasalah</button> <button class="button secondary" id="rc-x" type="button">Batal</button></div>');
-  const set=(st,ket)=>{updKoli(k,{status:st,rcv_oleh:code(),rcv_waktu:stIso(),rcv_ket:ket});const rest=koliOf(k.dok).filter(x=>x.id!==k.id&&x.status!=='Diterima'&&x.status!=='Diterima-Masalah').length;if(!rest){const d=dokOf(k.dok);enq('PICK_DOK',Object.assign({},d,{status:'Diterima'}))}m.remove()};
+  if(k.status!=='Shipping')return;
+  const last=(()=>{try{return localStorage.getItem('wos-ob-rcvname')||''}catch(e){return''}})();
+  const m=G.modal('<h3>Koli '+esc(k.koli)+' · '+esc(dokOf(k.dok).outlet)+'</h3><label style="font-weight:600">Nama staff yang menerima</label><input id="rc-n" value="'+esc(last)+'" style="width:100%"><label style="font-weight:600;margin-top:8px;display:block">Keterangan (wajib bila bermasalah)</label><input id="rc-k" style="width:100%" placeholder="Contoh: karung robek"><div class="ob-actions" style="margin-top:10px"><button class="button" id="rc-ok" type="button">✓ Diterima</button> <button class="button secondary" id="rc-no" type="button" style="color:#b3261e">✗ Bermasalah</button> <button class="button secondary" id="rc-x" type="button">Batal</button></div>');
+  const set=(st,ket)=>{const nm=m.querySelector('#rc-n').value.trim();if(!nm){alert('Isi nama staff yang menerima.');return}try{localStorage.setItem('wos-ob-rcvname',nm)}catch(e){}
+   updKoli(k,{status:st,rcv_oleh:code(),rcv_nama:nm,rcv_waktu:stIso(),rcv_ket:ket});const rest=koliOf(k.dok).filter(x=>x.id!==k.id&&!RECEIVED.includes(x.status)).length;if(!rest)enq('PICK_DOK',Object.assign({},dokOf(k.dok),{status:'Diterima'}));m.remove()};
   m.querySelector('#rc-x').onclick=()=>m.remove();m.querySelector('#rc-ok').onclick=()=>set('Diterima',m.querySelector('#rc-k').value.trim());
   m.querySelector('#rc-no').onclick=()=>{const t=m.querySelector('#rc-k').value.trim();if(!t){alert('Isi keterangan masalahnya.');return}set('Diterima-Masalah',t)}}
+
+ // ---- GR Outlet (surat jalan / rincian isi koli, dicek toko)
+ const grId=(k,r)=>k.id+'|'+(r.kategori==='OTHER'?r.id.split('|').pop():lineBase(r.id).split('|').pop());
+ const grOf=k=>view('PICK_GR').filter(g=>g.dok===k.dok&&num(g.koli)===num(k.koli));
+ function grLines(k){const by=new Map();koliRows(k).forEach(r=>{const id=grId(k,r),o=by.get(id)||{id,item:r.item,soq:0,dc:0};o.soq+=num(r.qty);o.dc+=num(r.qty_actual);by.set(id,o)});koliOthers(k).forEach(r=>by.set(grId(k,r),{id:grId(k,r),item:r.item+' (other)',soq:0,dc:num(r.qty_actual)}));return [...by.values()]}
+ function drawGrList(){const g=dokGroups(SETS.gr,true);if(!g.length)return none('Belum ada koli yang diterima toko.');
+  return '<p class="sub">Setelah koli diterima di Receiving Outlet, tim toko membuka koli untuk mencocokkan isinya dengan surat jalan.</p>'+g.map(x=>'<div class="card" style="margin-top:10px">'+head(x.d)+'<div class="kl">'+x.ks.map(k=>SETS.gr.includes(k.status)?chip(k,'data-obopen'):chip(k,'data-obnone',' lk')).join('')+'</div></div>').join('')}
+ function drawGrScreen(){
+  const k=koliById(cur.id);if(!k){cur=null;return ''}const d=dokOf(k.dok),lines=grLines(k),done=new Map(grOf(k).map(g=>[g.id,g])),all=lines.length&&lines.every(l=>done.has(l.id)),fin=k.status==='GR Selesai';
+  let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">GR Outlet · '+esc(d.outlet)+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.kode)+' · diterima oleh '+esc(k.rcv_nama||k.rcv_oleh||'-')+' · '+esc(wita(k.rcv_waktu))+'</p>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Items Name</th><th>SOQ FIX</th><th>ACTUAL ORDER</th><th>G.R</th><th>Cek</th></tr></thead><tbody>'+lines.map(l=>{const g=done.get(l.id);return '<tr><td>'+esc(l.item)+'</td><td>'+(l.soq||'')+'</td><td><strong>'+l.dc+'</strong></td><td>'+(g?(g.status==='Sesuai'?'<span class="tag green">✓ '+esc(g.qty_gr)+'</span>':'<span class="tag red">✗ '+esc(g.qty_gr)+(g.item_gr&&g.item_gr!==l.item?' · '+esc(g.item_gr):'')+'</span>'+(g.ket?'<div class="sub">'+esc(g.ket)+'</div>':'')+(g.foto_id?' <a href="https://drive.google.com/file/d/'+esc(g.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')):'<span class="sub">belum dicek</span>')+'</td><td>'+(fin?'':'<button class="button" data-obgok="'+esc(l.id)+'" type="button">✓</button> <button class="button secondary" data-obgno="'+esc(l.id)+'" type="button" style="color:#b3261e">✗</button>')+'</td></tr>'}).join('')+'</tbody></table></div>';
+  if(!fin)h+='<div class="ob-actions"><button class="button" data-obgdone="1" type="button"'+(all?'':' disabled')+'>Selesai GR koli ini</button></div>';else h+='<p class="note">GR koli ini selesai. Selisih tercatat di Antrian Masalah DC 38.</p>';
+  return h+'</div>'}
+ function grSave(k,l,status,qty,itemGr,ket,video){
+  const d=dokOf(k.dok),row={id:l.id,tanggal:d.tanggal,dok:k.dok,outlet:d.outlet,koli:String(k.koli),item:l.item,soq:String(l.soq),qty_dc:String(l.dc),status,qty_gr:String(qty),item_gr:itemGr||l.item,ket:ket||'',oleh:code(),jam:stIso(),resolusi:'',resolusi_ket:'',resolusi_oleh:'',resolusi_jam:''};
+  const fin=()=>{enq('PICK_GR',row);draw()};
+  if(video)G.blobB64(video).then(b64=>{let q=[];try{q=JSON.parse(localStorage.getItem('wos-gd-queue-v1')||'[]')}catch(e){}q.push({a:'photo',data:b64,mime:video.type||'video/webm',name:('GR_'+l.id).replace(/[^A-Za-z0-9]+/g,'_')+(/mp4/.test(video.type)?'.mp4':'.webm'),rowId:l.id,date:today(),kategori:'GROUTLET'});try{localStorage.setItem('wos-gd-queue-v1',JSON.stringify(q))}catch(e){}fin()},()=>fin());else fin()}
+ function grSalahModal(k,l){
+  const m=G.modal('<h3>GR tidak sesuai</h3><p class="sub">'+esc(l.item)+' · actual order <strong>'+l.dc+'</strong></p><label style="font-weight:600">Jenis kesalahan</label><select id="gr2-j" style="width:100%"><option>Qty tidak sesuai</option><option>Item salah</option></select><div id="gr2-i" style="display:none"><label style="font-weight:600;margin-top:8px;display:block">Item yang sebenarnya diterima</label><input id="gr2-it" style="width:100%" placeholder="Nama item yang datang"></div><label style="font-weight:600;margin-top:8px;display:block">Qty actual yang diterima</label><input id="gr2-q" type="number" inputmode="numeric" min="0" style="width:100%"><label style="font-weight:600;margin-top:8px;display:block">Keterangan</label><input id="gr2-k" style="width:100%"><div id="gr2-rec" style="margin-top:8px"></div><div class="ob-actions" style="margin-top:10px"><button class="button" id="gr2-ok" type="button">Simpan</button><button class="button secondary" id="gr2-x" type="button">Batal</button></div>');
+  const R=G.recorder(m.querySelector('#gr2-rec'));m.querySelector('#gr2-j').onchange=e=>{m.querySelector('#gr2-i').style.display=e.target.value==='Item salah'?'block':'none'};
+  m.querySelector('#gr2-x').onclick=()=>{R.close();m.remove()};
+  m.querySelector('#gr2-ok').onclick=()=>{if(R.recording()){alert('Hentikan rekaman dulu.');return}const q=m.querySelector('#gr2-q').value,j=m.querySelector('#gr2-j').value,it=m.querySelector('#gr2-it').value.trim();if(q===''){alert('Isi qty actual.');return}if(j==='Item salah'&&!it){alert('Isi item yang sebenarnya.');return}
+   if(!R.get()&&!confirm('Simpan tanpa video bukti?'))return;
+   grSave(k,l,'Salah',num(q),j==='Item salah'?it:l.item,j+(m.querySelector('#gr2-k').value.trim()?': '+m.querySelector('#gr2-k').value.trim():''),R.get());R.close();m.remove()}}
+
+ // ---- Antrian Masalah (miss picking dari GR outlet, diselesaikan DC 38)
+ function drawMasalah(){
+  const list=view('PICK_GR').filter(g=>g.status==='Salah').sort((a,b)=>(a.resolusi?1:0)-(b.resolusi?1:0)||String(b.jam).localeCompare(String(a.jam)));
+  if(!list.length)return none('Belum ada masalah dari GR outlet.');
+  const open=list.filter(g=>!g.resolusi).length;
+  return '<p class="sub">Selisih hasil GR outlet tercatat sebagai miss picking. Belum diselesaikan: <strong>'+open+'</strong> dari '+list.length+'.</p><div style="overflow:auto"><table><thead><tr><th>Outlet / koli</th><th>Item</th><th>SOQ / DC / GR</th><th>Masalah</th><th>Status</th></tr></thead><tbody>'+list.map(g=>'<tr><td>'+esc(g.outlet)+'<div class="sub">'+esc(g.dok.split('|')[0])+' · koli '+esc(g.koli)+'</div></td><td>'+esc(g.item)+(g.item_gr&&g.item_gr!==g.item?'<div class="sub">datang: '+esc(g.item_gr)+'</div>':'')+'</td><td>'+esc(g.soq)+' / '+esc(g.qty_dc)+' / <strong>'+esc(g.qty_gr)+'</strong></td><td><span class="tag red">Miss picking</span><div class="sub">'+esc(g.ket)+' · '+esc(g.oleh)+'</div>'+(g.foto_id?' <a href="https://drive.google.com/file/d/'+esc(g.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+'</td><td>'+(g.resolusi?'<span class="tag green">Selesai</span><div class="sub">'+esc(g.resolusi_ket)+' · '+esc(g.resolusi_oleh)+'</div>':(canAdmin()?'<button class="button" data-obres="'+esc(g.id)+'" type="button">Tandai selesai</button>':'<span class="tag amber">Menunggu DC 38</span>'))+'</td></tr>').join('')+'</tbody></table></div>'}
+
+ let stokMap={};
+ async function refreshStok(){try{const r=await call({action:'stok'},true);if(r.ok){const m={};r.rows.forEach(x=>{m[x.bin+'|'+x.sku]=num(x.saldo)});stokMap=m;draw()}}catch(e){}}
+ const ohTag=r=>{if(r.status!=='Menunggu'||!r.bin)return '';const v=stokMap[r.bin+'|'+r.sku];if(v==null)return '';const low=v<num(r.qty);return '<div class="sub" style="'+(low?'color:#b3261e;font-weight:700':'')+'">On hand '+v+(low?' (kurang dari order!)':'')+'</div>'};
 
  // ---- tampilan
  function draw(){
@@ -4686,15 +4753,25 @@ init();
   else if(tabName==='Packing & Staging')h+=drawPack();
   else if(tabName==='Loading')h+=drawLoad();
   else if(tabName==='Shipping')h+=drawShipTab();
-  else h+=drawRcv();
+  else if(tabName==='Receiving Outlet')h+=drawRcv();
+  else if(tabName==='GR Outlet')h+=cur&&cur.mode==='gr'?drawGrScreen():drawGrList();
+  else h+=drawMasalah();
   if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(id&&$(id))$(id).focus()}}
- const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet'];
+ const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet','GR Outlet','Antrian Masalah'];
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
   if(t.dataset.obedit){openEdit(t.dataset.obedit);return}
   if(t.dataset.obdel){const id=t.dataset.obdel;if(started(id))return say('Sudah dikerjakan, tidak bisa dihapus.',true);if(!confirm('Hapus SOQ ini beserta pembagian kolinya?'))return;itemsOf(id).forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(id).forEach(r=>enqDel('PICK_KOLI',r.id));enqDel('PICK_DOK',id);say('SOQ dihapus.');return}
-  if(t.dataset.obsug){edit.lines.forEach(l=>l.koli=0);suggest(edit.lines,edit.cap);draw();return}
+  if(t.dataset.obsug){suggest(edit.lines,edit.caps);draw();return}
+  if(t.dataset.obdell){edit.lines=edit.lines.filter(l=>l.id!==t.dataset.obdell);draw();return}
+  if(t.dataset.obprm){const[id,i]=t.dataset.obprm.split('||');const l=edit.lines.find(x=>x.id===id);if(l){l.parts.splice(Number(i),1);draw()}return}
+  if(t.dataset.obpadd){const l=edit.lines.find(x=>x.id===t.dataset.obpadd);if(l){const rem=l.qty-l.parts.reduce((a,p)=>a+num(p.qty),0);l.parts.push({koli:Math.max(0,...koliSet(edit))+1,qty:rem>0?rem:0});draw()}return}
+  if(t.dataset.obaddm){const nm=$('ob-mn').value.trim(),q=num($('ob-mq').value);if(!nm||!(q>0))return say('Isi nama item dan qty.',true);const mx=Math.max(0,...edit.lines.map(l=>num(String(l.id).split('|L').pop())));edit.lines.push({id:edit.dok+'|L'+(mx+1),item:nm,kat:'MANUAL',ket:$('ob-mk').value.trim().toUpperCase(),qty:q,manual:true,parts:[{koli:Math.max(1,...koliSet(edit)),qty:q}]});draw();return}
+  if(t.dataset.obgok){const k=koliById(cur.id),l=grLines(k).find(x=>x.id===t.dataset.obgok);if(l)grSave(k,l,'Sesuai',l.dc,l.item,'',null);return}
+  if(t.dataset.obgno){const k=koliById(cur.id),l=grLines(k).find(x=>x.id===t.dataset.obgno);if(l)grSalahModal(k,l);return}
+  if(t.dataset.obgdone){const k=koliById(cur.id);updKoli(k,{status:'GR Selesai'});const rest=koliOf(k.dok).filter(x=>x.id!==k.id&&x.status!=='GR Selesai').length;if(!rest)enq('PICK_DOK',Object.assign({},dokOf(k.dok),{status:'GR Selesai'}));cur=null;say('GR koli '+k.koli+' selesai.');return}
+  if(t.dataset.obres){const g=view('PICK_GR').find(x=>x.id===t.dataset.obres);if(g){const kt=prompt('Catatan penyelesaian (mis. kirim ulang, retur, koreksi stok)','');if(kt===null)return;enq('PICK_GR',Object.assign({},g,{resolusi:'Selesai',resolusi_ket:kt,resolusi_oleh:code(),resolusi_jam:stIso()}))}return}
   if(t.dataset.obmake){makePicking();return}
   if(t.dataset.obopen){openKoli(t.dataset.obopen);return}
   if(t.dataset.obok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obok);if(r)pickRow(r,'Sesuai',r.bin,num(r.qty),'',null);return}
@@ -4712,20 +4789,25 @@ init();
   if(t.dataset.obpall){koliOf(t.dataset.obpall).filter(k=>k.status==='Selesai TFS').forEach(k=>packSel.add(k.id));draw();return}
   if(t.dataset.obpack){const ks=koliOf(t.dataset.obpack).filter(k=>k.status==='Selesai TFS'&&packSel.has(k.id));if(!ks.length)return say('Ketuk koli yang sudah dipacking dulu.',true);ks.forEach(k=>{updKoli(k,{status:'Staging',area:packArea,pack_oleh:code(),pack_waktu:stIso()});packSel.delete(k.id)});say(ks.length+' koli masuk '+packArea+'.');return}
   if(t.dataset.oblt){const k=koliById(t.dataset.oblt);if(k){k.status==='Staging'?updKoli(k,{status:'Dimuat',load_oleh:code(),load_waktu:stIso()}):updKoli(k,{status:'Staging',load_oleh:'',load_waktu:''})}return}
-  if(t.dataset.obship){const id=t.dataset.obship,all=koliOf(id),ld=all.filter(k=>k.status==='Dimuat'),left=all.filter(k=>k.status==='Staging').length,si=shipInfo[id]||{};if(!ld.length)return;if(left&&!confirm(left+' koli belum dimuat dan tetap di staging. Kirim yang sudah dimuat saja?'))return;const d=dokOf(id),now=stIso();ld.forEach(k=>updKoli(k,{status:'Shipping',load_waktu:now}));enq('PICK_DOK',Object.assign({},d,{status:left?'Loading':'Shipping',ekspedisi:si.eks!=null?si.eks:(d.ekspedisi||''),eta:si.eta!=null?si.eta:(d.eta||'')}));say(ld.length+' koli dikirim ke '+d.outlet+'. Manifest incoming tersedia di tab Shipping dan Receiving Outlet.');return}
+  if(t.dataset.obship){const id=t.dataset.obship,all=koliOf(id),ld=all.filter(k=>k.status==='Dimuat'),left=all.filter(k=>!['Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'].includes(k.status)).length,si=shipInfo[id]||{},d=dokOf(id),me=si.metode||d.metode||'',ka=si.kategori||d.kategori||'',ek=si.eks!=null?si.eks:(d.ekspedisi||'');if(!ld.length)return;
+   if(!me)return say('Pilih mode pengiriman (Direct atau Indirect).',true);if(me==='Indirect'&&(!ka||!ek))return say('Untuk Indirect pilih kategori dan ekspedisi.',true);if(me==='Direct'&&!ek)return say('Isi driver / kendaraan internal.',true);
+   if(left&&!confirm(left+' koli belum dimuat dan tetap di DC. Kirim yang sudah dimuat saja?'))return;const now=stIso();ld.forEach(k=>updKoli(k,{status:'Shipping',load_waktu:now}));enq('PICK_DOK',Object.assign({},d,{status:left?'Loading':'Shipping',metode:me,kategori:me==='Indirect'?ka:'',ekspedisi:ek,eta:si.eta!=null?si.eta:(d.eta||'')}));say(ld.length+' koli dikirim ke '+d.outlet+'. Manifest incoming tersedia di tab Shipping dan Receiving Outlet.');return}
   if(t.dataset.obrcv){const k=koliById(t.dataset.obrcv);if(k)rcvModal(k);return}
   if(t.dataset.obfix){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obfix);if(r)setVp(r,'Dikoreksi',r.vp_ket);return}});
  document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='ob-file'&&t.files[0]){uploadModal(t.files[0]);t.value='';return}
   if(t.id==='ob-fop'){filterOp=t.value;draw();return}
   if(t.id==='ob-area'){packArea=t.value;return}
+  if(t.dataset&&t.dataset.obmet){(shipInfo[t.dataset.obmet]=shipInfo[t.dataset.obmet]||{}).metode=t.value;if(t.value!=='Indirect')shipInfo[t.dataset.obmet].kategori='';draw();return}
+  if(t.dataset&&t.dataset.obkat){(shipInfo[t.dataset.obkat]=shipInfo[t.dataset.obkat]||{}).kategori=t.value;return}
+  if(t.dataset&&t.dataset.obeks&&t.value==='(Lainnya)'){const n=(prompt('Nama ekspedisi')||'').trim();(shipInfo[t.dataset.obeks]=shipInfo[t.dataset.obeks]||{}).eks=n;draw();return}
   if(t.dataset&&t.dataset.obeks){(shipInfo[t.dataset.obeks]=shipInfo[t.dataset.obeks]||{}).eks=t.value;return}
   if(t.dataset&&t.dataset.obeta){(shipInfo[t.dataset.obeta]=shipInfo[t.dataset.obeta]||{}).eta=t.value;return}
   if(t.dataset&&t.dataset.obtfs&&cur){const k=koliById(cur.id);if(k){if(t.checked&&['Siap TFS','Siap packing'].includes(k.status))updKoli(k,{status:'Selesai TFS',tfs_oleh:code(),tfs_waktu:stIso()});else if(!t.checked&&k.status==='Selesai TFS')updKoli(k,{status:'Siap TFS',tfs_oleh:'',tfs_waktu:''})}draw();return}
-  if(t.id==='ob-cap'&&edit){const v=Math.max(1,num(t.value));edit.cap=v;try{localStorage.setItem(CAPK,String(v))}catch(x){}return}
-  if(t.dataset&&t.dataset.obk&&edit){const l=edit.lines.find(x=>x.id===t.dataset.obk);if(l){l.koli=Math.max(0,Math.floor(num(t.value)));draw()}return}
+  if((t.id==='ob-capp'||t.id==='ob-capj')&&edit){edit.caps={p:Math.max(1,num($('ob-capp').value)),j:Math.max(1,num($('ob-capj').value))};try{localStorage.setItem(CAP2K,JSON.stringify(edit.caps))}catch(x){}return}
+  if(t.dataset&&t.dataset.obpk2&&edit){const[id,i,f]=t.dataset.obpk2.split('||');const l=edit.lines.find(x=>x.id===id);if(l&&l.parts[Number(i)]){l.parts[Number(i)][f]=Math.max(0,Math.floor(num(t.value)));draw()}return}
   if(t.dataset&&t.dataset.obp&&edit){edit.pk[t.dataset.obp]=t.value;return}});
- setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!edit&&!(cur&&document.querySelector('.iv2-modal')))pull(false)},25000);
+ setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!edit&&!(cur&&document.querySelector('.iv2-modal')))pull(false);if(cur&&cur.mode==='pick'&&!document.querySelector('.iv2-modal'))refreshStok()},25000);
  window.WOSOB={render,has:n=>NAMES.includes(n),pull};
 })();
 </script>
