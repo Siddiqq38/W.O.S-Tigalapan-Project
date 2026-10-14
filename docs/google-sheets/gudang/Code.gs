@@ -34,6 +34,9 @@ const TABS = {
   PICK_KOLI: ['id','tanggal','dok','koli','picker','picker_nama','status','task_id','mulai','selesai','vp_oleh','vp_selesai','tfs_oleh','tfs_waktu','area','pack_oleh','pack_waktu','load_oleh','load_waktu','rcv_oleh','rcv_waktu','rcv_ket','rcv_nama'],
   PICK_GR: ['id','tanggal','dok','outlet','koli','item','soq','qty_dc','status','qty_gr','item_gr','ket','foto_id','oleh','jam','resolusi','resolusi_ket','resolusi_oleh','resolusi_jam'],
   DATA_ENTRY: ['id','tanggal','po','item','qty','oleh','jam'],
+  LC_TASK: ['id','tanggal','jenis','bin','operator','operator_nama','status','ronde','hasil','mulai','selesai','dibuat_oleh','putaran'],
+  LC_COUNT: ['id','tanggal','task','bin','sku','item','ronde','qty_sistem','qty_hitung','selisih','oleh','jam'],
+  ADJUSTMENT: ['id','tanggal','bin','sku','item','qty_sistem','qty_fisik','selisih','alasan','sumber','status','diminta_oleh','diminta_jam','disetujui_oleh','disetujui_jam','catatan'],
   PICK_ITEM: ['id','tanggal','dok','outlet','item','sku','kategori','soq','ket','koli','bin','qty','status','bin_actual','qty_actual','ket_pick','foto_id','picker','jam_pick','vp','vp_ket','vp_oleh','vp_jam'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
