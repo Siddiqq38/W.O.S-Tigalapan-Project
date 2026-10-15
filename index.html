@@ -3736,5 +3736,11 @@ init();
   s._draw=()=>draw(s);s._show=()=>{draw(s);V3.load(true)}});
 })();
 </script>
+<script>
+// Urutan menu: grup WMS dipindah ke bawah OPERASIONAL (sebelum PEOPLE DEVELOPMENT)
+(()=>{try{const sb=document.querySelector('.sidebar');if(!sb)return;const gs=[...sb.querySelectorAll('.nav-group')],wms=gs.find(g=>g.textContent.trim()==='WMS'),ppl=gs.find(g=>g.textContent.trim()==='PEOPLE DEVELOPMENT');if(!wms||!ppl)return;
+ const items=[wms];let n=wms.nextElementSibling;while(n&&n.classList.contains('nav')){items.push(n);n=n.nextElementSibling}
+ items.forEach(e=>ppl.before(e))}catch(e){}})();
+</script>
 </body></html>
 
