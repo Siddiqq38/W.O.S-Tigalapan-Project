@@ -736,8 +736,8 @@ if(typeof document!=='undefined') (()=>{
 // END ATTENDANCE DEMO MODULE
 // BEGIN EMPLOYEE MASTER MODULE
 (()=>{
- const master=document.getElementById('master'),cards=document.getElementById('kpi-cards');
- if(!master||!cards)return;
+ const master=document.getElementById('master'),cards=document.getElementById('kpi-cards')||document.createElement('div');
+ if(!master)return;
  const key='wos-employee-profile-draft-v1',EMP='wos-employees-v1',INFO='wos-employee-info-v1',DEPT='SCM';
  // ID staff perusahaan dan kategori kontrak (sumber: data HR); dapat diubah lewat Edit profil.
  const SEED={W09:['TLI00136','Kontrak','REZKY NOVITA SAID'],W28:['TLI00242','Kontrak','ZUHDI'],W17:['TLI00197','Kontrak','SULQADRI'],W07:['TLI00121','Kontrak','ARDHY WAHIDIN'],W08:['TLI00167','Kontrak','YUSRI'],W04:['TLI00055','Kontrak','ABDUL HALIK'],W24:['TLI00232','Kontrak','SULDENI'],W14:['TLI00204','Kontrak','RIANG INDRA PRATIWI'],W19:['TLI00199','Kontrak','JABAL RAHMAT'],W21:['TLI00225','Kontrak','LAODE SARIF ADAM'],W36:['TLIF00267','Kontrak','ABD. YANDI SAPUTRA'],W03:['TLI00048','Freelance',"MUHAMMAD SAFI'I"],W29:['TLI00251','Kontrak','MUHAMMAD FACHRI DHARMAWAN'],W35:['TLI00332','Probation','ANDI MUHAMMAD AKRAM'],W34:['TLI00308','Kontrak','MUHAMMAD ANSHAR RAMADHAN'],W999:['TLI00030','','AHMAD ASSIDIK']};
