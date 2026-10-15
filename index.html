@@ -916,7 +916,7 @@ if(typeof document!=='undefined') (()=>{
   <div class="hint">Masuk dengan kode staf dan password dari SPV. Satu akun dapat dipakai di beberapa perangkat.</div>
  </form>
 </div>
-<script>window.WOS_ACC={"ST.UPG-01":{name:"STORE HEAD TIGALAPANKAOS MAKASSAR",level:"STORE",label:"Store Head",outlet:"UPG-01",h:"b8cd426697b11931a20435145a5cac2767e5b2d3c580817e744197ac13716cbf"},
+<script>window.WOS_ACC={"PRD01":{name:"GUSTI ZULKARNAIN",level:"PRDM",label:"Manager Produksi",h:"bde8117444760a6774ba84de327a664dbf9f9b1e036d0f0d8db25aed87652695"},"ST.UPG-01":{name:"STORE HEAD TIGALAPANKAOS MAKASSAR",level:"STORE",label:"Store Head",outlet:"UPG-01",h:"b8cd426697b11931a20435145a5cac2767e5b2d3c580817e744197ac13716cbf"},
 "ST.PLW-01":{name:"STORE HEAD TIGALAPANKAOS PALU",level:"STORE",label:"Store Head",outlet:"PLW-01",h:"cf31fcc5f20089b9190a2cb8f912377a96813da1b7ad31d5c79d7c3d1d3b528b"},
 "ST.MDC-01":{name:"STORE HEAD TIGALAPANKAOS MANADO",level:"STORE",label:"Store Head",outlet:"MDC-01",h:"83a5855b1b08a72ac0e85d856d864a6d24c66c3ce88facf6f86e2a4535985621"},
 "ST.SRI-01":{name:"STORE HEAD TIGALAPANKAOS SAMARINDA",level:"STORE",label:"Store Head",outlet:"SRI-01",h:"8764c76194fdf3fa1260a10d33ec3611f954c0d902de6de03011ba2602caaf54"},
@@ -944,7 +944,7 @@ const sm=()=>{try{return staffMaster}catch(e){return{}}};
 const MASTER_HASH='f8f83405f4b975412db5fd937d5896eadb1c31c07ed81d782a406e3b3a64c700',MASTER_CODE='W999';
 const CODEKEY='wos-session-code',IMPKEY='wos-impersonator',CREDKEY='wos-credentials-v1';
 const LEVEL_OF=role=>role==='Supervisor'?'SPV':role==='Admin'?'ADMIN':'OPERATOR';
-const ALIAS={SPV:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',HRD:'hrd',PROD:'prod',FAT:'fat'};
+const ALIAS={SPV:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',HRD:'hrd',PROD:'prod',FAT:'fat',PRDM:'prdm'};
 const ACC=window.WOS_ACC||{};
 const buildAccount=code=>{if(ACC[code])return{code,level:ACC[code].level,label:ACC[code].label,outlet:ACC[code].outlet||''};const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?'Manager':level==='ADMIN'?'Admin':'Operator'}};
 const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')||{}}catch(e){return{}}};
@@ -955,7 +955,7 @@ const ALL_PAGES=['dashboard','attendance','tugas','tracking','analysis','project
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound'],HRD:['attendance','analysis','compliance','coaching','project'],PROD:['wms-inbound'],FAT:['wms-inbound']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound'],HRD:['attendance','analysis','compliance','coaching','project'],PROD:['wms-inbound'],FAT:['wms-inbound'],PRDM:['analysis','wms-inbound']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -1060,7 +1060,7 @@ function accountBox(){
   if(e.target.closest('#wos-back'))switchTo(impersonating()||MASTER_CODE,null)})}
  const imp=impersonating();
  box.innerHTML='<strong></strong><span></span>'+(imp?'<div style="margin-top:8px;padding:6px 8px;border-radius:8px;background:rgba(255,230,150,.9);color:#5c4300;font-size:11px">Mode maintenance: masuk sebagai staf. <button id="wos-back" type="button" style="margin-top:4px">Kembali ke Supervisor</button></div>':'')+'<button id="wos-chpass" type="button">Ubah password</button><button id="wos-logout" type="button">Keluar</button>';
- box.querySelector('strong').textContent=displayName(account)+' ('+account.code+')';box.querySelector('span').textContent=account.label+(account.level==='STORE'?' · '+account.outlet:account.level==='MANAGER'?' · manager, laporan dan approval akhir':account.level==='OPERATOR'?' · operasional':account.level==='ADMIN'?' · operasional (semua modul operasional)':' · akun master, semua modul');
+ box.querySelector('strong').textContent=displayName(account)+' ('+account.code+')';box.querySelector('span').textContent=account.label+(['PPIC','HRD','PROD','FAT','PRDM'].includes(account.level)?' · akses sesuai peran':account.level==='STORE'?' · '+account.outlet:account.level==='MANAGER'?' · manager, laporan dan approval akhir':account.level==='OPERATOR'?' · operasional':account.level==='ADMIN'?' · operasional (semua modul operasional)':' · akun master, semua modul');
 }
 function openPassModal(){
  let m=$('wos-pass-modal');if(m)m.remove();
@@ -1970,7 +1970,7 @@ init();
  const storeCode=()=>/^ST\./.test(code())?code().slice(3):'';
  // hak akses tab WMS per level akun (operator tetap mengikuti perannya)
  const allowTab=(page,name)=>{const lv=level();if(lv==='supervisor'||lv==='admin'||lv==='operator')return true;
-  if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In'].includes(name);if(lv==='prod'||lv==='fat')return name==='Staging In';return false}
+  if(page==='wms-inbound'){if(lv==='ppic'||lv==='prdm')return ['Incoming','Staging In'].includes(name);if(lv==='prod'||lv==='fat')return name==='Staging In';return false}
   if(page==='wms-outbound'){if(lv==='ppic')return name==='Picking List';if(lv==='store')return ['Shipping','Receiving Outlet','GR Outlet','Miss-Picking'].includes(name);return false}
   return false};
  const canSJ=()=>canAdmin()||level()==='prod',canHPP=()=>canAdmin()||level()==='fat';
