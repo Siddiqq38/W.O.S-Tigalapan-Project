@@ -2458,6 +2458,25 @@ window.addEventListener('storage',e=>{if(e.key===KEY){S=load()}});
   <div class="hint">Masuk dengan kode staf dan password dari SPV. Satu akun dapat dipakai di beberapa perangkat.</div>
  </form>
 </div>
+<script>window.WOS_ACC={"ST.UPG-01":{name:"STORE HEAD TIGALAPANKAOS MAKASSAR",level:"STORE",label:"Store Head",outlet:"UPG-01",h:"b8cd426697b11931a20435145a5cac2767e5b2d3c580817e744197ac13716cbf"},
+"ST.PLW-01":{name:"STORE HEAD TIGALAPANKAOS PALU",level:"STORE",label:"Store Head",outlet:"PLW-01",h:"cf31fcc5f20089b9190a2cb8f912377a96813da1b7ad31d5c79d7c3d1d3b528b"},
+"ST.MDC-01":{name:"STORE HEAD TIGALAPANKAOS MANADO",level:"STORE",label:"Store Head",outlet:"MDC-01",h:"83a5855b1b08a72ac0e85d856d864a6d24c66c3ce88facf6f86e2a4535985621"},
+"ST.SRI-01":{name:"STORE HEAD TIGALAPANKAOS SAMARINDA",level:"STORE",label:"Store Head",outlet:"SRI-01",h:"8764c76194fdf3fa1260a10d33ec3611f954c0d902de6de03011ba2602caaf54"},
+"ST.UPG-02":{name:"STORE HEAD MAMU MAKASSAR",level:"STORE",label:"Store Head",outlet:"UPG-02",h:"d0e7898583e9959e96cbb267cc8f48f1b8efdf33a3735520b74502f5741ca731"},
+"ST.UPG-03":{name:"STORE HEAD MAMU BTP",level:"STORE",label:"Store Head",outlet:"UPG-03",h:"e4c74f3854505b4af3faf9558f0aeb5484f037546c47dccfc29e9fea13658713"},
+"ST.LLO-01":{name:"STORE HEAD MAMU PALOPO",level:"STORE",label:"Store Head",outlet:"LLO-01",h:"806882ab9ff1d8e144abf1253d4f800dbaed6cb47b95fff2a03fefdc9862018a"},
+"ST.KDI-01":{name:"STORE HEAD MAMU KENDARI",level:"STORE",label:"Store Head",outlet:"KDI-01",h:"38a6d612e8c640362056bcc5bfe5c54587c7431a15efe61e2a3172b57c6c30a0"},
+"ST.MJU-01":{name:"STORE HEAD TIGALAPANKAOS POLMAN",level:"STORE",label:"Store Head",outlet:"MJU-01",h:"3938fc16845970d534f9634210c8a75709d8ec2bb0615760272bc89e06a232da"},
+"ST.WTP-01":{name:"STORE HEAD TIGALAPANKAOS BONE",level:"STORE",label:"Store Head",outlet:"WTP-01",h:"74b36c85289549dfed48a8a27b1113d04089c2c30f9d6a9a31bc178b47a3996f"},
+"ST.SGO-01":{name:"STORE HEAD MAMU GOWA",level:"STORE",label:"Store Head",outlet:"SGO-01",h:"32f0cea4d3a82f5ffd0e9f179d81053bf3d683fd440a49bc0f84175b4b0daa82"},
+"ST.TRT-01":{name:"STORE HEAD TIGALAPANKAOS TORAJA",level:"STORE",label:"Store Head",outlet:"TRT-01",h:"3f4943fdf6073c3d725d69579b8ff460742eeba2f42acae6a741959eb0201ec4"},
+"OPS01":{name:"ILHAM IDRIS",level:"SPV",label:"Supervisor Operational",h:"9d64b80972e3145bf2662202355fe6874de1092765f6c437ad38f08a733bcffa"},
+"OPS02":{name:"ANDI SULTAN",level:"SPV",label:"Supervisor Operational",h:"33bf797c5ed964baa83556d011fe810ae100e30325fd2fa6a65b4a2cc644b4de"},
+"PPIC-38":{name:"PPIC DC 38",level:"PPIC",label:"PPIC",h:"9cf33d53c4c6e72be204ded593fb276fa59a7d71c1e20d2e2dc02a3f2c398be9"},
+"HRD-38":{name:"HRD DC 38",level:"HRD",label:"HRD",h:"239e484169761d28d2eee5e9f9b6d4566c04e71a104ffe73519baf398014ca96"},
+"PROD-38":{name:"ADMIN PRODUKSI",level:"PROD",label:"Admin Produksi",h:"c326d77a62d285b2824d616df9de9bd75ecd1abdb669d915b12c8d1c5d041b3f"},
+"FAT-38":{name:"FAT",level:"FAT",label:"FAT",h:"9008469aca0a193f87ad0c4b5877503c6cdf5c5e9fc136d9a00df19286e6e7b6"}};
+</script>
 <script>
 (()=>{
 const SALT=':wos-sim-v1',KEY='wos-session-v1',ROLEKEY='wos-op-role-v1',ATT='wos-attendance-kpi-v1',OBS='wos-outbound-v1';
@@ -2467,25 +2486,26 @@ const sm=()=>{try{return staffMaster}catch(e){return{}}};
 const MASTER_HASH='f8f83405f4b975412db5fd937d5896eadb1c31c07ed81d782a406e3b3a64c700',MASTER_CODE='W999';
 const CODEKEY='wos-session-code',IMPKEY='wos-impersonator',CREDKEY='wos-credentials-v1';
 const LEVEL_OF=role=>role==='Supervisor'?'SPV':role==='Admin'?'ADMIN':'OPERATOR';
-const ALIAS={SPV:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator'};
-const buildAccount=code=>{const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?'Manager':level==='ADMIN'?'Admin':'Operator'}};
+const ALIAS={SPV:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',HRD:'hrd',PROD:'prod',FAT:'fat'};
+const ACC=window.WOS_ACC||{};
+const buildAccount=code=>{if(ACC[code])return{code,level:ACC[code].level,label:ACC[code].label,outlet:ACC[code].outlet||''};const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?'Manager':level==='ADMIN'?'Admin':'Operator'}};
 const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')||{}}catch(e){return{}}};
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','wms-inventory','inbound','productivity','compliance','performance','coaching','reports','master','access'];
+const ALL_PAGES=['dashboard','attendance','assignment','tugas','tracking','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','inbound','productivity','compliance','performance','coaching','reports','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 const HOLD_PAGES=['inbound'];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','assignment','wms-inbound','wms-location','wms-outbound','wms-inventory','productivity','compliance','performance','coaching','reports'],ADMIN:['dashboard','attendance','assignment','inbound','productivity','compliance']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','assignment','tugas','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','productivity','compliance','performance','coaching','reports'],ADMIN:['dashboard','attendance','assignment','tugas','project','inbound','productivity','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound'],HRD:['attendance','analysis','productivity','compliance','performance','coaching','reports','project'],PROD:['wms-inbound'],FAT:['wms-inbound']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
 const hex=buf=>[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
 async function hash(p){if(!window.crypto?.subtle)throw Error('Browser perlu HTTPS atau localhost untuk login.');return hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p+SALT)))}
 const credHash=(code,p)=>hash(code+'|'+p);
-async function passwordOk(code,pass){const cred=readCreds()[code];if(cred)return cred.hash===await credHash(code,pass);const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id}
+async function passwordOk(code,pass){const cred=readCreds()[code];if(cred)return cred.hash===await credHash(code,pass);if(ACC[code])return ACC[code].h===await credHash(code,pass);const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id}
 const getSession=()=>{try{const c=sessionStorage.getItem(CODEKEY);return c&&buildAccount(c)?c:null}catch(e){return null}};
-const displayName=a=>sm()[a.code]?.name||a.label;
+const displayName=a=>(ACC[a.code]&&ACC[a.code].name)||sm()[a.code]?.name||a.label;
 let me=null,account=null;
 
 function setSel(id,value,lock){const el=$(id);if(!el)return;if([...el.options].some(o=>o.value===value)&&el.value!==value){el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=!!lock}
@@ -2495,7 +2515,7 @@ function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),d
 
 function navVisibility(){
  const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory'))o.push('wms-inventory');return o};
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['assignment']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['tugas']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -2581,7 +2601,7 @@ function accountBox(){
   if(e.target.closest('#wos-back'))switchTo(impersonating()||MASTER_CODE,null)})}
  const imp=impersonating();
  box.innerHTML='<strong></strong><span></span>'+(imp?'<div style="margin-top:8px;padding:6px 8px;border-radius:8px;background:rgba(255,230,150,.9);color:#5c4300;font-size:11px">Mode maintenance: masuk sebagai staf. <button id="wos-back" type="button" style="margin-top:4px">Kembali ke Supervisor</button></div>':'')+'<button id="wos-chpass" type="button">Ubah password</button><button id="wos-logout" type="button">Keluar</button>';
- box.querySelector('strong').textContent=displayName(account)+' ('+account.code+')';box.querySelector('span').textContent=account.label+(account.level==='MANAGER'?' · manager, laporan dan approval akhir':account.level==='OPERATOR'?' · operasional':account.level==='ADMIN'?' · operasional (semua modul operasional)':' · akun master, semua modul');
+ box.querySelector('strong').textContent=displayName(account)+' ('+account.code+')';box.querySelector('span').textContent=account.label+(account.level==='STORE'?' · '+account.outlet:account.level==='MANAGER'?' · manager, laporan dan approval akhir':account.level==='OPERATOR'?' · operasional':account.level==='ADMIN'?' · operasional (semua modul operasional)':' · akun master, semua modul');
 }
 function openPassModal(){
  let m=$('wos-pass-modal');if(m)m.remove();
@@ -2609,7 +2629,7 @@ function masterPanel(){
    if(act==='as'){if(!confirm('Masuk sebagai '+displayName({code,label:''})+' ('+code+') untuk maintenance? Anda bisa kembali ke Supervisor dari sidebar.'))return;switchTo(code,account.code)}
    if(act==='sim-day'){if(!confirm('Hapus presensi, role, dan task HARI INI di browser ini?'))return;resetToday();box.dataset.sig='';masterPanel();alert('Data simulasi hari ini dihapus.')}
    if(act==='sim-all'){if(!confirm('Hapus SEMUA data simulasi (presensi, role, task, SPL, laporan 5R)? Master karyawan dan password tidak ikut dihapus.'))return;resetAll()}})}
- const staff=Object.entries(sm()).sort((a,b)=>a[0].localeCompare(b[0],'id',{numeric:true})),creds=readCreds();
+ const staff=Object.entries(sm()).sort((a,b)=>a[0].localeCompare(b[0],'id',{numeric:true})).concat(Object.entries(ACC).map(([c,a])=>[c,{name:a.name,role:a.label,acc:true}])),creds=readCreds();
  const html='<h2>Akun dan maintenance (akun master)</h2><p class="sub">Login memakai kode staff; password awal = ID staff. Satu akun boleh dipakai di beberapa perangkat sekaligus, jadi staf bisa meminjam HP teman untuk presensi. Supervisor dapat mereset password dan masuk sebagai staf bila ada gagal login. </p><div style="overflow:auto"><table><thead><tr><th>Kode</th><th>Nama</th><th>Level</th><th>ID staff (password awal)</th><th>Password</th><th>Kelola</th></tr></thead><tbody>'+staff.map(([c,p])=>{const lv=LEVEL_OF(p.role),id=idStaffOf(c);return '<tr'+(p.out?' style="opacity:.6"':'')+'><td><strong>'+esc(c)+'</strong></td><td>'+esc(p.name)+(p.out?' <span class="tag red">Out</span>':'')+'</td><td>'+esc(lv==='SPV'?'Supervisor (master)':lv==='ADMIN'?'Admin':'Operator')+'</td><td>'+(id?esc(id):'<span class="tag red">Belum ada ID staff</span>')+'</td><td>'+(creds[c]?'<span class="tag purple">Diubah '+dmyIso(creds[c].changedAt)+'</span>':'<span class="tag amber">Password awal</span>')+'</td><td>'+(p.out?'-':'<button class="button secondary" data-act="reset" data-code="'+esc(c)+'" type="button">Reset password</button> '+(c===account.code?'':'<button class="button secondary" data-act="as" data-code="'+esc(c)+'" type="button">Masuk sebagai</button>'))+'</td></tr>'}).join('')+'</tbody></table></div><h3 style="margin-top:16px">Maintenance data</h3><div class="rl-row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="button secondary" data-act="sim-day" type="button">Hapus data presensi, role, dan task hari ini</button><button class="button secondary" data-act="sim-all" type="button">Hapus semua data operasional di perangkat ini</button></div><p class="sub">Dipakai untuk mengulang dari awal bila diperlukan. Master karyawan, master role, master 5R, dan password tidak ikut dihapus.</p>';
  if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html}
 }
@@ -2628,7 +2648,7 @@ function refresh(){if(!account)return;navVisibility();operatorContent();lockAtte
 function enableData(){if(!window.__wosLite||window.__wosNeedData)return;window.__wosNeedData=true;setTimeout(()=>{try{document.getElementById('ob-refresh')?.click()}catch(e){}try{loadGoodReceiptProgress()}catch(e){}try{loadPublishedInboundQueue()}catch(e){}},100)}
 function start(u){
  me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
- accountBox();applyModes();refresh();masterPanel();if(account.level!=='OPERATOR')setTimeout(()=>{window.requestIdleCallback?requestIdleCallback(enableData,{timeout:3000}):enableData()},2500);setInterval(()=>{if(!document.hidden)masterPanel()},3000);
+ accountBox();applyModes();refresh();masterPanel();if(['SPV','MANAGER','ADMIN'].includes(account.level))setTimeout(()=>{window.requestIdleCallback?requestIdleCallback(enableData,{timeout:3000}):enableData()},2500);setInterval(()=>{if(!document.hidden)masterPanel()},3000);
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
  setInterval(()=>{if(!document.hidden)refresh()},3000);
@@ -3747,18 +3767,25 @@ init();
  const level=()=>{try{return sessionStorage.getItem('wos-session-v1')||''}catch(e){return''}};
  const nameOf=c=>{try{return staffMaster[c].name}catch(e){return c}};
  const canAdmin=()=>level()==='supervisor'||level()==='admin';
+ const storeCode=()=>/^ST\./.test(code())?code().slice(3):'';
+ // hak akses tab WMS per level akun (operator tetap mengikuti perannya)
+ const allowTab=(page,name)=>{const lv=level();if(lv==='supervisor'||lv==='admin'||lv==='operator')return true;
+  if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In'].includes(name);if(lv==='prod'||lv==='fat')return name==='Staging In';return false}
+  if(page==='wms-outbound'){if(lv==='ppic')return name==='Picking List';if(lv==='store')return ['Shipping','Receiving Outlet','GR Outlet','Miss-Picking'].includes(name);return false}
+  return false};
+ const canSJ=()=>canAdmin()||level()==='prod',canHPP=()=>canAdmin()||level()==='fat';
  const main=document.querySelector('main');if(!main)return;
  // ---- menu WMS
  const FEAT={
   'wms-location':[['Layout'],['Stok Opname'],['Cycle Count'],['Internal Move'],['Adjustment'],['Saldo Awal']],
-  'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing & Staging'],['Loading'],['Shipping'],['Receiving Outlet'],['GR Outlet'],['Antrian Masalah']],
+  'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing & Staging'],['Loading'],['Shipping'],['Receiving Outlet'],['GR Outlet'],['Miss-Picking']],
   'gr':[['Counting'],['Put Away'],['Data Entry (PO ke MOKA)']]
  };
- function phBlock(key){const f=FEAT[key];return '<div class="filters" data-ph="'+key+'" style="margin-bottom:12px">'+f.map((x,i)=>'<button type="button" class="filter'+(i?'':' active')+'" data-p="'+esc(x[0])+'">'+esc(x[0])+'</button>').join('')+'</div><div class="card" data-phbody="'+key+'"></div>'}
+ function phBlock(key){const f=FEAT[key].filter(x=>key!=='wms-outbound'||allowTab(key,x[0]));return '<div class="filters" data-ph="'+key+'" style="margin-bottom:12px">'+f.map((x,i)=>'<button type="button" class="filter'+(i?'':' active')+'" data-p="'+esc(x[0])+'">'+esc(x[0])+'</button>').join('')+'</div><div class="card" data-phbody="'+key+'"></div>'}
  function phFill(key,name){const b=document.querySelector('[data-phbody="'+key+'"]');if(!b)return;if(key==='gr'&&window.WOSGR){window.WOSGR.render(b,name);document.querySelectorAll('[data-ph="gr"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}if(key==='wms-location'&&window.WOSLC&&window.WOSLC.has(name)){window.WOSLC.render(b,name);document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}if(key==='wms-outbound'&&window.WOSOB&&window.WOSOB.has(name)){window.WOSOB.render(b,name);document.querySelectorAll('[data-ph="wms-outbound"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}b.innerHTML='<h3>'+esc(name)+'</h3><p class="sub">Fitur ini sedang disiapkan. Alur, dokumen, input, proses, dan outputnya akan ditambahkan setelah detail alur diterima. Pola datanya sama dengan Receiving: angka dan status tersimpan di Google Sheets (WOS Data Gudang), foto dan video di Google Drive.</p>';document.querySelectorAll('[data-ph="'+key+'"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name))}
  const mk=(id,label,title,sub)=>{const s=document.createElement('section');s.className='page';s.id=id;main.appendChild(s);const n=document.createElement('button');n.className='nav';n.dataset.page=id;n.textContent=label;try{names[id]=[title,sub]}catch(e){}
   n.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));n.classList.add('active');s.classList.add('active');$('title').textContent=title;$('subtitle').textContent=sub;
-   if(id==='wms-inbound'){build();pull()}else if(!s.dataset.built){s.dataset.built='1';s.innerHTML='<div class="toolbar"><div><h2>'+esc(label)+'</h2><span class="sub">'+esc(sub)+'</span></div></div>'+phBlock(id);phFill(id,FEAT[id][0][0])}});
+   if(id==='wms-inbound'){build();pull()}else if(!s.dataset.built){s.dataset.built='1';s.innerHTML='<div class="toolbar"><div><h2>'+esc(label)+'</h2><span class="sub">'+esc(sub)+'</span></div></div>'+phBlock(id);phFill(id,(FEAT[id].find(x=>id!=='wms-outbound'||allowTab(id,x[0]))||FEAT[id][0])[0])}});
   return{s,n}};
  const grp=document.createElement('div');grp.className='nav-group';grp.textContent='WMS';
  const anchor=document.querySelector('.profile');anchor.before(grp);
@@ -3821,6 +3848,10 @@ init();
   '<div id="iv2-recv"><div class="filters" style="margin-bottom:12px"><button class="filter active" data-t="recv" type="button">Unloading</button><button class="filter" data-t="inc" type="button">Incoming</button><button class="filter" data-t="stg" type="button">Staging In</button><button class="filter" data-t="mst" type="button">Master data</button></div><p class="note" id="iv2-msg" hidden></p><div id="iv2-b"></div></div>'+
   '<div id="iv2-gr" hidden>'+phBlock('gr')+'</div>';phFill('gr','Counting');
   sec.addEventListener('click',onClick);sec.addEventListener('change',onChange);sec.addEventListener('input',onInput);sec.addEventListener('keydown',onKey);
+  {const NM={recv:'Unloading',inc:'Incoming',stg:'Staging In',mst:'Master data'};let first='';
+   sec.querySelectorAll('[data-t]').forEach(b=>{if(!allowTab('wms-inbound',NM[b.dataset.t]))b.style.display='none';else if(!first)first=b.dataset.t});
+   if(first)tab=first;
+   if(!allowTab('wms-inbound','Unloading')&&!allowTab('wms-inbound','Counting')){sec.querySelectorAll('[data-f]').forEach(b=>b.parentElement.style.display='none')}}
   render();
  }
  let rT=0;function render(){if(rT)return;rT=setTimeout(()=>{rT=0;renderNow()},50)}
@@ -3909,7 +3940,7 @@ init();
   const sum=f=>rows.filter(f).reduce((a,r)=>a+r.ok.length,0),card=(t,v,c,s)=>'<div class="card"><span class="metric-label">'+t+'</span><div class="metric '+c+'">'+v+' koli</div><span class="sub">'+s+'</span></div>';
   return '<div class="grid three">'+card('Staging In (tervalidasi)',rows.reduce((a,r)=>a+r.rec,0),'','Semua PO yang belum GR')+card('Ready GR',sum(r=>r.status==='Ready GR'),'good','SJ dan HPP lengkap')+card('Menunggu SJ / HPP',sum(r=>/^Menunggu/.test(r.status)),'warn','Dokumen belum lengkap')+'</div>'+
   '<div class="card" style="margin-top:12px"><h3>Staging In per PO</h3><p class="sub">Hanya koli yang sudah tervalidasi. Rincian per tanggal receiving ada di kolom Diterima. Surat jalan: pengecekan menyusul saat fitur upload dokumen aktif.</p><div class="form-grid"><div class="field"><label for="iv2-filt">Status</label><select id="iv2-filt"><option value="">Semua</option>'+['Ready GR','Menunggu SJ','Menunggu HPP','Menunggu SJ dan HPP','Bermasalah'].map(x=>'<option'+(filt===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div><div class="field"><label for="iv2-q">Cari PO / vendor / STTB</label><input id="iv2-q" value="'+esc(qs)+'" autocomplete="off"></div></div><div style="overflow:auto;margin-top:8px">'+
-  (list.length?'<table><thead><tr><th>PO</th><th>Vendor</th><th>Unload terakhir</th><th>Diterima (per tanggal)</th><th>Belum datang</th><th>Masalah</th><th>Ekspedisi / STTB</th><th>Area</th><th>Surat jalan</th><th>HPP</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+list.map(r=>'<tr><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor||'-')+'</td><td>'+esc(r.last)+'<br><span class="sub">'+age(r.last)+'</span></td><td><details><summary><strong>'+r.rec+'</strong> koli</summary>'+Object.keys(r.dates).sort().map(d=>'<div class="sub">'+esc(d)+': '+esc(compress(r.dates[d]))+'</div>').join('')+'</details></td><td>'+(r.total?'<strong>'+r.sisa+'</strong> dari '+r.total+(r.miss.length?'<br><span class="sub">'+esc(compress(r.miss).slice(0,120))+'</span>':''):'<button class="button secondary" data-total="'+esc(r.po)+'" type="button">Isi total koli PO</button>')+'</td><td>'+(r.bad.length?'<span class="tag red">'+r.bad.length+' koli</span><br><span class="sub">'+esc(compress(r.bad))+'</span>'+(r.badf?'<br>'+r.badf.map(x=>'<a href="https://drive.google.com/file/d/'+esc(x.f)+'/view" target="_blank" rel="noopener">bukti K'+x.n+'</a>').join(' '):''):'-')+'</td><td>'+esc([...r.eks].join(', '))+'<br><span class="sub">'+esc([...r.resi].join(', '))+'</span></td><td>'+esc(r.area||'-')+'</td><td>'+(r.hasSJ?'<span class="tag green">'+esc(r.dk.sj_item)+' item</span>':'')+(canAdmin()?' <button class="button secondary" data-sj="'+esc(r.po)+'" type="button">'+(r.hasSJ?'Ganti':'Import SJ')+'</button>':(r.hasSJ?'':'-'))+'</td><td>'+(r.hasHPP?'<span class="tag green">Ada</span>':'')+(canAdmin()?' <button class="button secondary" data-hpp="'+esc(r.po)+'" type="button">'+(r.hasHPP?'Ganti':'Import HPP')+'</button>':(r.hasHPP?'':'-'))+'</td><td>'+tagOf(r.status)+'</td><td>'+(r.status==='Ready GR'&&canAdmin()?'<button class="button" data-assign="'+esc(r.po)+'" type="button">Assign GR</button>':'-')+(window.WOSGR?'<br><span class="sub">'+window.WOSGR.progress(r.po)+'</span>':'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada koli yang masuk Staging In.</p>')+'</div></div>';
+  (list.length?'<table><thead><tr><th>PO</th><th>Vendor</th><th>Unload terakhir</th><th>Diterima (per tanggal)</th><th>Belum datang</th><th>Masalah</th><th>Ekspedisi / STTB</th><th>Area</th><th>Surat jalan</th><th>HPP</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+list.map(r=>'<tr><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor||'-')+'</td><td>'+esc(r.last)+'<br><span class="sub">'+age(r.last)+'</span></td><td><details><summary><strong>'+r.rec+'</strong> koli</summary>'+Object.keys(r.dates).sort().map(d=>'<div class="sub">'+esc(d)+': '+esc(compress(r.dates[d]))+'</div>').join('')+'</details></td><td>'+(r.total?'<strong>'+r.sisa+'</strong> dari '+r.total+(r.miss.length?'<br><span class="sub">'+esc(compress(r.miss).slice(0,120))+'</span>':''):'<button class="button secondary" data-total="'+esc(r.po)+'" type="button">Isi total koli PO</button>')+'</td><td>'+(r.bad.length?'<span class="tag red">'+r.bad.length+' koli</span><br><span class="sub">'+esc(compress(r.bad))+'</span>'+(r.badf?'<br>'+r.badf.map(x=>'<a href="https://drive.google.com/file/d/'+esc(x.f)+'/view" target="_blank" rel="noopener">bukti K'+x.n+'</a>').join(' '):''):'-')+'</td><td>'+esc([...r.eks].join(', '))+'<br><span class="sub">'+esc([...r.resi].join(', '))+'</span></td><td>'+esc(r.area||'-')+'</td><td>'+(r.hasSJ?'<span class="tag green">'+esc(r.dk.sj_item)+' item</span>':'')+(canSJ()?' <button class="button secondary" data-sj="'+esc(r.po)+'" type="button">'+(r.hasSJ?'Ganti':'Import SJ')+'</button>':(r.hasSJ?'':'-'))+'</td><td>'+(r.hasHPP?'<span class="tag green">Ada</span>':'')+(canHPP()?' <button class="button secondary" data-hpp="'+esc(r.po)+'" type="button">'+(r.hasHPP?'Ganti':'Import HPP')+'</button>':(r.hasHPP?'':'-'))+'</td><td>'+tagOf(r.status)+'</td><td>'+(r.status==='Ready GR'&&canAdmin()?'<button class="button" data-assign="'+esc(r.po)+'" type="button">Assign GR</button>':'-')+(window.WOSGR?'<br><span class="sub">'+window.WOSGR.progress(r.po)+'</span>':'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada koli yang masuk Staging In.</p>')+'</div></div>';
  }
 
  // ---- Incoming (on delivery): koli satu PO yang belum datang
@@ -4132,7 +4163,7 @@ init();
  }
  setInterval(()=>{flush();if(sec.classList.contains('active'))pull()},15000);setInterval(()=>{try{if(queue().length)flush()}catch(e){}},8000);
  window.addEventListener('online',flush);
- window.WOSGudang={api:{queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;dv++}}},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
+ window.WOSGudang={api:{allowTab,storeCode,queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;dv++}}},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
 })();
 </script>
 <script>
@@ -4449,7 +4480,7 @@ init();
 // WMS OUTBOUND: Picking List (upload SOQ, kelompok koli, assign picker), Picking (bin FIFO, centang/silang), Verification Pick
 (()=>{
  const A=window.WOSGudang&&window.WOSGudang.api,G=window.WOSGR;if(!A||!G)return;
- const {$,esc,view,enq,enqDel,call,code,level,nameOf,canAdmin,today,nowHM,back,setData,taskEdit}=A;
+ const {$,esc,view,enq,enqDel,call,code,level,nameOf,canAdmin,allowTab,storeCode,today,nowHM,back,setData,taskEdit}=A;
  const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0};
  const U=s=>String(s==null?'':s).trim().toUpperCase();
  const norm=s=>U(s).replace(/\b(MAMU|MYNO)\b/g,'').replace(/\s+/g,' ').trim();
@@ -4498,7 +4529,7 @@ init();
    itemsOf(id).forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(id).forEach(r=>enqDel('PICK_KOLI',r.id));
    items.forEach((x,i)=>enq('PICK_ITEM',{id:id+'|L'+(i+1),tanggal:tgl,dok:id,outlet,item:x.item,sku:'',kategori:x.kat,soq:String(x.qty),ket:x.ket,koli:'',bin:'',qty:String(x.qty),status:'Draft'}));
    enq('PICK_DOK',{id,tanggal:tgl,kode,outlet,file:file.name,jumlah_item:String(items.length),total_qty:String(items.reduce((a,x)=>a+x.qty,0)),status:'Diupload',diunggah_oleh:code(),waktu:stIso(),tgl_soq:q('#ob-tsq').value||tgl,kode_outlet:U(q('#ob-ko').value),alamat:q('#ob-al').value.trim()});
-   m.remove();openEdit(id);say('SOQ '+kode+' '+outlet+' tersimpan. Atur koli dan picker di bawah.')}}
+   m.remove();if(canAdmin()){openEdit(id);say('SOQ '+kode+' '+outlet+' tersimpan. Atur koli dan picker di bawah.')}else say('SOQ '+kode+' '+outlet+' tersimpan. Admin akan mengatur koli dan picker.')}}
 
  // ---- editor koli + picker (batas isi koli: lengan pendek 280 pcs, lengan panjang 225 pcs; satu item bisa terbagi ke beberapa koli)
  const CAP2K='wos-ob-cap2-v1';
@@ -4562,14 +4593,14 @@ init();
 
  // ---- tab Picking List
  function drawList(){
-  if(!canAdmin())return '<p class="note">Picking List diatur oleh PPIC atau Admin. Tugas picking Anda ada di tab <strong>Picking</strong>.</p>';
+  if(!canAdmin()&&level()!=='ppic')return '<p class="note">Picking List diatur oleh PPIC atau Admin. Tugas picking Anda ada di tab <strong>Picking</strong>.</p>';
   const docs=view('PICK_DOK').sort((a,b)=>String(b.tanggal+b.id).localeCompare(String(a.tanggal+a.id)));
   let h='<div class="card"><h3 style="margin:0">Upload SOQ</h3><p class="sub">Pilih file Excel SOQ dengan nama seperti <strong>SOQ LLO-01 MAMU PALOPO 2026.10.14</strong> (kode shipment, outlet, tanggal). Sistem membaca daftar item, mengelompokkan ke koli, lalu Admin menentukan picker.</p><input id="ob-file" type="file" accept=".xlsx,.xls,.csv"></div>';
   if(!docs.length)return h+'<p class="sub" style="margin-top:12px">Belum ada SOQ.</p>';
   return h+docs.map(d=>{const it=itemsOf(d.id),ks=koliOf(d.id),done=ks.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status)).length,ver=ks.filter(k=>k.status==='Siap TFS').length,can=!started(d.id);
    return '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><span class="tag '+(d.status==='Picking'?'amber':'')+'">'+esc(d.status)+'</span></div><p class="sub">'+esc(d.jumlah_item)+' item · '+esc(d.total_qty)+' pcs'+(ks.length?' · '+ks.length+' koli · picking selesai '+done+' · lolos verifikasi '+ver:'')+'</p>'+
    (ks.length?'<p class="sub">'+ks.sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'Koli '+esc(k.koli)+': '+esc(k.picker_nama||k.picker)+' ('+esc(k.status)+')').join(' · ')+'</p>':'')+
-   '<div class="ob-actions">'+(can?'<button class="button" data-obedit="'+esc(d.id)+'" type="button">'+(ks.length?'Atur ulang koli dan picker':'Atur koli dan picker')+'</button> <button class="button secondary" data-obdel="'+esc(d.id)+'" type="button" style="color:#b3261e">Hapus</button>':'<span class="sub">Sudah dikerjakan, tidak bisa diatur ulang.</span>')+'</div></div>'}).join('')}
+   '<div class="ob-actions">'+(!canAdmin()?'<span class="sub">Koli dan picker diatur oleh Admin.</span>':can?'<button class="button" data-obedit="'+esc(d.id)+'" type="button">'+(ks.length?'Atur ulang koli dan picker':'Atur koli dan picker')+'</button> <button class="button secondary" data-obdel="'+esc(d.id)+'" type="button" style="color:#b3261e">Hapus</button>':'<span class="sub">Sudah dikerjakan, tidak bisa diatur ulang.</span>')+'</div></div>'}).join('')}
 
  // ---- tab Picking: daftar tugas
  const STC={'Ditugaskan':'','Picking':'dt','Siap verifikasi':'dtm','Perbaikan':'dtm','Siap TFS':'ok'};
@@ -4647,7 +4678,7 @@ init();
  const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
  const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'ok','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm','GR Selesai':'ok'});
  const dokOf=id=>view('PICK_DOK').find(d=>d.id===id)||{id,kode:id,outlet:'',tanggal:''};
- function dokGroups(set,all){const by={};view('PICK_KOLI').filter(k=>set.includes(k.status)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
+ function dokGroups(set,all){const by={},sc=level()==='store'?storeCode():'';view('PICK_KOLI').filter(k=>set.includes(k.status)&&(!sc||String(k.dok).split('|')[0]===sc)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
  const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
  const chip=(k,attr,extra)=>'<button type="button" class="kb '+(STC2[k.status]||'')+(extra||'')+'" '+attr+'="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc(k.status)+'</small>'+(k.area?'<small>'+esc(k.area)+'</small>':'')+'</button>';
  const none=t=>'<p class="sub">'+t+'</p>';
@@ -4734,7 +4765,7 @@ init();
   const k=koliById(cur.id);if(!k){cur=null;return ''}const d=dokOf(k.dok),lines=grLines(k),done=new Map(grOf(k).map(g=>[g.id,g])),all=lines.length&&lines.every(l=>done.has(l.id)),fin=k.status==='GR Selesai';
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">GR Outlet · '+esc(d.outlet)+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.kode)+' · diterima oleh '+esc(k.rcv_nama||k.rcv_oleh||'-')+' · '+esc(wita(k.rcv_waktu))+'</p>';
   h+='<div style="overflow:auto"><table><thead><tr><th>Items Name</th><th>SOQ FIX</th><th>ACTUAL ORDER</th><th>G.R</th><th>Cek</th></tr></thead><tbody>'+lines.map(l=>{const g=done.get(l.id);return '<tr><td>'+esc(l.item)+'</td><td>'+(l.soq||'')+'</td><td><strong>'+l.dc+'</strong></td><td>'+(g?(g.status==='Sesuai'?'<span class="tag green">✓ '+esc(g.qty_gr)+'</span>':'<span class="tag red">✗ '+esc(g.qty_gr)+(g.item_gr&&g.item_gr!==l.item?' · '+esc(g.item_gr):'')+'</span>'+(g.ket?'<div class="sub">'+esc(g.ket)+'</div>':'')+(g.foto_id?' <a href="https://drive.google.com/file/d/'+esc(g.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')):'<span class="sub">belum dicek</span>')+'</td><td>'+(fin?'':'<button class="button" data-obgok="'+esc(l.id)+'" type="button">✓</button> <button class="button secondary" data-obgno="'+esc(l.id)+'" type="button" style="color:#b3261e">✗</button>')+'</td></tr>'}).join('')+'</tbody></table></div>';
-  if(!fin)h+='<div class="ob-actions"><button class="button" data-obgdone="1" type="button"'+(all?'':' disabled')+'>Selesai GR koli ini</button></div>';else h+='<p class="note">GR koli ini selesai. Selisih tercatat di Antrian Masalah DC 38.</p>';
+  if(!fin)h+='<div class="ob-actions"><button class="button" data-obgdone="1" type="button"'+(all?'':' disabled')+'>Selesai GR koli ini</button></div>';else h+='<p class="note">GR koli ini selesai. Selisih tercatat di Miss-Picking DC 38.</p>';
   return h+'</div>'}
  function grSave(k,l,status,qty,itemGr,ket,video){
   const d=dokOf(k.dok),row={id:l.id,tanggal:d.tanggal,dok:k.dok,outlet:d.outlet,koli:String(k.koli),item:l.item,soq:String(l.soq),qty_dc:String(l.dc),status,qty_gr:String(qty),item_gr:itemGr||l.item,ket:ket||'',oleh:code(),jam:stIso(),resolusi:'',resolusi_ket:'',resolusi_oleh:'',resolusi_jam:''};
@@ -4748,10 +4779,10 @@ init();
    if(!R.get()&&!confirm('Simpan tanpa video bukti?'))return;
    grSave(k,l,'Salah',num(q),j==='Item salah'?it:l.item,j+(m.querySelector('#gr2-k').value.trim()?': '+m.querySelector('#gr2-k').value.trim():''),R.get());R.close();m.remove()}}
 
- // ---- Antrian Masalah (miss picking dari GR outlet, diselesaikan DC 38)
+ // ---- Miss-Picking (selisih dari GR outlet, diselesaikan DC 38)
  function drawMasalah(){
-  const list=view('PICK_GR').filter(g=>g.status==='Salah').sort((a,b)=>(a.resolusi?1:0)-(b.resolusi?1:0)||String(b.jam).localeCompare(String(a.jam)));
-  if(!list.length)return none('Belum ada masalah dari GR outlet.');
+  const sc=level()==='store'?storeCode():'';const list=view('PICK_GR').filter(g=>g.status==='Salah'&&(!sc||String(g.dok).split('|')[0]===sc)).sort((a,b)=>(a.resolusi?1:0)-(b.resolusi?1:0)||String(b.jam).localeCompare(String(a.jam)));
+  if(!list.length)return none('Belum ada miss-picking dari GR outlet.');
   const open=list.filter(g=>!g.resolusi).length;
   return '<p class="sub">Selisih hasil GR outlet tercatat sebagai miss picking. Belum diselesaikan: <strong>'+open+'</strong> dari '+list.length+'.</p><div style="overflow:auto"><table><thead><tr><th>Outlet / koli</th><th>Item</th><th>SOQ / DC / GR</th><th>Masalah</th><th>Status</th></tr></thead><tbody>'+list.map(g=>'<tr><td>'+esc(g.outlet)+'<div class="sub">'+esc(g.dok.split('|')[0])+' · koli '+esc(g.koli)+'</div></td><td>'+esc(g.item)+(g.item_gr&&g.item_gr!==g.item?'<div class="sub">datang: '+esc(g.item_gr)+'</div>':'')+'</td><td>'+esc(g.soq)+' / '+esc(g.qty_dc)+' / <strong>'+esc(g.qty_gr)+'</strong></td><td><span class="tag red">Miss picking</span><div class="sub">'+esc(g.ket)+' · '+esc(g.oleh)+'</div>'+(g.foto_id?' <a href="https://drive.google.com/file/d/'+esc(g.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+'</td><td>'+(g.resolusi?'<span class="tag green">Selesai</span><div class="sub">'+esc(g.resolusi_ket)+' · '+esc(g.resolusi_oleh)+'</div>':(canAdmin()?'<button class="button" data-obres="'+esc(g.id)+'" type="button">Tandai selesai</button>':'<span class="tag amber">Menunggu DC 38</span>'))+'</td></tr>').join('')+'</tbody></table></div>'}
 
@@ -4774,7 +4805,7 @@ init();
   else if(tabName==='GR Outlet')h+=cur&&cur.mode==='gr'?drawGrScreen():drawGrList();
   else h+=drawMasalah();
   if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(id&&$(id))$(id).focus()}}
- const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet','GR Outlet','Antrian Masalah'];
+ const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet','GR Outlet','Miss-Picking'];
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
@@ -5122,6 +5153,113 @@ init();
  document.addEventListener('pointerup',()=>{if(drag){const m=drag.moved;drag=null;setTimeout(()=>{window.__lcDrag=false},50)}});
  setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!document.querySelector('.iv2-modal')&&!(cur&&cur.mode==='count'))pull(false)},30000);
  window.WOSLC={render,has:n=>NAMES.includes(n),pull};
+})();
+</script>
+<script>
+// WOS V3: halaman baru (Tracking SOQ untuk store head, Tugas Saya dengan estimasi norm) dan helper bersama
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api;if(!A)return;
+ const {$,esc,view,call,code,level,nameOf,canAdmin,today,back,setData,storeCode}=A;
+ const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0};
+ const U=s=>String(s==null?'':s).trim().toUpperCase();
+ const main=document.querySelector('main');if(!main)return;
+ const V3=window.WOSV3=window.WOSV3||{};
+ // ---- helper halaman
+ V3.mkPage=(id,label,title,sub,afterPage,build,beforeGroupLabel)=>{
+  const s=document.createElement('section');s.className='page';s.id=id;main.appendChild(s);
+  const n=document.createElement('button');n.className='nav';n.dataset.page=id;n.textContent=label;try{names[id]=[title,sub]}catch(e){}
+  let ref=afterPage&&document.querySelector('.nav[data-page="'+afterPage+'"]');
+  if(!ref&&beforeGroupLabel)ref=[...document.querySelectorAll('.nav-group')].find(g=>g.textContent.trim()===beforeGroupLabel);
+  if(ref&&beforeGroupLabel&&!afterPage)ref.after(n);else if(ref)ref.after(n);else document.querySelector('.profile').before(n);
+  n.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));n.classList.add('active');s.classList.add('active');$('title').textContent=title;$('subtitle').textContent=sub;if(!s.dataset.built){s.dataset.built='1';build(s)}if(s._show)s._show()});
+  return s};
+ // muat data WMS (satu panggilan, cache ringan)
+ let ldAt=0,ldBusy=false,ldErr='';
+ V3.load=async(force,days)=>{
+  if(ldBusy||(!force&&Date.now()-ldAt<30000))return;ldBusy=true;
+  try{const f=back(days||60),to=back(-14),q=['GR_ASSIGN','GR_COUNT','PUTAWAY','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT','UNLOADING_SESI','KOLI'].map(t=>t+':'+f+':'+to).concat(['PO_DOK::','MASTER_VENDOR::','MASTER_EKSPEDISI::']).join(',');
+   const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);
+   Object.keys(r.data).forEach(k=>{const t=k.split('|')[0];setData(t,r.data[k])});ldAt=Date.now();ldErr=''}catch(e){ldErr=String(e&&e.message||e)}
+  ldBusy=false;V3.redraw&&V3.redraw()};
+ V3.err=()=>ldErr;
+ V3.redraw=()=>{[...document.querySelectorAll('.page.active')].forEach(p=>{if(p._draw)p._draw()})};
+ // ---- estimasi dari master norm (Master Data > Norm). Mengambil norm aktif yang cocok, jika tidak ada pakai nilai cadangan.
+ const FB={count:{Reguler:.0409,Brand:.0545},put:{Reguler:.015,Brand:.049},pick:{Reguler:.03,Brand:.067},check:{Reguler:.01,Brand:.067},pack:1.23,load:1,tfs:.4,cc:.12,move:2};
+ const normMin=(re,cat,uom,fb)=>{try{const l=MasterNormStore.list().filter(r=>r.status==='Active'&&re.test(r.activity)&&(!uom||String(r.uom).toLowerCase()===uom)&&(!cat||String(r.category).toLowerCase()===cat.toLowerCase()));if(l.length)return Number(l[0].minutes)||fb}catch(e){}return fb};
+ const catOf=name=>/\b(MAMU|MYNO)\b/i.test(name||'')?'Brand':'Reguler';
+ V3.est={
+  count:(item,pcs)=>pcs*normMin(/good receipt|counting/i,catOf(item),'pcs',FB.count[catOf(item)]),
+  put:(item,pcs)=>pcs*normMin(/put ?away/i,catOf(item),'pcs',FB.put[catOf(item)]),
+  pick:(item,pcs)=>pcs*normMin(/^picking/i,catOf(item),'pcs',FB.pick[catOf(item)]),
+  check:(item,pcs)=>pcs*normMin(/pick check/i,catOf(item),'pcs',FB.check[catOf(item)]),
+  pack:koli=>koli*normMin(/packing/i,'reguler','koli',FB.pack),
+  load:koli=>koli*normMin(/^loading/i,null,'koli',FB.load),
+  cc:sku=>sku*normMin(/cycle count/i,'reguler','sku',FB.cc)};
+ const fm=m=>m<1?Math.max(1,Math.round(m*60))+' detik':m<90?Math.round(m*10)/10+' menit':Math.floor(m/60)+' jam '+Math.round(m%60)+' menit';
+ V3.fm=fm;
+
+ // ================= TRACKING SOQ =================
+ const STEPS=['Picking','Verifikasi','TFS','Packing','Staging','Loading','Shipping','Diterima','GR'];
+ const DONE={'Ditugaskan':0,'Picking':0,'Siap verifikasi':1,'Perbaikan':1,'Siap TFS':2,'Siap packing':2,'Selesai TFS':3,'Staging':5,'Dimuat':6,'Shipping':6,'Diterima':8,'Diterima-Masalah':8,'GR Selesai':9};
+ const SLBL={'Ditugaskan':'Menunggu picker','Picking':'Sedang di-picking','Siap verifikasi':'Menunggu verifikasi','Perbaikan':'Perbaikan item','Siap TFS':'Siap TFS','Selesai TFS':'Packing','Staging':'Di staging','Dimuat':'Dimuat','Shipping':'On delivery','Diterima':'Diterima toko','Diterima-Masalah':'Diterima (ada masalah)','GR Selesai':'GR selesai'};
+ const wita=iso=>{const t=Date.parse(iso);return isFinite(t)?new Date(t+8*3600e3).toISOString().slice(0,16).replace('T',' '):''};
+ function drawTracking(s){
+  const sc=level()==='store'?storeCode():'';
+  let docs=view('PICK_DOK').filter(d=>!sc||d.kode===sc).sort((a,b)=>String(b.tanggal+b.id).localeCompare(String(a.tanggal+a.id)));
+  const koli=view('PICK_KOLI'),gr=view('PICK_GR');
+  let h='<div class="card"><h3 style="margin:0">'+(sc?'Tracking SOQ toko '+esc(sc):'Tracking SOQ semua toko')+'</h3><p class="sub">Posisi pesanan Anda dari SOQ diterima sampai barang di toko. Data diperbarui otomatis. Di menu <strong>Outbound</strong> Anda menerima barang (Receiving Outlet), mengecek isi (GR Outlet), dan melapor selisih (Miss-Picking).</p></div>';
+  if(V3.err())h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(V3.err())+'</p>';
+  if(!docs.length)h+='<p class="sub" style="margin-top:12px">Belum ada SOQ untuk ditampilkan.</p>';
+  h+=docs.map(d=>{
+   const ks=koli.filter(k=>k.dok===d.id).sort((a,b)=>num(a.koli)-num(b.koli)),n=ks.length,dn=ks.map(k=>DONE[k.status]||0);
+   const stepHtml=STEPS.map((st,i)=>{const full=n&&dn.every(x=>x>i),part=dn.filter(x=>x>i).length,act=!full&&n&&dn.some(x=>x===i);return '<div style="flex:1;min-width:64px;text-align:center"><div style="height:8px;border-radius:4px;background:'+(full?'#2e9b5a':part?'#f0b84f':act?'#cfe0f5':'#e3e3e3')+'"></div><div style="font-size:11px;font-weight:'+(full?'700':'500')+';margin-top:3px">'+st+'</div><div class="sub" style="font-size:10px">'+(n?part+'/'+n:'')+'</div></div>'}).join('');
+   const grs=gr.filter(g=>g.dok===d.id),salah=grs.filter(g=>g.status==='Salah').length;
+   const first=ks.find(k=>k.load_waktu);
+   return '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">kirim '+esc(d.tanggal)+'</span></h3><span class="tag '+(d.status==='Diterima'||d.status==='GR selesai'?'green':'amber')+'">'+esc(d.status==='Diupload'?'SOQ diterima':d.status)+'</span></div>'+
+    '<p class="sub">'+esc(d.jumlah_item)+' item · '+esc(d.total_qty)+' pcs · '+n+' koli'+(d.ekspedisi?' · '+esc(d.metode==='Direct'?'driver ':'ekspedisi ')+'<strong>'+esc(d.ekspedisi)+'</strong>'+(d.kategori?' ('+esc(d.kategori)+')':''):'')+(d.eta?' · estimasi tiba <strong>'+esc(d.eta)+'</strong>':'')+(first?' · berangkat '+esc(wita(first.load_waktu)):'')+'</p>'+
+    (n?'<div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap">'+stepHtml+'</div><div class="kl">'+ks.map(k=>'<div class="kb" style="cursor:default;font-size:13px">Koli '+esc(k.koli)+'<small>'+esc(SLBL[k.status]||k.status)+'</small>'+(RCV.includes(k.status)&&k.rcv_waktu?'<small>'+esc(wita(k.rcv_waktu))+'</small>':'')+'</div>').join('')+'</div>':'<p class="note">SOQ sudah diterima DC. Koli dan picker sedang disiapkan.</p>')+
+    (salah?'<p class="note" style="color:#b3261e">'+salah+' item tercatat miss-picking. DC 38 sedang menindaklanjuti.</p>':'')+'</div>'}).join('');
+  if(s._sig!==h){s._sig=h;s.querySelector('.v3-b').innerHTML=h}}
+ const RCV=['Diterima','Diterima-Masalah','GR Selesai'];
+ V3.mkPage('tracking','Tracking SOQ','Tracking SOQ','Posisi pesanan dari SOQ sampai di toko','wms-inbound',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Tracking SOQ</h2><span class="sub">Posisi pesanan dari SOQ sampai di toko</span></div></div><div class="v3-b"></div>';
+  s._draw=()=>drawTracking(s);s._show=()=>{drawTracking(s);V3.load(true)}},'WMS');
+ // nav tracking diletakkan tepat di bawah judul grup WMS
+ {const n=document.querySelector('.nav[data-page="tracking"]'),g=[...document.querySelectorAll('.nav-group')].find(x=>x.textContent.trim()==='WMS');if(n&&g)g.after(n)}
+
+ // ================= TUGAS SAYA =================
+ function myTasks(who){
+  const out=[];
+  // Good Receipt: counting dan put away
+  const sj=view('SJ_ITEM');
+  const grs=view('GR_ASSIGN').filter(a=>a.operator===who&&a.status!=='Batal'&&a.status!=='Selesai');
+  const by={};grs.forEach(a=>{(by[a.po]=by[a.po]||[]).push(a)});
+  Object.keys(by).sort().forEach(po=>{let pc=0,pu=0,pcs=0,kl=[];by[po].forEach(a=>{const rows=sj.filter(r=>String(r.po).toUpperCase()===String(po).toUpperCase()&&String(r.no_koli)===String(a.no_koli));kl.push(a.no_koli);rows.forEach(r=>{const q=num(r.qty);pcs+=q;pc+=V3.est.count(r.item,q);pu+=V3.est.put(r.item,q)})});
+   out.push({jenis:'Inbound · Good Receipt',judul:'PO '+po+' · koli '+kl.sort((a,b)=>a-b).join(', '),detail:pcs?pcs+' pcs':'surat jalan belum diimpor',est:[['Counting',pc],['Put away',pu]],status:by[po].map(a=>a.status).join(', '),menu:'wms-inbound'})});
+  // Picking
+  const pi=view('PICK_ITEM'),dok=view('PICK_DOK');
+  view('PICK_KOLI').filter(k=>k.picker===who&&['Ditugaskan','Picking','Perbaikan'].includes(k.status)).forEach(k=>{const rows=pi.filter(r=>r.dok===k.dok&&num(r.koli)===num(k.koli)&&r.kategori!=='OTHER'),d=dok.find(x=>x.id===k.dok)||{};let pk=0,ck=0,pcs=0;rows.forEach(r=>{const q=num(r.qty);pcs+=q;pk+=V3.est.pick(r.item,q);ck+=V3.est.check(r.item,q)});
+   out.push({jenis:'Outbound · Picking',judul:(d.kode||'')+' '+(d.outlet||'')+' · koli '+k.koli,detail:pcs+' pcs · '+rows.length+' baris',est:[['Picking',pk],['Verifikasi (oleh rekan)',ck]],status:k.status,menu:'wms-outbound'})});
+  // Stok opname / cycle count
+  const lt=view('LC_TASK').filter(t=>t.operator===who&&!['OK','Selisih'].includes(t.status));
+  if(lt.length){out.push({jenis:'Location Control',judul:lt.length+' bin: '+lt.slice(0,6).map(t=>t.bin).join(', ')+(lt.length>6?' …':''),detail:lt[0].jenis==='SO'?'Stok opname':'Cycle count',est:[['Hitung',V3.est.cc(lt.length*2)]],status:'Menunggu hitung',menu:'wms-location'})}
+  return out}
+ const MINP=t=>t.est.reduce((a,x)=>a+x[1],0);
+ function drawTugas(s){
+  const adm=canAdmin(),me=code();let h='';
+  if(V3.err())h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(V3.err())+'</p>';
+  const card=(t,who)=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><strong>'+esc(t.judul)+'</strong><span class="tag amber">'+esc(t.jenis)+'</span></div><p class="sub">'+esc(t.detail)+' · status '+esc(t.status)+'</p><div style="display:flex;gap:8px;flex-wrap:wrap">'+t.est.map(e=>'<span class="tag green">Est. '+esc(e[0])+' '+esc(fm(e[1]))+'</span>').join('')+'<span class="tag">Total est. '+esc(fm(MINP(t)))+'</span></div>'+(who?'':'<div class="ob-actions"><button class="button secondary" data-v3go="'+esc(t.menu)+'" type="button">Buka menu</button></div>')+'</div>';
+  if(!adm){const t=myTasks(me);h='<div class="card"><h3 style="margin:0">Tugas saya</h3><p class="sub">'+esc(nameOf(me))+' · '+esc(today())+'. Estimasi waktu dihitung dari Master Norm yang berlaku, sebagai patokan beban kerja.</p>'+(t.length?'<p><strong>Total beban kerja: '+esc(fm(t.reduce((a,x)=>a+MINP(x),0)))+'</strong> dari '+t.length+' tugas</p>':'')+'</div>'+(t.length?t.map(x=>card(x)).join(''):'<p class="note" style="margin-top:12px">Belum ada tugas untuk Anda. Tugas dari Admin atau SPV akan muncul di sini dan di notifikasi.</p>')+h}
+  else{
+   const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
+   const rows=ops.map(([c,p])=>({c,n:p.name,t:myTasks(c)})).filter(x=>x.t.length);
+   h='<div class="card"><h3 style="margin:0">Beban kerja tim hari ini</h3><p class="sub">Tugas aktif per operator dengan estimasi waktu dari Master Norm.</p></div>'+(rows.length?'<div class="card" style="margin-top:12px;overflow:auto"><table><thead><tr><th>Operator</th><th>Tugas</th><th>Est. total</th></tr></thead><tbody>'+rows.map(x=>'<tr><td><strong>'+esc(x.n)+'</strong><div class="sub">'+esc(x.c)+'</div></td><td>'+x.t.map(t=>esc(t.judul)+' <span class="sub">('+esc(t.jenis)+' · '+esc(t.est.map(e=>e[0]+' '+fm(e[1])).join(', '))+')</span>').join('<br>')+'</td><td><strong>'+esc(fm(rows&&x.t.reduce((a,t)=>a+MINP(t),0)))+'</strong></td></tr>').join('')+'</tbody></table></div>':'<p class="note" style="margin-top:12px">Belum ada tugas aktif.</p>')+h}
+  if(s._sig!==h){s._sig=h;s.querySelector('.v3-b').innerHTML=h}}
+ V3.mkPage('tugas','Tugas Saya','Tugas Saya','Tugas, estimasi waktu, dan beban kerja','attendance',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Tugas Saya</h2><span class="sub">Tugas aktif beserta estimasi waktu dari Master Norm</span></div></div><div class="v3-b"></div>';
+  s.addEventListener('click',e=>{const b=e.target.closest('[data-v3go]');if(b)document.querySelector('.nav[data-page="'+b.dataset.v3go+'"]')?.click()});
+  s._draw=()=>drawTugas(s);s._show=()=>{drawTugas(s);V3.load(true)}});
+ setInterval(()=>{if(!document.hidden){const p=document.querySelector('.page.active');if(p&&p._draw)V3.load(false)}},30000);
 })();
 </script>
 </body></html>
