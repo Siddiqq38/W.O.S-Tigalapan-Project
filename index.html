@@ -2746,26 +2746,56 @@ init();
  const isSup=n=>/plastik|\bopp\b|goodie|tote|hang ?tag|polybag|bubble/i.test(String(n||''));
  const capOf=(item,c)=>isSup(item)?500:isPjg(item)?c.j:c.p;
  const nat=(a,b)=>String(a).localeCompare(String(b),'id',{numeric:true});
- function suggest(lines,c){
-  const kolis=[];lines.forEach(l=>{l.parts=[]});
-  const order=lines.map((l,i)=>({l,i})).sort((a,b)=>prio(b.l.ket)-prio(a.l.ket)||b.l.qty-a.l.qty);
-  order.forEach(({l})=>{const cp=capOf(l.item,c);let rem=l.qty;
-   while(rem>=cp){kolis.push({load:1,parts:[{l,qty:cp}]});rem-=cp}
-   if(rem>0){const f=rem/cp;let k=kolis.find(x=>x.load+f<=1.0001);if(!k){k={load:0,parts:[]};kolis.push(k)}k.load+=f;k.parts.push({l,qty:rem})}});
-  const first=k=>Math.min(...k.parts.map(p=>lines.indexOf(p.l)));
-  kolis.sort((a,b)=>first(a)-first(b)).forEach((k,i)=>k.parts.forEach(p=>{const ex=p.l.parts.find(x=>x.koli===i+1);if(ex)ex.qty+=p.qty;else p.l.parts.push({koli:i+1,qty:p.qty})}));
+ // Pola pembagian koli ala admin (dipelajari dari SOQ PALU yang dibagi admin):
+ // 1) item KET CRITICAL/KEEP/ADD-HOCK dipisah ke koli di bagian belakang; 2) kategori selain COMBED (tunik, panjang+rib, Wangki/MYNO, kids) dikelompokkan sendiri;
+ // 3) item dikelompokkan per warna, warna dengan total qty besar (mis. HITAM) lebih dulu; 4) satu baris item tidak dipecah antar koli kecuali melebihi kapasitas;
+ // 5) koli ditutup di batas warna bila sudah >=85% penuh; 6) plastik/OPP dan item support ikut koli terakhir tanpa memakan kapasitas;
+ // 7) toko dalam kota (UPG-01..03, SGO) untuk NAVY/HITAM/PUTIH 24S: tanpa karung, 100 pcs pendek atau 75 pcs panjang = 1 koli, 300/225 pcs = 1 koli.
+ const IN_CITY=/^(UPG-?0?[1-3]|SGO)/i;
+ const colorOf=n=>String(n||'').toUpperCase().replace(/\s+(\d+S|PDK|PJG|KID|KIDS|WK|MYNO|TUNIK|\+|[A-Z]?\d?XL|S|M|L)\b.*$/,'').trim()||String(n||'').toUpperCase();
+ function suggest(lines,c,dok){
+  const dd=view('PICK_DOK').find(x=>x.id===(dok||(edit&&edit.dok))),inCity=IN_CITY.test(String((dd&&dd.kode)||'')),kolis=[];lines.forEach(l=>{l.parts=[]});
+  const idx=new Map(lines.map((l,i)=>[l,i])),crit=l=>/CRITICAL|KEEP|ADD/i.test(String(l.ket||'')),main=l=>/COMBED/i.test(String(l.kat||''))||!String(l.kat||'').trim(),sup=lines.filter(l=>isSup(l.item));
+  const body=lines.filter(l=>!isSup(l.item)&&l.qty>0);
+  const tiers=[body.filter(l=>!crit(l)&&main(l)),body.filter(l=>!crit(l)&&!main(l)),body.filter(l=>crit(l))];
+  const newK=()=>{const k={load:0,pcs:0,pdk:0,parts:[]};kolis.push(k);return k};
+  // kapasitas koli campuran: total pcs maksimal 'pendek' (280); koli berisi lengan panjang saja maksimal 'panjang' (225)
+  const lim=(k,l,q)=>(k.pdk+(isPjg(l.item)?0:q)>0)?c.p:c.j;
+  const add=(k,l,q)=>{k.parts.push({l,qty:q});k.pcs+=q;if(!isPjg(l.item))k.pdk+=q;k.load=k.pcs/(k.pdk>0?c.p:c.j)};
+  let cur=null;
+  tiers.forEach((t,ti)=>{
+   if(!t.length)return;
+   // kelompok warna: total qty besar lebih dulu (dalam tier yang sama), isi per warna mengikuti urutan file
+   const G=new Map();t.forEach(l=>{const k=(main(l)?'':String(l.kat||'')+'|')+colorOf(l.item);if(!G.has(k))G.set(k,{k,tot:0,first:idx.get(l),ls:[]});const g=G.get(k);g.tot+=l.qty;g.ls.push(l)});
+   const groups=[...G.values()].sort((a,b)=>(b.tot>=150)-(a.tot>=150)||((a.tot>=150&&b.tot>=150)?b.tot-a.tot:0)||a.first-b.first);
+   if(ti===2)cur=null;
+   groups.forEach(g=>{
+    if(cur&&cur.load>=0.85)cur=null;
+    g.ls.forEach(l=>{
+     const cp=capOf(l.item,c),pj=isPjg(l.item);let rem=l.qty;
+     if(inCity&&/\b(NAVY|HITAM|PUTIH)\b/i.test(l.item)&&/\b24S\b/i.test(l.item)){
+      const u=pj?75:100,blk=pj?225:300;
+      while(rem>=blk){add(newK(),l,blk);rem-=blk}
+      while(rem>=u){add(newK(),l,u);rem-=u}
+     }else while(rem>=cp){add(newK(),l,cp);rem-=cp}
+     if(rem>0){if(!cur||cur.pcs+rem>lim(cur,l,rem))cur=newK();add(cur,l,rem)}
+    })});
+  });
+  if(sup.length){let k=kolis[kolis.length-1];if(!k)k=newK();sup.forEach(l=>{k.parts.push({l,qty:l.qty})})}
+  kolis.forEach((k,i)=>k.parts.forEach(p=>{const ex=p.l.parts.find(x=>x.koli===i+1);if(ex)ex.qty+=p.qty;else p.l.parts.push({koli:i+1,qty:p.qty})}));
   return lines}
  // data bantu: stok per bin (FIFO), presensi dan role picker hari ini, beban picker
  let aux={ok:false,at:0,stok:[],hadir:new Set(),roles:new Map(),load:{}};
+ const fin=()=>{if(edit&&edit._auto){edit._auto=false;autoPickers()}else draw()};
  async function loadAux(dok){
-  if(Date.now()-aux.at<45000&&aux.ok){draw();return}
+  if(Date.now()-aux.at<45000&&aux.ok){fin();return}
   try{const s=await call({action:'stok'},true);if(s.ok)aux.stok=s.rows}catch(e){}
   try{if(window.WOSStore){const c=window.WOSStore.config(),t=today(),q=tab=>fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab,from:t,to:t})).then(r=>r.json()).catch(()=>({rows:[]}));
    const [a,r]=await Promise.all([q('ATTENDANCE'),q('ROLE_HARIAN')]);const ins=new Set(),outs=new Set();
    (a.rows||[]).forEach(x=>{if(x.simulasi==='hapus')return;if(x.aksi==='Attendance in')ins.add(x.kode_staf);if(x.aksi==='Attendance out')outs.add(x.kode_staf)});aux.hadir=new Set([...ins].filter(c=>!outs.has(c)));
    aux.roles=new Map();(r.rows||[]).forEach(x=>{if(!aux.roles.has(x.kode_staf))aux.roles.set(x.kode_staf,[]);aux.roles.get(x.kode_staf).push(x)})}}catch(e){}
   const pi=view('PICK_ITEM'),load={};view('PICK_KOLI').filter(k=>['Ditugaskan','Picking','Perbaikan'].includes(k.status)&&k.dok!==dok).forEach(k=>{const pcs=pi.filter(r=>r.dok===k.dok&&num(r.koli)===num(k.koli)).reduce((a,r)=>a+num(r.qty),0);load[k.picker]=(load[k.picker]||0)+pcs});
-  aux.load=load;aux.ok=true;aux.at=Date.now();draw()}
+  aux.load=load;aux.ok=true;aux.at=Date.now();fin()}
  function prevBins(l){
   const key=norm(l.item),reserved={};view('PICK_ITEM').filter(r=>edit&&r.dok!==edit.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
   const c=aux.stok.filter(r=>norm(r.sku||r.item)===key).map(r=>({bin:r.bin,free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||nat(a.bin,b.bin));
@@ -2777,7 +2807,7 @@ init();
    if(num(r.koli)>0&&r.status!=='Draft'){const p=l.parts.find(x=>x.koli===num(r.koli));if(p)p.qty+=num(r.qty);else l.parts.push({koli:num(r.koli),qty:num(r.qty)})}});
   const lines=[...by.values()],pk={};koliOf(dok).forEach(k=>{pk[k.koli]=k.picker});
   lines.forEach(l=>{if(l.parts.reduce((a,p)=>a+p.qty,0)!==l.qty)l.parts=[]});
-  edit={dok,lines,pk,caps:caps(),sel:new Set(),sort:'soq'};cur=null;draw();loadAux(dok)}
+  edit={dok,lines,pk,caps:caps(),sel:new Set(),sort:'soq'};if(lines.length&&lines.every(l=>!l.parts.length)){suggest(lines,edit.caps,dok);edit._auto=true}cur=null;draw();loadAux(dok)}
  const koliSet=e=>[...new Set(e.lines.flatMap(l=>l.parts.map(p=>p.koli)).filter(Boolean))].sort((a,b)=>a-b);
  // rekomendasi picker: hadir dan role picker aktif, lalu hadir dengan role picker, lalu hadir; urut beban terkecil
  function rankPickers(extra){
@@ -2797,12 +2827,12 @@ init();
   const ks=koliSet(e);e.lines.forEach(l=>{l.pv=aux.ok?prevBins(l):{bins:[],short:0}});
   const lines=e.lines.slice();if(e.sort==='bin')lines.sort((a,b)=>nat((a.pv.bins[0]||{bin:'~'}).bin,(b.pv.bins[0]||{bin:'~'}).bin));
   const undone=e.lines.filter(l=>l.parts.reduce((a,p)=>a+num(p.qty),0)!==l.qty).length;
-  return '<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Atur koli dan picker · '+esc(d.kode)+' · '+esc(d.outlet)+'</h3><p class="sub">Tanggal '+esc(d.tanggal)+'. Hanya SPV dan Admin yang mengatur koli. Kolom <strong>Bin</strong> menunjukkan lokasi barang (FIFO) supaya item yang binnya berdekatan bisa digabung dalam satu koli. Centang item, isi nomor koli, lalu Terapkan. Atau isi pembagian koli per item secara manual di kolom kanan.</p>'+
+  return '<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Atur koli dan picker · '+esc(d.kode)+' · '+esc(d.outlet)+'</h3><p class="sub">Tanggal '+esc(d.tanggal)+'. Pembagian koli dan picker sudah diisi otomatis memakai pola admin (CRITICAL dipisah, dikelompokkan per warna, kapasitas 280 pendek / 225 panjang); silakan ubah bila perlu. Hanya SPV dan Admin yang mengatur koli. Kolom <strong>Bin</strong> menunjukkan lokasi barang (FIFO) supaya item yang binnya berdekatan bisa digabung dalam satu koli. Centang item, isi nomor koli, lalu Terapkan. Atau isi pembagian koli per item secara manual di kolom kanan.</p>'+
   '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:10px 0"><label class="sub">Masukkan item yang dicentang ke koli<input id="ob-bk" type="number" min="1" value="'+(Math.max(0,...ks)+(e.sel.size?0:1))+'" style="width:80px;display:block"></label><button class="button" data-obbulk="1" type="button">Terapkan ke yang dicentang ('+e.sel.size+')</button><button class="button secondary" data-obnewk="1" type="button">Koli baru</button><button class="button secondary" data-obsel="all" type="button">Centang semua yang belum diatur</button><label class="sub">Urutkan<select data-obsort="1"><option value="soq"'+(e.sort==='soq'?' selected':'')+'>Sesuai file SOQ</option><option value="bin"'+(e.sort==='bin'?' selected':'')+'>Menurut bin</option></select></label></div>'+
   '<p class="sub">'+(undone?'<span class="tag amber">'+undone+' item belum diatur ke koli</span>':'<span class="tag green">Semua item sudah masuk koli</span>')+' · '+ks.length+' koli</p>'+
   '<div style="overflow:auto;max-height:70vh"><table><thead><tr><th></th><th>Item</th><th>SOQ</th><th>KET</th><th>Bin (FIFO)</th><th>Pembagian koli (koli × qty)</th></tr></thead><tbody>'+lines.map(l=>{const sum=l.parts.reduce((a,p)=>a+num(p.qty),0),rem=l.qty-sum;return '<tr><td><input type="checkbox" data-obsel="'+esc(l.id)+'"'+(e.sel.has(l.id)?' checked':'')+'></td><td>'+esc(l.item)+(l.manual?' <span class="tag amber">manual</span> <button class="button secondary" data-obdell="'+esc(l.id)+'" type="button" style="color:#b3261e;padding:2px 8px">Hapus</button>':'')+'</td><td><strong>'+l.qty+'</strong></td><td>'+(prio(l.ket)===2?'<span class="tag red">'+esc(l.ket)+'</span>':esc(l.ket))+'</td><td style="font-size:12px">'+binTxt(l)+'</td><td>'+(l.parts.length?l.parts.map((p,i)=>'<div style="display:flex;gap:4px;align-items:center;margin:2px 0">Koli <input type="number" min="1" data-obpk2="'+esc(l.id)+'||'+i+'||koli" value="'+(p.koli||'')+'" style="width:60px"> × <input type="number" min="1" data-obpk2="'+esc(l.id)+'||'+i+'||qty" value="'+(p.qty||'')+'" style="width:76px"> pcs'+(l.parts.length>1?' <button class="button secondary" data-obprm="'+esc(l.id)+'||'+i+'" type="button" style="padding:2px 8px">&times;</button>':' <button class="button secondary" data-obprm="'+esc(l.id)+'||'+i+'" type="button" style="padding:2px 8px">&times;</button>')+'</div>').join(''):'')+'<div><span class="tag '+(rem===0?'green':rem>0?'amber':'red')+'">'+(rem===0?'pas':rem>0?(l.parts.length?'sisa '+rem:'belum diatur'):'lebih '+(-rem))+'</span> <button class="button secondary" data-obpadd="'+esc(l.id)+'" type="button" style="padding:2px 8px">+ koli</button></div></td></tr>'}).join('')+'</tbody></table></div>'+
   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><input id="ob-mn" list="ob-mnl" placeholder="Tambah item manual (nama item)" style="flex:2;min-width:200px"><datalist id="ob-mnl">'+[...new Set(view('PICK_ITEM').map(r=>r.item).concat(view('STOK_BIN').map(r=>r.item)))].filter(Boolean).slice(0,500).map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist><input id="ob-mq" type="number" min="1" placeholder="Qty" style="width:90px"><input id="ob-mk" placeholder="KET (opsional)" style="width:130px"><button class="button secondary" data-obaddm="1" type="button">+ Tambah item</button></div>'+
-  '<div class="ob-actions" style="margin:8px 0"><button class="button secondary" data-obsug="1" type="button">Saran koli otomatis (sementara, berdasarkan kapasitas)</button></div>'+
+  '<div class="ob-actions" style="margin:8px 0"><button class="button secondary" data-obsug="1" type="button">Bagi koli dan picker otomatis (pola admin)</button></div>'+
   '<h4 style="margin:12px 0 4px">Picker per koli</h4><p class="sub">Daftar picker diurutkan: hadir dengan role picker aktif lebih dulu, lalu yang hadir, dengan beban terkecil.'+(aux.ok?'':' Memuat data presensi…')+'</p>'+
   (ks.length?'<div class="ob-actions" style="margin:0 0 6px"><button class="button secondary" data-obauto="1" type="button">Bagi picker otomatis (rekomendasi)</button></div>':'')+
   ks.map(k=>{const ps=e.lines.flatMap(l=>l.parts.filter(p=>p.koli===k).map(p=>({l,p}))),sum=ps.reduce((a,x)=>a+num(x.p.qty),0),fill=Math.round(100*ps.reduce((a,x)=>a+num(x.p.qty)/capOf(x.l.item,e.caps),0)),bins=[...new Set(ps.flatMap(x=>x.l.pv.bins.map(b=>b.bin)))].sort(nat);return '<div style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap"><strong style="min-width:210px">Koli '+k+' <span class="sub">'+ps.length+' baris · '+sum+' pcs · isi '+fill+'%'+(bins.length?'<br>Bin: '+esc(bins.slice(0,8).join(', '))+(bins.length>8?' …':''):'')+'</span></strong><select data-obp="'+k+'" style="flex:1;min-width:240px">'+pickerOpts(e.pk[k])+'</select></div>'}).join('')+
@@ -3051,7 +3081,7 @@ init();
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
   if(t.dataset.obedit){openEdit(t.dataset.obedit);return}
   if(t.dataset.obdel){const id=t.dataset.obdel;if(started(id))return say('Sudah dikerjakan, tidak bisa dihapus.',true);if(!confirm('Hapus SOQ ini beserta pembagian kolinya?'))return;itemsOf(id).forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(id).forEach(r=>enqDel('PICK_KOLI',r.id));enqDel('PICK_DOK',id);say('SOQ dihapus.');return}
-  if(t.dataset.obsug){suggest(edit.lines,edit.caps);draw();return}
+  if(t.dataset.obsug){suggest(edit.lines,edit.caps,edit.dok);autoPickers();return}
   if(t.dataset.obbulk){const n=num($('ob-bk').value);if(!(n>=1))return say('Isi nomor koli.',true);if(!edit.sel.size)return say('Centang item dulu.',true);edit.lines.filter(l=>edit.sel.has(l.id)).forEach(l=>{l.parts=[{koli:n,qty:l.qty}]});edit.sel.clear();draw();return}
   if(t.dataset.obnewk){$('ob-bk').value=Math.max(0,...koliSet(edit))+1;return}
   if(t.dataset.obsel==='all'){edit.lines.forEach(l=>{if(l.parts.reduce((a,p)=>a+num(p.qty),0)!==l.qty)edit.sel.add(l.id)});draw();return}
