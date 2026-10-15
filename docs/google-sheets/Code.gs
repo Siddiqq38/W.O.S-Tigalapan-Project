@@ -21,9 +21,7 @@ const TABS = {
   KOMPENSASI_OUT: ['id','tanggal','kode_staf','nama','jenis','keterangan','dibuka_oleh','waktu','dicabut'],
   PENGAJUAN: ['id','waktu','kode_staf','nama','jenis','tanggal_mulai','tanggal_selesai','alasan','pengganti','status','approver','catatan'],
   LAPORAN_5R: ['id','tanggal','kode_staf','nama','area','file_id','jenis_file','kiriman_ke','status','catatan_spv','waktu'],
-  TEMUAN: ['id','tanggal','pelapor','kode_staf','nama','jenis','detail','sumber','status','verifikasi','waktu'],
   TASK: ['id','waktu','tanggal','tujuan','judul','qty','status','diterima_oleh','waktu_terima','waktu_selesai'],
-  KARYAWAN: ['id','kode_staf','nama','id_staf','peran','kategori','departemen','tim','status','keterangan'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 
@@ -38,6 +36,10 @@ function setup() {
     sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');   // semua kolom teks agar tanggal tidak berubah format
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, headers.length);
+  });
+  ['TEMUAN', 'KARYAWAN'].forEach(function (n) {   // tab lama yang tidak dipakai lagi
+    const old = ss.getSheetByName(n);
+    if (old && ss.getSheets().length > 1) ss.deleteSheet(old);
   });
   const first = ss.getSheets()[0];
   if (first && first.getName().indexOf('Sheet') === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
@@ -187,7 +189,7 @@ function photo_(op) {
   return { file_id: file.getId(), url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w600' };
 }
 
-/* Susunan folder: WOS-Foto / Kategori (Presensi, 5R, Pengajuan) / yyyy-MM / Pekan NN (tgl-tgl Bln) / yyyy-MM-dd */
+/* Susunan folder: WOS-Foto / Presensi | Pengajuan / (Izin terlambat, Sakit, Izin lain-lain, Change Off, Cuti tahunan) | 5R / yyyy-MM / Pekan NN (tgl-tgl Bln) / yyyy-MM-dd */
 const BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 function sub_(parent, name) {
   const it = parent.getFoldersByName(name);
@@ -206,12 +208,18 @@ function weekLabel_(d) {
   return 'Pekan ' + p2(wk) + ' (' + a + '-' + p2(sun.getUTCDate()) + ' ' + BULAN[sun.getUTCMonth()] + ')';
 }
 const _folderCache = {};
+const KAT_MAP = { 'Presensi': 'Presensi', '5R': '5R', 'Pengajuan': 'Pengajuan/Lainnya' };
+function katPath_(kategori) {
+  const k = String(kategori || 'Lainnya').trim();
+  if (KAT_MAP[k]) return KAT_MAP[k];
+  return k.split('/').map(function (p) { return p.trim().replace(/[\\:*?"<>|]/g, '-'); }).filter(String).join('/') || 'Lainnya';
+}
 function folderFor_(kategori, date) {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd');
-  const key = (kategori || 'Lainnya') + '|' + d;
+  const path = katPath_(kategori), key = path + '|' + d;
   if (_folderCache[key]) return _folderCache[key];
   let f = folder_();
-  [kategori || 'Lainnya', d.slice(0, 7), weekLabel_(d), d].forEach(function (n) { f = sub_(f, n); });
+  path.split('/').concat([d.slice(0, 7), weekLabel_(d), d]).forEach(function (n) { f = sub_(f, n); });
   _folderCache[key] = f;
   return f;
 }

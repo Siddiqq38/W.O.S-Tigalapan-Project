@@ -28,8 +28,6 @@ const TABS = {
   MASTER_BIN: ['id','zona','tipe_rak','no_rak','level','bin','status','catatan'],
   MASTER_MOKA: ['id','data','catatan'],
   STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
-  SOQ: ['id','tanggal','outlet','batch','sku','qty','diunggah_oleh'],
-  ASSIGNMENT: ['id','tanggal','outlet','batch','koli','picker','bin','status','waktu'],
   PICK_DOK: ['id','tanggal','kode','outlet','file','jumlah_item','total_qty','status','diunggah_oleh','waktu','ekspedisi','eta','tgl_soq','kode_outlet','alamat','metode','kategori'],
   PICK_KOLI: ['id','tanggal','dok','koli','picker','picker_nama','status','task_id','mulai','selesai','vp_oleh','vp_selesai','tfs_oleh','tfs_waktu','area','pack_oleh','pack_waktu','load_oleh','load_waktu','rcv_oleh','rcv_waktu','rcv_ket','rcv_nama'],
   PICK_GR: ['id','tanggal','dok','outlet','koli','item','soq','qty_dc','status','qty_gr','item_gr','ket','foto_id','oleh','jam','resolusi','resolusi_ket','resolusi_oleh','resolusi_jam'],
@@ -58,9 +56,9 @@ function setup() {
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, headers.length);
   });
-  ['UNLOADING', 'STAGING_IN', 'GR'].forEach(function (n) {   // tab lama yang sudah tidak dipakai
+  ['UNLOADING', 'STAGING_IN', 'GR', 'SOQ', 'ASSIGNMENT'].forEach(function (n) {   // tab lama yang sudah tidak dipakai
     const old = ss.getSheetByName(n);
-    if (old && old.getLastRow() < 2 && ss.getSheets().length > 1) ss.deleteSheet(old);
+    if (old && ss.getSheets().length > 1) ss.deleteSheet(old);
   });
   const first = ss.getSheets()[0];
   if (first && first.getName().indexOf('Sheet') === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
@@ -228,14 +226,32 @@ function weekLabel_(d) {
   return 'Pekan ' + p2(wk) + ' (' + a + '-' + p2(sun.getUTCDate()) + ' ' + BULAN[sun.getUTCMonth()] + ')';
 }
 const _folderCache = {};
+const KAT_MAP = { 'Receiving': 'Inbound/Receiving - Bukti Koli', 'GR': 'Inbound/GR - Temuan Counting', 'PICK': 'Outbound/Picking - Temuan', 'GROUTLET': 'Outbound/GR Outlet - Miss Picking' };
+function katPath_(kategori) {
+  const k = String(kategori || 'Lainnya').trim();
+  if (KAT_MAP[k]) return KAT_MAP[k];
+  return k.split('/').map(function (p) { return p.trim().replace(/[\\:*?"<>|]/g, '-'); }).filter(String).join('/') || 'Lainnya';
+}
 function folderFor_(kategori, date) {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd');
-  const key = (kategori || 'Lainnya') + '|' + d;
+  const path = katPath_(kategori), key = path + '|' + d;
   if (_folderCache[key]) return _folderCache[key];
   let f = folder_();
-  [kategori || 'Lainnya', d.slice(0, 7), weekLabel_(d), d].forEach(function (n) { f = sub_(f, n); });
+  path.split('/').concat([d.slice(0, 7), weekLabel_(d), d]).forEach(function (n) { f = sub_(f, n); });
   _folderCache[key] = f;
   return f;
+}
+
+/* Pindahkan folder kategori lama (Receiving, GR, PICK, GROUTLET) ke susunan baru Inbound/Outbound. Jalankan manual sekali bila ada file lama. */
+function rapikanKategoriLama() {
+  const root = folder_();let n = 0;
+  Object.keys(KAT_MAP).forEach(function (old) {
+    const it = root.getFoldersByName(old);if (!it.hasNext()) return;
+    const src = it.next(), parts = KAT_MAP[old].split('/'), leaf = parts.pop();let p = root;parts.forEach(function (x) { p = sub_(p, x); });
+    if (p.getFoldersByName(leaf).hasNext()) return;
+    src.setName(leaf);src.moveTo(p);n++;
+  });
+  notify_('Folder kategori lama dipindahkan: ' + n);
 }
 
 /* Jalankan manual untuk merapikan file lama di folder WOS-Foto.
