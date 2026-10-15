@@ -3449,9 +3449,10 @@ init();
   async function call(body,get){const c=cfg();if(get&&body.action==='list'&&window.__mc){const k=body.tab+'|'+(body.from||'')+'|'+(body.to||'');if(window.__mc[k])return{ok:true,rows:window.__mc[k]}}const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
  async function flush(){if(!on()||(busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paint();return}busy=true;busyAt=Date.now();
+  let rots=0;const rot=msg=>{q=queue();const b=q.shift();if(!b)return;b.tries=(b.tries||0)+1;lastErr=String(msg);if(b.tries<8||b.a!=='photo')q.push(b);saveQ(q);if(++rots>q.length)throw new Error(msg)};
   try{while(q.length){const it=q[0];
-    if(it.a==='photo'){const r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok)throw new Error(r.error);q=queue();q.shift();const url='https://drive.google.com/thumbnail?id='+r.file_id+'&sz=w800';if(it.field==='json:photo'){const pm=rj('wos-photo-map-v1',{});pm[it.rowId]=url;try{raw.call(localStorage,'wos-photo-map-v1',JSON.stringify(pm))}catch(e){}}let hit=false;q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId){hit=true;if(it.field==='json:photo'){try{const c=JSON.parse(x.row.catatan||'{}');c.photo=url;x.row.catatan=JSON.stringify(c)}catch(e){}}else x.row.foto_id=r.file_id}});if(!hit&&it.row&&!it.field)q.push({a:'append',tab:'ATTENDANCE',row:Object.assign({},it.row,{foto_id:r.file_id})});saveQ(q);}
-    else{const r=await call({action:it.a,tab:it.tab,row:it.row,id:it.id});if(!r.ok)throw new Error(r.error);q=queue();q.shift();saveQ(q)}
+    if(it.a==='photo'){const r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){rot(r.error);q=queue();continue}q=queue();q.shift();const url='https://drive.google.com/thumbnail?id='+r.file_id+'&sz=w800';if(it.field==='json:photo'){const pm=rj('wos-photo-map-v1',{});pm[it.rowId]=url;try{raw.call(localStorage,'wos-photo-map-v1',JSON.stringify(pm))}catch(e){}}let hit=false;q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId){hit=true;if(it.field==='json:photo'){try{const c=JSON.parse(x.row.catatan||'{}');c.photo=url;x.row.catatan=JSON.stringify(c)}catch(e){}}else x.row.foto_id=r.file_id}});if(!hit&&it.row&&!it.field)q.push({a:'append',tab:'ATTENDANCE',row:Object.assign({},it.row,{foto_id:r.file_id})});saveQ(q);}
+    else{const r=await call({action:it.a,tab:it.tab,row:it.row,id:it.id});if(!r.ok){rot(r.error);q=queue();continue}q=queue();q.shift();saveQ(q)}
     q=queue()}
    state='ok';lastErr=''}catch(e){state='err';lastErr=String(e&&e.message||e)}
   busy=false;paint()}
@@ -3461,9 +3462,25 @@ init();
   const loc=r.manual?{}:(typeof attendanceLocation!=='undefined'&&attendanceLocation)||{};
   const wt=new Date(Date.parse(r.at)+WITA);
   const row={id:rid(r),waktu_iso:r.at,tanggal:r.day,kode_staf:r.code,nama:name,aksi:r.action,jam_wita:isNaN(wt)?'':wt.toISOString().slice(11,16),lat:loc.lat||'',lng:loc.lng||'',akurasi_m:loc.accuracy||'',jarak_m:loc.meters||'',foto_id:'',simulasi:r.sim?'ya':'',perangkat:r.manual?'koreksi master':(navigator.userAgent||'').slice(0,90)};
-  const push=()=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});saveQ(q);flush()};
+  const push=()=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});saveQ(q);flush();if(!r.manual)ackOverlay(row.id)};
   const ph=r.manual?null:(typeof attendancePhoto!=='undefined'&&attendancePhoto)||null;
-  if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});if(b64)q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id,date:r.day,kategori:'Presensi',row:row});saveQ(q);flush()})}else push()}
+  if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});if(b64)q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id,date:r.day,kategori:'Presensi',row:row});saveQ(q);flush();ackOverlay(row.id)})}else push()}
+ // konfirmasi kirim presensi: staf tidak menutup aplikasi sebelum data benar-benar sampai ke server
+ function ackOverlay(id){
+  const old=document.getElementById('wos-ack');if(old)old.remove();
+  const el=document.createElement('div');el.id='wos-ack';el.style.cssText='position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99999;background:#17324d;color:#fff;padding:12px 16px;border-radius:12px;font:600 14px Arial,sans-serif;max-width:92vw;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.35)';document.body.appendChild(el);
+  const t0=Date.now(),pending=()=>queue().some(x=>x.a==='append'&&x.row&&x.row.id===id);let closed=false;
+  const tick=()=>{if(closed)return;if(!pending()){el.style.background='#1b7a46';el.textContent='✓ Presensi sudah terkirim ke server';setTimeout(()=>el.remove(),2500);return}
+   const sec=Math.round((Date.now()-t0)/1000);
+   if(sec<25){el.textContent='Mengirim presensi… '+sec+' dtk. Jangan tutup aplikasi.';flush();setTimeout(tick,1500)}
+   else{el.style.background='#b3261e';el.innerHTML='Presensi tersimpan di HP tetapi <u>belum terkirim</u>.<br>Cek sinyal dan jangan tutup aplikasi.<br><button id="wos-ack-r" style="margin:8px 6px 0;padding:6px 12px;border-radius:8px;border:0;font-weight:700">Coba lagi</button><button id="wos-ack-x" style="margin:8px 6px 0;padding:6px 12px;border-radius:8px;border:0">Tutup</button>';
+    document.getElementById('wos-ack-r').onclick=()=>{el.style.background='#17324d';el.textContent='Mengirim ulang…';flush();setTimeout(()=>{if(!pending()){el.style.background='#1b7a46';el.textContent='✓ Presensi sudah terkirim ke server';setTimeout(()=>el.remove(),2500)}else tick2()},6000)};
+    document.getElementById('wos-ack-x').onclick=()=>{closed=true;el.remove()}}};
+  const tick2=()=>{if(closed)return;el.style.background='#b3261e';el.innerHTML='Masih belum terkirim. Pindah ke tempat bersinyal dan buka aplikasi ini lagi sampai tulisan Sheets: tersambung.<br><button id="wos-ack-x2" style="margin-top:8px;padding:6px 12px;border-radius:8px;border:0">Tutup</button>';document.getElementById('wos-ack-x2').onclick=()=>{closed=true;el.remove()}};
+  tick()}
+ // kirim sisa antrean saat aplikasi disembunyikan atau ditutup (keepalive)
+ function sendBeaconFlush(){try{const q=queue(),ops=[];for(const x of q){if(x.a==='photo')break;if(ops.length>=15)break;ops.push(x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})}if(!ops.length||!on())return;const c=cfg();fetch(c.url,{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:c.token,action:'batch',ops})}).catch(()=>{})}catch(e){}}
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)sendBeaconFlush()});window.addEventListener('pagehide',sendBeaconFlush);window.addEventListener('pageshow',()=>{flush()});window.addEventListener('focus',()=>{flush()});
  // tangkap perubahan Attendance lokal
  let seen=new Set(rj(AK,[]).map(rkey));
  const RK='wos-roles-v1',TK='wos-tasks-v1',today=()=>dayWita();
