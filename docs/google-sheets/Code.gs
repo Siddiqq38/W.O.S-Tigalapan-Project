@@ -19,6 +19,7 @@ const TABS = {
   ROLE_HARIAN: ['id','tanggal','kode_staf','nama','role_id','role','keterangan','jam_mulai','jam_selesai','dipilih_oleh','waktu'],
   DRM: ['id','tanggal','kode_staf','nama','status','ditandai_oleh','waktu'],
   KOMPENSASI_OUT: ['id','tanggal','kode_staf','nama','jenis','keterangan','dibuka_oleh','waktu','dicabut'],
+  KARYAWAN_STATUS: ['id', 'kode_staf', 'nama', 'status', 'tgl_terakhir', 'keterangan', 'dicatat_oleh', 'waktu'],
   PENGAJUAN: ['id','waktu','kode_staf','nama','jenis','tanggal_mulai','tanggal_selesai','alasan','pengganti','status','approver','catatan'],
   LAPORAN_5R: ['id','tanggal','kode_staf','nama','area','file_id','jenis_file','kiriman_ke','status','catatan_spv','waktu'],
   TASK: ['id','waktu','tanggal','tujuan','judul','qty','status','diterima_oleh','waktu_terima','waktu_selesai'],
