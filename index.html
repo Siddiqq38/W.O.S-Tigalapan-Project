@@ -225,6 +225,7 @@ function complianceReportStatus(row,now=new Date()){
  if(row.exempt)return 'Dikecualikan';
  if(row.fiveRRequired===false&&!row.report)return 'Tidak dijadwalkan 5R';
  if(row.report){
+  if(row.report.approval==='partial'){const n=(row.report.checks||[]).filter(Boolean).length;return 'Done sebagian · '+n+'/5R disetujui'}
   if(row.report.approval==='approved')return row.report.at<complianceDue(row.day)?'Done · disetujui SPV':'Done · disetujui, terlambat';
   if(row.report.approval==='rejected')return 'Ditolak · perlu perbaikan';
   return 'Menunggu approval SPV';
@@ -255,8 +256,8 @@ function complianceMonthly(state,month){
   const required=days.filter(r=>r.fiveRRequired!==false);
   const events=state.events.filter(e=>e.code===code&&e.day.startsWith(month));
   return {code,scheduled:required.length,briefing:days.filter(r=>r.drm==='yes').length,device:days.filter(r=>r.device==='yes').length,
-   reports:required.filter(r=>r.report?.approval==='approved').length,
-   waitingReports:required.filter(r=>r.report&&!['approved','rejected'].includes(r.report.approval)).length,
+   reports:required.filter(r=>['approved','partial'].includes(r.report?.approval)).length,
+   waitingReports:required.filter(r=>r.report&&!['approved','partial','rejected'].includes(r.report.approval)).length,
    rejectedReports:required.filter(r=>r.report?.approval==='rejected').length,
    pending:events.filter(e=>e.status==='pending').length,valid:events.filter(e=>e.status==='valid').length,
    sop:events.filter(e=>e.status==='valid'&&e.type==='SOP').length,complaints:events.filter(e=>e.status==='valid'&&e.type.startsWith('Komplain')).length,
@@ -265,7 +266,8 @@ function complianceMonthly(state,month){
 }
 function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  if(!row||row.exempt||!row.report||row.report.fileId!==fileId)throw Error('Laporan berubah. Buka kembali bukti terbaru.');
- if(!['approved','rejected'].includes(decision))throw Error('Keputusan tidak valid.');
+ if(!['approved','partial','rejected'].includes(decision))throw Error('Keputusan tidak valid.');
+ if(decision==='partial'&&(checks.length!==5||!checks.some(v=>v===true)||checks.every(v=>v===true)))throw Error('ACC sebagian: centang minimal 1 dan kurang dari 5 R.');
  if(decision==='approved'&&(checks.length!==5||checks.some(v=>v!==true)))throw Error('Kelima checklist 5R harus memenuhi standar sebelum ACC.');
  if(decision==='rejected'&&!note.trim())throw Error('Catatan temuan wajib untuk penolakan.');
  row.report.reviewHistory=row.report.reviewHistory||[];
@@ -308,7 +310,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  '<section class="card"><h2>Register kejadian</h2><p class="sub">SPV/Manager memverifikasi atau membatalkan laporan dengan alasan. Selesai ditindaklanjuti tidak menghapus kejadian dari rekap. 5R lewat batas dibuat otomatis hanya bagi petugas wajib laporan.</p><div id="cp-events" class="cp-table"></div><div id="cp-review-panel" hidden><p id="cp-review-title"></p><div class="field"><label for="cp-review-reason">Alasan / klarifikasi / tindak lanjut (wajib)</label><textarea id="cp-review-reason" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-review-save" class="button">Simpan hasil verifikasi</button><button id="cp-review-cancel" class="button secondary">Batal</button></div></div></section>'+
  '<section class="card"><div class="card-head"><h2>Rekap Compliance bulanan</h2><div class="field"><label for="cp-month">Bulan</label><input id="cp-month" type="month" value="'+today.slice(0,7)+'"></div></div><div id="cp-monthly" class="cp-table"></div><button id="cp-export" class="button secondary">Unduh rekap CSV</button><p class="sub">Belum ada peringkat gabungan. Attendance, jumlah assignment, volume pcs/koli, dan Compliance harus dinilai terpisah sebelum bobot disepakati. Jumlah assignment bukan pengganti volume; pcs tidak disamakan dengan koli. Rekap ini hanya mencakup data lokal.</p></section>'+
  '<details class="card"><summary>Riwayat perubahan lokal</summary><div id="cp-audit"></div></details>'+
- '<section id="cp-viewer" class="card" hidden><h2 id="cp-view-title">Bukti 5R</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><div id="cp-5r-review" hidden><h3>Checklist SPV — pemeriksaan 5R</h3><p class="sub">Checklist awal; sesuaikan standar rinci bersama SPV. Tinjau video/foto sebelum memberi keputusan. Semua butir wajib memenuhi standar untuk ACC.</p><div class="cp-stack">'+['Ringkas — barang tidak diperlukan telah disingkirkan','Rapi — barang dan alat tersusun di tempatnya','Resik — area, lantai, dan alat bersih','Rawat — label, penandaan, serta kondisi area terjaga','Rajin — standar area dipelihara dan tidak ada temuan terbuka'].map((t,i)=>'<label><input type="checkbox" id="cp-5r-check-'+i+'"> '+t+'</label>').join('')+'</div><div class="field" style="margin-top:12px"><label for="cp-5r-note">Catatan SPV / temuan (wajib jika ditolak)</label><textarea id="cp-5r-note" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-5r-approve" class="button">ACC 5R</button><button id="cp-5r-reject" class="button secondary">Tolak / minta perbaikan</button></div></div><div id="cp-5r-history"></div><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
+ '<section id="cp-viewer" class="card" hidden><h2 id="cp-view-title">Bukti 5R</h2><video id="cp-view-video" controls playsinline hidden></video><img id="cp-view-photo" alt="Bukti 5R tersimpan" hidden><div id="cp-5r-review" hidden><h3>Checklist SPV — pemeriksaan 5R</h3><p class="sub">Checklist awal; sesuaikan standar rinci bersama SPV. Tinjau video/foto sebelum memberi keputusan. Centang <b>OK semua</b> untuk mengisi kelima R sekaligus. Bila hanya sebagian yang memenuhi (mis. 3R atau 2R), centang R yang OK saja lalu pilih <b>ACC sebagian</b>.</p><label style="font-weight:700;display:block;margin:8px 0"><input type="checkbox" id="cp-5r-all"> OK semua (5R)</label><div class="cp-stack">'+['Ringkas — barang tidak diperlukan telah disingkirkan','Rapi — barang dan alat tersusun di tempatnya','Resik — area, lantai, dan alat bersih','Rawat — label, penandaan, serta kondisi area terjaga','Rajin — standar area dipelihara dan tidak ada temuan terbuka'].map((t,i)=>'<label><input type="checkbox" id="cp-5r-check-'+i+'"> '+t+'</label>').join('')+'</div><div class="field" style="margin-top:12px"><label for="cp-5r-note">Catatan SPV / temuan (wajib jika ditolak)</label><textarea id="cp-5r-note" maxlength="2000"></textarea></div><div class="cp-actions"><button id="cp-5r-approve" class="button">ACC 5R (semua OK)</button><button id="cp-5r-partial" class="button secondary">ACC sebagian</button><button id="cp-5r-reject" class="button secondary">Tolak / minta perbaikan</button></div></div><div id="cp-5r-history"></div><button id="cp-view-close" class="button secondary">Tutup bukti</button></section></div>';
  const stack=page.querySelector('.cp-stack');
  const fold=(id,title,nodes)=>{const box=document.createElement('details');box.className='card cp-fold';box.id=id;box.innerHTML='<summary>'+title+'</summary>';for(const node of nodes)if(node)box.append(node);stack.append(box);return box};
  const dutyPanel=$('duty-panel'),dailyPanel=$('daily').closest('section'),checkPanel=$('check-panel'),reportPanel=$('report-person').closest('section'),viewer=$('viewer'),incidentPanel=$('event-person').closest('section'),eventsPanel=$('events').closest('section'),monthlyPanel=$('monthly').closest('section'),auditPanel=$('audit').closest('details');
@@ -369,7 +371,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    const eid='DRM:'+x.id,ex=s.events.find(e=>e.id===eid);if(x.drm==='no'){if(ex){ex.status='valid';ex.resolved=false}else s.events.push({id:eid,day:x.day,code:x.code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+(x.by||'SPV'),status:'valid',source:'Daftar check-in',actor:x.by||'SPV',createdAt:Date.now(),resolved:false})}else if(ex){ex.status='batal';ex.review='Checklist dikoreksi: ikut DRM'}})})};
  window.__wosGetFile=id=>new Promise(res=>{try{const rq=db.transaction('files').objectStore('files').get(id);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>res(null)}catch(e){res(null)}});
  window.__wosApplyReports=async list=>{if(busy||!db||!list||!list.length)return false;
-  const rank=a=>a==='approved'?3:a==='rejected'?2:1;
+  const rank=a=>(a==='approved'||a==='partial')?3:a==='rejected'?2:1;
   const need=list.filter(x=>{const r=(state.days||[]).find(d=>d.id===x.id);if(!r||!r.report)return true;const a=r.report,b=x.report;if(a.at!==b.at)return b.at>a.at;return (b.reviewHistory||[]).length>(a.reviewHistory||[]).length||rank(b.approval)>rank(a.approval)});
   if(!need.length)return false;
   return mutate(s=>{need.forEach(x=>{let row=s.days.find(r=>r.id===x.id);
@@ -379,7 +381,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    else{if(cur){row.reportHistory=row.reportHistory||[];row.reportHistory.push(cur)}row.report=Object.assign({},x.report)}
    const eid='5r-quality:'+row.id+':'+row.report.fileId,ex=s.events.find(e=>e.id===eid);
    if(row.report.approval==='rejected'){if(ex){ex.detail=row.report.reviewNote||ex.detail}else s.events.push({id:eid,day:row.day,code:row.code,type:'Temuan 5R',detail:row.report.reviewNote||'',status:'pending',source:'Checklist approval SPV',createdAt:Date.now(),actor:row.report.reviewer||'SPV',resolved:false})}
-   else if(row.report.approval==='approved'){for(const e of s.events.filter(e=>e.id.startsWith('5r-quality:'+row.id+':')&&e.status==='pending')){e.status='batal';e.review='Perbaikan diterima dan 5R di-ACC.'}}
+   else if(row.report.approval==='approved'||row.report.approval==='partial'){for(const e of s.events.filter(e=>e.id.startsWith('5r-quality:'+row.id+':')&&e.status==='pending')){e.status='batal';e.review='Perbaikan diterima dan 5R di-ACC.'}}
   })})};
  window.__renderDrm=()=>{try{renderDrm()}catch(e){}};window.__complianceSnapshot=()=>({days:state.days||[],events:state.events||[]});
  function refreshReportChoices(){const current=$('report-code').value,profiles=window.getFiveRMaster?.()||[];$('report-code').innerHTML='<option value="">Pilih staff</option>'+profiles.map(r=>'<option value="'+esc(r.code)+'">'+esc(r.code+' · '+(staffMaster[r.code]?.name||r.name))+'</option>').join('');if(profiles.some(r=>r.code===current))$('report-code').value=current;refreshAreaChoices()}
@@ -599,6 +601,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    $('view-title').textContent='Bukti 5R — '+label(row.code)+' · '+row.area+' · '+row.day;
    $('5r-review').hidden=!canApproveFiveR()||row.exempt;
    for(let i=0;i<5;i++)$('5r-check-'+i).checked=!!row.report.checks?.[i];
+   $('5r-all').checked=Array.from({length:5},(_,i)=>!!row.report.checks?.[i]).every(Boolean);
    $('5r-note').value=row.report.reviewNote||'';
    $('5r-history').innerHTML='<p class="sub">'+esc(complianceReportStatus(row))+'</p>'+
     (row.report.reviewHistory||[]).map(h=>'<p class="sub">'+esc(clock(h.at)+' · '+h.reviewer+' · '+h.decision+' · '+h.note)+'</p>').join('')+
@@ -623,7 +626,8 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  async function decideFiveR(decision){
   if(!canApproveFiveR()||!fiveRReview)return notice('Buka bukti terbaru sebagai SPV terlebih dahulu.',true);
   const target={...fiveRReview},checks=Array.from({length:5},(_,i)=>$('5r-check-'+i).checked),note=$('5r-note').value.trim();
-  if(decision==='approved'&&!checks.every(Boolean))return notice('ACC belum dapat dilakukan: semua checklist 5R harus memenuhi standar.',true);
+  if(decision==='approved'&&!checks.every(Boolean))return notice('ACC penuh butuh kelima R tercentang. Untuk sebagian, pakai tombol ACC sebagian.',true);
+  if(decision==='partial'&&(!checks.some(Boolean)||checks.every(Boolean)))return notice('ACC sebagian: centang minimal 1 dan kurang dari 5 R (kalau semua OK, pakai ACC penuh).',true);
   if(decision==='rejected'&&!note)return notice('Isi temuan / alasan penolakan terlebih dahulu.',true);
   if(await mutate(s=>{
    const row=s.days.find(r=>r.id===target.id);
@@ -632,13 +636,17 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
    if(decision==='rejected'){
     if(existing){existing.detail=note;existing.status='pending';}
     else s.events.push({id:eventId,day:row.day,code:row.code,type:'Temuan 5R',detail:note,status:'pending',source:'Checklist approval SPV',createdAt:Date.now(),actor:actor(),resolved:false});
-   }else for(const event of s.events.filter(e=>e.id.startsWith('5r-quality:'+target.id+':')&&e.status==='pending')){event.status='batal';event.review='Perbaikan diterima dan 5R di-ACC: '+note;}
+   }else if(decision==='partial'){const miss=['Ringkas','Rapi','Resik','Rawat','Rajin'].filter((_,i)=>!checks[i]).join(', ');if(existing){existing.detail='Belum memenuhi: '+miss+(note?' · '+note:'');existing.status='pending'}else s.events.push({id:eventId,day:row.day,code:row.code,type:'Temuan 5R',detail:'Belum memenuhi: '+miss+(note?' · '+note:''),status:'pending',source:'ACC sebagian SPV',createdAt:Date.now(),actor:actor(),resolved:false})}
+   else for(const event of s.events.filter(e=>e.id.startsWith('5r-quality:'+target.id+':')&&e.status==='pending')){event.status='batal';event.review='Perbaikan diterima dan 5R di-ACC: '+note;}
    audit(s,'Approval 5R '+target.id+' · '+decision+' · '+note);
   })){
-   $('view-close').click();notice(decision==='approved'?'5R di-ACC. Sekarang dihitung Done pada rekap.':'5R ditolak dan belum dihitung selesai. Temuan dicatat; petugas dapat mengirim bukti perbaikan hari ini.');
+   $('view-close').click();notice(decision==='approved'?'5R di-ACC. Sekarang dihitung Done pada rekap.':decision==='partial'?'5R di-ACC sebagian ('+checks.filter(Boolean).length+'/5R). Dicatat Done sebagian dan R yang belum memenuhi masuk temuan.':'5R ditolak dan belum dihitung selesai. Temuan dicatat; petugas dapat mengirim bukti perbaikan hari ini.');
   }
  }
  $('5r-approve').onclick=()=>decideFiveR('approved');
+ $('5r-partial').onclick=()=>decideFiveR('partial');
+ $('5r-all').onchange=()=>{for(let i=0;i<5;i++)$('5r-check-'+i).checked=$('5r-all').checked};
+ for(let i=0;i<5;i++)$('5r-check-'+i).addEventListener('change',()=>{$('5r-all').checked=Array.from({length:5},(_,j)=>$('5r-check-'+j).checked).every(Boolean)});
  $('5r-reject').onclick=()=>decideFiveR('rejected');
  $('view-close').onclick=()=>{const vf=$('view-frame');if(vf){vf.hidden=true;vf.removeAttribute('src')}$('view-video').pause();$('view-video').removeAttribute('src');$('view-photo').removeAttribute('src');if(viewUrl)URL.revokeObjectURL(viewUrl);viewUrl=null;fiveRReview=null;$('viewer').hidden=true;};
  $('export').onclick=()=>{
@@ -1260,7 +1268,7 @@ const slotName=s=>{const r=roleById(s.roleId);const n=r?r.name:s.roleId;return s
 const activeSlots=c=>slotsOf(c).filter(s=>nowMin()>=toMin(s.from)&&nowMin()<toMin(s.to));
 const tasks=()=>{try{const t=JSON.parse(localStorage.getItem(TASKS)||'[]');return Array.isArray(t)?t:[]}catch(e){return[]}};
 const saveTasks=t=>{try{localStorage.setItem(TASKS,JSON.stringify(t.slice(-300)))}catch(e){}};
-const myTasks=c=>{const act=new Set(activeSlots(c).map(s=>s.roleId));return tasks().filter(t=>t.day===today()&&(t.to===c||(t.roleId&&act.has(t.roleId)))).sort((a,b)=>b.at.localeCompare(a.at))};
+const myTasks=c=>{const act=new Set(activeSlots(c).map(s=>s.roleId));return tasks().filter(t=>t.status!=='batal'&&t.day===today()&&(t.to===c||(t.roleId&&act.has(t.roleId)))).sort((a,b)=>b.at.localeCompare(a.at))};
 let msg={};const say=(k,t,c)=>{msg[k]={t,c}};const msgH=k=>'<div class="rl-msg '+(msg[k]?.c||'')+'">'+esc(msg[k]?.t||'')+'</div>';
 
 // ---------- aksi data ----------
@@ -1362,7 +1370,7 @@ function taskSender(){
   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.act!=='send')return;const v=$('rl-tg').value,title=$('rl-tt').value.trim(),qty=$('rl-tq').value.trim();
    if(!v||!title){say('s','Pilih tujuan dan isi judul task.','err')}else{const all=tasks(),t={id:'T'+Date.now(),day:today(),at:new Date().toISOString(),title,qty,by:user(),status:'baru'};if(v.startsWith('r:'))t.roleId=v.slice(2);else t.to=v.slice(2);all.push(t);saveTasks(all);say('s','Task dikirim.','ok');$('rl-tt').value='';$('rl-tq').value=''}
    box.dataset.sig='';taskSender()})}
- const staff=Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor'&&!p.out).sort(),list=tasks().filter(t=>t.day===today()).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,15);
+ const staff=Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor'&&!p.out).sort(),list=tasks().filter(t=>t.status!=='batal'&&t.day===today()).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,15);
  const html='<h2>Tugas tambahan (di luar role)</h2><p class="sub">Untuk pekerjaan insidental di luar role harian, misalnya belanja kebutuhan operasional. Role harian tetap dibagikan lewat Alokasi role harian dan otomatis masuk ke akun staf. Staf menerima notifikasi di layarnya.</p><div class="rl-row"><select id="rl-tg"><option value="">- tujuan -</option><optgroup label="Semua staf dengan role aktif">'+R.master.filter(r=>r.active).map(r=>'<option value="r:'+esc(r.id)+'">'+esc(r.name)+'</option>').join('')+'</optgroup><optgroup label="Staf tertentu">'+staff.map(([c,p])=>'<option value="s:'+esc(c)+'">'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</optgroup></select><input id="rl-tt" placeholder="Judul tugas, contoh: Belanja ATK gudang UPG-01 koli 3"><input id="rl-tq" type="number" min="1" placeholder="Qty" style="max-width:90px"><button class="button" data-act="send" type="button">Kirim tugas</button></div>'+msgH('s')+(list.length?'<table style="margin-top:10px"><thead><tr><th>Jam</th><th>Tujuan</th><th>Task</th><th>Qty</th><th>Status</th></tr></thead><tbody>'+list.map(t=>'<tr><td>'+hmOf(t.at)+'</td><td>'+esc(t.to?nameOf(t.to):(roleById(t.roleId)?.name||t.roleId))+'</td><td>'+esc(t.title)+'</td><td>'+esc(t.qty||'-')+'</td><td>'+esc(t.status)+(t.by2?' · '+esc(nameOf(t.by2)):'')+'</td></tr>').join('')+'</tbody></table>':'');
  if(box.dataset.sig!==html){box.dataset.sig=html;const keep=[$('rl-tg')?.value,$('rl-tt')?.value,$('rl-tq')?.value];box.innerHTML=html;if(keep[0])$('rl-tg').value=keep[0];if(keep[1])$('rl-tt').value=keep[1];if(keep[2])$('rl-tq').value=keep[2]}
 }
@@ -1663,7 +1671,7 @@ init();
  const rid=r=>(r.code+'-'+r.day+'-'+r.action).replace(/\s+/g,'_');
  const rkey=r=>r.code+'|'+r.day+'|'+r.action;
  const chip=document.createElement('div');chip.id='st-chip';chip.style.cursor='pointer';chip.title='Ketuk untuk memeriksa koneksi';document.body.append(chip);
- chip.onclick=async()=>{chip.textContent='Memeriksa koneksi…';let t='';try{t=await window.WOSStore.test()}catch(e){t='Gagal: '+e.message}try{await window.WOSStore.flush();await window.WOSStore.pull()}catch(e){}const s=window.WOSStore.status();alert('Koneksi Google Sheets: '+t+'\nAntrean kirim: '+s.queued+(s.lastErr?'\nKesalahan terakhir: '+s.lastErr:'')+'\nBila antrean tidak berkurang, periksa sinyal internet lalu muat ulang halaman.');paint()};
+ chip.onclick=async()=>{chip.textContent='Memeriksa koneksi…';let t='';try{t=await window.WOSStore.test()}catch(e){t='Gagal: '+e.message}window.__fullPull=1;try{await window.WOSStore.flush();await window.WOSStore.pull()}catch(e){}window.__fullPull=0;const s=window.WOSStore.status();alert('Koneksi Google Sheets: '+t+'\nAntrean kirim: '+s.queued+(s.lastErr?'\nKesalahan terakhir: '+s.lastErr:'')+'\nBila antrean tidak berkurang, periksa sinyal internet lalu muat ulang halaman.');paint()};
  function paint(){const n=queue().length;chip.className=on()&&sessionStorage.getItem('wos-session-code')?'on':'';chip.textContent=state==='err'?'Sheets: gagal ('+n+' antre)':n?'Sheets: mengirim '+n+'…':'Sheets: tersambung'}
   async function call(body,get){const c=cfg();if(get&&body.action==='list'&&window.__mc){const k=body.tab+'|'+(body.from||'')+'|'+(body.to||'');if(window.__mc[k])return{ok:true,rows:window.__mc[k]}}const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
@@ -1728,14 +1736,14 @@ init();
   if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};const dupK=new Set();r.rows.forEach(x=>{const k=[x.kode_staf,x.role_id,hh(x.jam_mulai),hh(x.jam_selesai),x.keterangan].join('|');if(dupK.has(k)){enq('delete','ROLE_HARIAN',null,x.id);return}dupK.add(k);(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:hh(x.jam_mulai),to:hh(x.jam_selesai),by:x.dipilih_oleh,at:x.waktu})});
     const sig=o=>JSON.stringify(Object.keys(o).sort().map(c=>[c,o[c].map(s=>s.id).sort()]));if(R.master&&R.master.length&&sig(plans)!==sig((R.plans||{})[d]||{})){R.plans=R.plans||{};R.plans[d]=plans;merging=true;try{raw.call(localStorage,RK,JSON.stringify(R))}finally{merging=false}
      rolesSeen={};Object.keys(slotRows()).forEach(id=>rolesSeen[id]=JSON.stringify(slotRows()[id]));window.dispatchEvent(new Event('storage'))}}}
-  if(!pending('TASK')){const r=await call({action:'list',tab:'TASK',from:d,to:d},true);if(r.ok){const rank={baru:0,diterima:1,selesai:2},local=rj(TK,[]);let ch=false;
+  if(!pending('TASK')){const r=await call({action:'list',tab:'TASK',from:d,to:d},true);if(r.ok){const rank={baru:0,diterima:1,selesai:2,batal:3},local=rj(TK,[]);let ch=false;
     r.rows.forEach(x=>{let t;try{t=JSON.parse(x.judul)}catch(e){return}if(!t||!t.id)return;const i=local.findIndex(l=>l.id===t.id);if(i<0){local.push(t);ch=true}else if((rank[t.status]||0)>(rank[local[i].status]||0)){local[i]=t;ch=true}tasksSeen[t.id]=JSON.stringify(t)});
     if(ch){merging=true;try{raw.call(localStorage,TK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'))}}}
   if(!pending('DRM')&&window.__wosDrmApply){const r=await call({action:'list',tab:'DRM',from:d,to:d},true);if(r.ok){const list=r.rows.filter(x=>x.status==='yes'||x.status==='no').map(x=>({id:x.id,day:x.tanggal,code:x.kode_staf,drm:x.status,by:x.ditandai_oleh}));list.forEach(x=>drmSeen[x.id]=x.drm);merging=true;try{await window.__wosDrmApply(list)}finally{merging=false}}}}
  // ambil Attendance dari sheet (lintas perangkat)
  async function pull(){if(!on()||document.hidden||!sessionStorage.getItem('wos-session-code'))return;
-  try{window.__mc=null;try{const t0=new Date(),f2=dayWita(new Date(t0.getTime()-864e5*2)),d0=dayWita(t0),m=await call({action:'multi',q:['ATTENDANCE:'+f2+':'+d0,'ROLE_HARIAN:'+d0+':'+d0,'TASK:'+d0+':'+d0,'DRM:'+d0+':'+d0,'KOMPENSASI_OUT:'+d0+':'+d0,'LAPORAN_5R:'+f2+':'+d0,'PENGAJUAN::'].join(',')},true);if(m&&m.ok)window.__mc=m.data}catch(e){window.__mc=null}
-  const t=new Date(),from=dayWita(new Date(t.getTime()-864e5*2)),r=await call({action:'list',tab:'ATTENDANCE',from,to:dayWita(t)},true);if(!r.ok)throw new Error(r.error);
+  try{window.__mc=null;try{const t0=new Date(),f2=dayWita(new Date(t0.getTime()-864e5*(window.__fullPull?7:2))),d0=dayWita(t0),m=await call({action:'multi',q:['ATTENDANCE:'+f2+':'+d0,'ROLE_HARIAN:'+d0+':'+d0,'TASK:'+d0+':'+d0,'DRM:'+d0+':'+d0,'KOMPENSASI_OUT:'+d0+':'+d0,'LAPORAN_5R:'+f2+':'+d0,'PENGAJUAN::'].join(',')},true);if(m&&m.ok)window.__mc=m.data}catch(e){window.__mc=null}
+  const t=new Date(),from=dayWita(new Date(t.getTime()-864e5*(window.__fullPull?7:2))),r=await call({action:'list',tab:'ATTENDANCE',from,to:dayWita(t)},true);if(!r.ok)throw new Error(r.error);
    const local=rj(AK,[]),have=new Set(local.map(rkey));let add=0;
    r.rows.forEach(x=>{const row={code:x.kode_staf,action:x.aksi,day:x.tanggal,at:x.waktu_iso};if(x.simulasi==='hapus'){const i=local.findIndex(l=>rkey(l)===rkey(row));if(i>=0){local.splice(i,1);add++}have.delete(rkey(row));seen.add(rkey(row));return}if(row.code&&row.action&&row.day&&!have.has(rkey(row))){if(x.simulasi==='ya')row.sim=true;local.push(row);have.add(rkey(row));seen.add(rkey(row));add++}});
    if(add){merging=true;try{raw.call(localStorage,AK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'));if(window.__renderDrm)try{window.__renderDrm()}catch(e){}}
@@ -1825,7 +1833,7 @@ init();
   const r=await call({action:'photo',data:b64,mime,name:'5R-'+row.day+'-'+row.code+'.'+ext,date:row.day,kategori:'5R'});
   if(!r.ok)throw new Error(r.error);dset(f,r.file_id);return r.file_id}
  async function r5Run(days){
-  if(r5Busy||!on())return;const from=dayWita(new Date(Date.now()-864e5*2));
+  if(r5Busy||!on())return;const from=dayWita(new Date(Date.now()-864e5*(window.__fullPull?7:2)));
   const rows=(days||[]).filter(r=>r&&r.report&&r.id&&r.day>=from&&r5Seen[r.id]!==r5Sig(r)+(dmap()[r.report.fileId]||String(r.report.fileId).startsWith('drive:')?'1':'0'));
   if(!rows.length)return;r5Busy=true;
   try{for(const row of rows){const p=row.report;let did='';
@@ -1840,7 +1848,7 @@ init();
   if(!window.__wosApplyReports||!window.__wosDrmDays)return;
   await r5Run(window.__wosDrmDays());
   if(pending('LAPORAN_5R'))return;
-  const from=dayWita(new Date(Date.now()-864e5*2)),r=await call({action:'list',tab:'LAPORAN_5R',from,to:today()},true);if(!r.ok)return;
+  const from=dayWita(new Date(Date.now()-864e5*(window.__fullPull?7:2))),r=await call({action:'list',tab:'LAPORAN_5R',from,to:today()},true);if(!r.ok)return;
   const list=[];r.rows.forEach(x=>{let rep;try{rep=JSON.parse(x.catatan_spv||'{}')}catch(e){return}if(!rep||!rep.at)return;rep.fileId=x.file_id?'drive:'+x.file_id:'';rep.kind=x.jenis_file||rep.kind;rep.approval=x.status||rep.approval||'pending';list.push({id:x.id,day:x.tanggal,code:x.kode_staf,area:x.area,report:rep})});
   if(!list.length)return;
   const days=window.__wosDrmDays();
@@ -2847,7 +2855,7 @@ init();
    const reserved={};view('PICK_ITEM').filter(r=>r.dok!==e.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
    const stock=s.rows.map(r=>({bin:r.bin,sku:r.sku,key:norm(r.sku||r.item),free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0);
    const d=view('PICK_DOK').find(x=>x.id===e.dok),old=itemsOf(e.dok),rows=[],short=[];
-   old.forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(e.dok).forEach(r=>enqDel('PICK_KOLI',r.id));
+   dropTasks(e.dok);old.forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(e.dok).forEach(r=>enqDel('PICK_KOLI',r.id));
    e.lines.forEach(l=>{const key=norm(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
     [...l.parts].sort((a,b)=>num(a.koli)-num(b.koli)).forEach((p,pi)=>{let need=num(p.qty),n=0;const pid=l.id+'|P'+(pi+1),base={tanggal:d.tanggal,dok:e.dok,outlet:d.outlet,item:l.item,kategori:l.manual?'MANUAL':l.kat,soq:String(l.qty),ket:l.ket,koli:String(p.koli),status:'Menunggu'};
      c.forEach(r=>{if(need<=0||r.free<=0)return;const t=Math.min(need,r.free);r.free-=t;need-=t;rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:r.sku,bin:r.bin,qty:String(t)}));n++});
@@ -2882,13 +2890,26 @@ init();
   if(adm)h+='<div class="field" style="max-width:320px"><label for="ob-fop">Picker</label><select id="ob-fop"><option value="">Semua picker</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
   if(!list.length)return h+'<p class="sub">'+(mode==='pick'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap diverifikasi.')+'</p>';
   const by={};list.forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});
-  return h+Object.keys(by).sort().reverse().map(dk=>{const d=view('PICK_DOK').find(x=>x.id===dk)||{kode:dk,outlet:'',tanggal:''};return '<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><div class="kl">'+by[dk].sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<button type="button" class="kb '+(STC[k.status]||'')+'" data-obopen="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc((k.picker_nama||k.picker||'').split(' ')[0])+'</small><small>'+esc(k.status)+'</small></button>').join('')+'</div></div>'}).join('')}
+  return h+Object.keys(by).sort().reverse().map(dk=>{const d=view('PICK_DOK').find(x=>x.id===dk)||{kode:dk,outlet:'',tanggal:''};return '<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><div class="kl">'+by[dk].sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<button type="button" class="kb '+(STC[k.status]||'')+'" data-obopen="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc((k.picker_nama||k.picker||'').split(' ')[0])+'</small><small>'+esc(k.status)+'</small></button>').join('')+'</div>'+(adm&&mode==='pick'?adminKoli(dk,by[dk]):'')+'</div>'}).join('')}
+ function adminKoli(dk,ks){
+  const st=started(dk),opts=sel=>'<option value="">Ganti picker…</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(c===sel?' disabled':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('');
+  const re=ks.filter(k=>k.status==='Ditugaskan').sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<label class="sub" style="display:inline-flex;gap:4px;align-items:center;margin:2px 10px 2px 0">Koli '+esc(k.koli)+'<select data-obrepick="'+esc(k.id)+'">'+opts(k.picker)+'</select></label>').join('');
+  return '<div style="margin-top:10px;border-top:1px dashed #cfd8e3;padding-top:8px"><div class="ob-actions">'+(st?'<span class="sub">Sudah ada item yang dicentang, jadi pembagian koli tidak bisa diatur ulang. Picker koli yang belum mulai masih bisa diganti.</span>':'<button class="button secondary" data-obedit="'+esc(dk)+'" type="button">Revisi koli dan picker</button> <button class="button secondary" data-obrevert="'+esc(dk)+'" type="button" style="color:#b3261e">Batalkan penugasan</button>')+'</div>'+(re?'<div style="margin-top:6px">'+re+'</div>':'')+'</div>'}
 
  // ---- picking koli
  const lineNo=r=>{const m=/\|L(\d+)(?:\|P(\d+))?(?:\|(\d+))?(?:\|X(\d+))?$/.exec(r.id);return m?[num(m[1]),num(m[2]),num(m[3]),num(m[4])]:[0,0,0,0]};
  const koliAll=k=>itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)),koliRows=k=>koliAll(k).filter(r=>r.kategori!=='OTHER').sort((a,b)=>{const x=lineNo(a),y=lineNo(b);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]||x[3]-y[3]}),koliOthers=k=>koliAll(k).filter(r=>r.kategori==='OTHER').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
  const koliById=id=>view('PICK_KOLI').find(k=>k.id===id);
  function updKoli(k,patch){enq('PICK_KOLI',Object.assign({},k,patch))}
+ function dropTasks(dok){const ids=new Set(koliOf(dok).map(k=>k.task_id).filter(Boolean));if(ids.size)taskEdit(arr=>{arr.forEach(t=>{if(ids.has(t.id)&&t.status!=='selesai')t.status='batal'})})}
+ function revertDraft(dok){
+  const by=new Map();itemsOf(dok).forEach(r=>{const b=lineBase(r.id);if(!by.has(b)&&r.kategori!=='OTHER')by.set(b,r)});
+  dropTasks(dok);itemsOf(dok).forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(dok).forEach(k=>enqDel('PICK_KOLI',k.id));
+  by.forEach((r,b)=>enq('PICK_ITEM',{id:b,tanggal:r.tanggal,dok,outlet:r.outlet,item:r.item,sku:'',kategori:r.kategori==='MANUAL'?'MANUAL':r.kategori,soq:r.soq,ket:r.ket,koli:'',bin:'',qty:r.soq,status:'Draft'}));
+  const d=view('PICK_DOK').find(x=>x.id===dok);if(d)enq('PICK_DOK',Object.assign({},d,{status:'Diupload'}))}
+ function repick(k,np){if(!np||np===k.picker)return;const tid='TP-'+Math.random().toString(36).slice(2,8),d=view('PICK_DOK').find(x=>x.id===k.dok)||{kode:k.dok,outlet:''},pcs=itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)&&r.kategori!=='OTHER').reduce((a,r)=>a+num(r.qty),0);
+  taskEdit(arr=>{const o=arr.find(t=>t.id===k.task_id);if(o&&o.status!=='selesai')o.status='batal';arr.push({id:tid,day:today(),at:stIso(),title:'Picking '+d.kode+' '+d.outlet+' koli '+k.koli,qty:pcs+' pcs',by:code(),to:np,status:'baru',kind:'picking'})});
+  updKoli(k,{picker:np,picker_nama:nameOf(np),task_id:tid})}
  function taskAccept(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t&&t.status==='baru'){t.status='diterima';t.by2=k.picker;t.ackAt=stIso()}})}
  function taskMaybeDone(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}
  function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();pull(true);draw()}
@@ -3079,8 +3100,9 @@ init();
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
-  if(t.dataset.obedit){openEdit(t.dataset.obedit);return}
-  if(t.dataset.obdel){const id=t.dataset.obdel;if(started(id))return say('Sudah dikerjakan, tidak bisa dihapus.',true);if(!confirm('Hapus SOQ ini beserta pembagian kolinya?'))return;itemsOf(id).forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(id).forEach(r=>enqDel('PICK_KOLI',r.id));enqDel('PICK_DOK',id);say('SOQ dihapus.');return}
+  if(t.dataset.obedit){const dk=t.dataset.obedit;if(tabName!=='Picking List'){const pg=body.closest('.page')||document,tb=[...pg.querySelectorAll('button')].find(b=>b.textContent.trim()==='Picking List'&&!b.dataset.obedit);if(tb){tb.click();setTimeout(()=>openEdit(dk),80);return}tabName='Picking List'}openEdit(dk);return}
+  if(t.dataset.obrevert){const id=t.dataset.obrevert;if(started(id))return say('Sudah ada item yang dicentang picker, penugasan tidak bisa dibatalkan.',true);if(!confirm('Batalkan semua penugasan koli dan picker untuk SOQ ini? SOQ tetap ada dan bisa diatur ulang, tugas picker dibatalkan.'))return;revertDraft(id);say('Penugasan dibatalkan. Buka Picking List untuk mengatur ulang.');return}
+  if(t.dataset.obdel){const id=t.dataset.obdel;if(started(id))return say('Sudah dikerjakan, tidak bisa dihapus.',true);if(!confirm('Hapus SOQ ini beserta pembagian kolinya?'))return;dropTasks(id);itemsOf(id).forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(id).forEach(r=>enqDel('PICK_KOLI',r.id));enqDel('PICK_DOK',id);say('SOQ dihapus.');return}
   if(t.dataset.obsug){suggest(edit.lines,edit.caps,edit.dok);autoPickers();return}
   if(t.dataset.obbulk){const n=num($('ob-bk').value);if(!(n>=1))return say('Isi nomor koli.',true);if(!edit.sel.size)return say('Centang item dulu.',true);edit.lines.filter(l=>edit.sel.has(l.id)).forEach(l=>{l.parts=[{koli:n,qty:l.qty}]});edit.sel.clear();draw();return}
   if(t.dataset.obnewk){$('ob-bk').value=Math.max(0,...koliSet(edit))+1;return}
@@ -3119,6 +3141,7 @@ init();
  document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='ob-file'&&t.files[0]){uploadModal(t.files[0]);t.value='';return}
   if(t.id==='ob-fop'){filterOp=t.value;draw();return}
+  if(t.dataset&&t.dataset.obrepick){const k=koliById(t.dataset.obrepick);if(k&&k.status==='Ditugaskan'&&t.value){repick(k,t.value);say('Picker koli '+k.koli+' diganti ke '+nameOf(t.value)+'.')}return}
   if(t.dataset&&t.dataset.obsort&&edit){edit.sort=t.value;draw();return}
   if(t.dataset&&t.dataset.obsel&&t.type==='checkbox'&&edit){t.checked?edit.sel.add(t.dataset.obsel):edit.sel.delete(t.dataset.obsel);draw();return}
   if(t.id==='ob-area'){packArea=t.value;return}
