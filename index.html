@@ -2515,7 +2515,7 @@ function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),d
 
 function navVisibility(){
  const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory'))o.push('wms-inventory');return o};
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance',...(attendanceState()==='in'&&roleCats().length?['tugas']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project',...(attendanceState()==='in'&&roleCats().length?['tugas']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -3796,8 +3796,8 @@ init();
 
  // ---- koneksi dan antrean (dikirim bertahap, tahan sinyal putus)
  let state='',err='',busy=false,busyAt=0;
- const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj'};
- let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[]};let dv=0;
+ const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog'};
+ let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[]};let dv=0;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
  async function call(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
@@ -5177,7 +5177,7 @@ init();
  let ldAt=0,ldBusy=false,ldErr='';
  V3.load=async(force,days)=>{
   if(ldBusy||(!force&&Date.now()-ldAt<30000))return;ldBusy=true;
-  try{const f=back(days||60),to=back(-14),q=['GR_ASSIGN','GR_COUNT','PUTAWAY','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT','UNLOADING_SESI','KOLI'].map(t=>t+':'+f+':'+to).concat(['PO_DOK::','MASTER_VENDOR::','MASTER_EKSPEDISI::']).join(',');
+  try{const f=back(days||60),to=back(-14),q=['GR_ASSIGN','GR_COUNT','PUTAWAY','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT','UNLOADING_SESI','KOLI'].map(t=>t+':'+f+':'+to).concat(['PO_DOK::','MASTER_VENDOR::','MASTER_EKSPEDISI::','PROJECT::','PROJECT_NORM::','PROJECT_LOG:'+f+':'+to]).join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);
    Object.keys(r.data).forEach(k=>{const t=k.split('|')[0];setData(t,r.data[k])});ldAt=Date.now();ldErr=''}catch(e){ldErr=String(e&&e.message||e)}
   ldBusy=false;V3.redraw&&V3.redraw()};
@@ -5243,6 +5243,7 @@ init();
   // Stok opname / cycle count
   const lt=view('LC_TASK').filter(t=>t.operator===who&&!['OK','Selisih'].includes(t.status));
   if(lt.length){out.push({jenis:'Location Control',judul:lt.length+' bin: '+lt.slice(0,6).map(t=>t.bin).join(', ')+(lt.length>6?' …':''),detail:lt[0].jenis==='SO'?'Stok opname':'Cycle count',est:[['Hitung',V3.est.cc(lt.length*2)]],status:'Menunggu hitung',menu:'wms-location'})}
+  view('PROJECT').filter(p=>p.status==='Berjalan'&&String(p.peserta||'').split(',').includes(who)).forEach(p=>{const L=view('PROJECT_LOG').filter(l=>l.project===p.id),done=L.reduce((a,l)=>a+num(l.qty),0),rem=Math.max(0,num(p.target_qty)-done),ps=String(p.peserta).split(',').filter(Boolean).length||1;out.push({jenis:'Project',judul:p.judul,detail:rem+' '+p.satuan+' tersisa dari '+p.target_qty+(p.deadline?' · tenggat '+p.deadline:''),est:[['Sisa pekerjaan (bagian Anda)',rem*num(p.menit_per_satuan)/ps]],status:'Berjalan',menu:'project'})});
   return out}
  const MINP=t=>t.est.reduce((a,x)=>a+x[1],0);
  function drawTugas(s){
@@ -5260,6 +5261,212 @@ init();
   s.addEventListener('click',e=>{const b=e.target.closest('[data-v3go]');if(b)document.querySelector('.nav[data-page="'+b.dataset.v3go+'"]')?.click()});
   s._draw=()=>drawTugas(s);s._show=()=>{drawTugas(s);V3.load(true)}});
  setInterval(()=>{if(!document.hidden){const p=document.querySelector('.page.active');if(p&&p._draw)V3.load(false)}},30000);
+})();
+</script>
+<script>
+// WOS V3: Analysis (performa tim, vendor, ekspedisi, outbound, inventory, kehadiran dalam grafik) dan Dashboard ringkas
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3)return;
+ const {$,esc,view,call,code,level,nameOf,canAdmin,today,back,setData,vendorOfPo}=A;
+ const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0};
+ const U=s=>String(s==null?'':s).trim().toUpperCase();
+ const PAL=['#2f7bd6','#e0782b','#2e9b5a','#8e4ec6','#d1362b','#0e9aa7','#c9a227','#d6459b'];
+ const sname=c=>{try{return staffMaster[c].name}catch(e){return c}};
+ const pct=(a,b)=>b?Math.round(1000*a/b)/10:0;
+ const cut=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s};
+ // ---------- grafik SVG ringan ----------
+ const CH={
+  hbar(rows,o){o=o||{};if(!rows.length)return '<p class="sub">Belum ada data pada periode ini.</p>';const mx=Math.max(...rows.map(r=>r.v),o.max||0)||1,h=26,w=520,lw=150;
+   return '<svg viewBox="0 0 '+w+' '+(rows.length*h+6)+'" style="width:100%;max-width:640px">'+rows.map((r,i)=>{const bw=(w-lw-70)*r.v/mx,y=i*h+3,c=r.c||(o.color||PAL[0]);return '<text x="0" y="'+(y+16)+'" font-size="11" fill="#334">'+esc(cut(r.l,24))+'</text><rect x="'+lw+'" y="'+(y+3)+'" width="'+Math.max(bw,1)+'" height="16" rx="3" fill="'+c+'"/><text x="'+(lw+Math.max(bw,1)+5)+'" y="'+(y+16)+'" font-size="11" font-weight="700" fill="#223">'+esc(r.t!=null?r.t:r.v)+'</text>'}).join('')+'</svg>'},
+  vbar(vals,labels,o){o=o||{};if(!vals.length||!vals.some(x=>x))return '<p class="sub">Belum ada data pada periode ini.</p>';const mx=Math.max(...vals)||1,w=Math.max(360,vals.length*34),h=170,pb=26,n=vals.length,bw=Math.min(26,(w-20)/n-6);
+   return '<div style="overflow:auto"><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;min-width:'+Math.min(w,700)+'px;max-width:900px"><line x1="10" y1="'+(h-pb)+'" x2="'+(w-5)+'" y2="'+(h-pb)+'" stroke="#bbb"/>'+vals.map((v,i)=>{const bh=(h-pb-18)*v/mx,x=10+i*((w-20)/n)+((w-20)/n-bw)/2;return '<rect x="'+x+'" y="'+(h-pb-bh)+'" width="'+bw+'" height="'+bh+'" rx="3" fill="'+(o.color||PAL[0])+'"><title>'+esc(labels[i]+': '+v)+'</title></rect>'+(v?'<text x="'+(x+bw/2)+'" y="'+(h-pb-bh-3)+'" font-size="9" text-anchor="middle" fill="#334">'+v+'</text>':'')+'<text x="'+(x+bw/2)+'" y="'+(h-8)+'" font-size="9" text-anchor="middle" fill="#556">'+esc(labels[i])+'</text>'}).join('')+'</svg></div>'},
+  line(series,labels){const all=series.flatMap(s=>s.v);if(!all.some(x=>x))return '<p class="sub">Belum ada data pada periode ini.</p>';const mx=Math.max(...all)||1,n=labels.length,w=Math.max(380,n*40),h=190,pb=26,px=i=>14+i*((w-28)/Math.max(1,n-1)),py=v=>h-pb-(h-pb-16)*v/mx;
+   return '<div style="overflow:auto"><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;min-width:'+Math.min(w,700)+'px;max-width:900px"><line x1="10" y1="'+(h-pb)+'" x2="'+(w-5)+'" y2="'+(h-pb)+'" stroke="#bbb"/>'+series.map((s,k)=>'<polyline fill="none" stroke="'+PAL[k]+'" stroke-width="2.5" points="'+s.v.map((v,i)=>px(i)+','+py(v)).join(' ')+'"/>'+s.v.map((v,i)=>'<circle cx="'+px(i)+'" cy="'+py(v)+'" r="3" fill="'+PAL[k]+'"><title>'+esc(s.n+' '+labels[i]+': '+v)+'</title></circle>').join('')).join('')+labels.map((l,i)=>(n<=16||i%Math.ceil(n/14)===0)?'<text x="'+px(i)+'" y="'+(h-8)+'" font-size="9" text-anchor="middle" fill="#556">'+esc(l)+'</text>':'').join('')+'</svg></div>'+(series.length>1?'<div class="sub">'+series.map((s,k)=>'<span style="display:inline-block;width:10px;height:10px;background:'+PAL[k]+';border-radius:2px;margin-right:4px"></span>'+esc(s.n)).join(' &nbsp; ')+'</div>':'')},
+  ring(p,label,sub,c){const r=34,L=2*Math.PI*r,v=Math.max(0,Math.min(100,p));c=c||(v>=90?'#2e9b5a':v>=75?'#e0a82b':'#d1362b');return '<div style="text-align:center;min-width:120px"><svg viewBox="0 0 90 90" style="width:96px"><circle cx="45" cy="45" r="'+r+'" fill="none" stroke="#e6e6e6" stroke-width="10"/><circle cx="45" cy="45" r="'+r+'" fill="none" stroke="'+c+'" stroke-width="10" stroke-dasharray="'+(L*v/100)+' '+L+'" transform="rotate(-90 45 45)" stroke-linecap="round"/><text x="45" y="50" text-anchor="middle" font-size="16" font-weight="700" fill="#223">'+v+'%</text></svg><div style="font-weight:700;font-size:13px">'+esc(label)+'</div><div class="sub">'+esc(sub||'')+'</div></div>'}};
+ V3.CH=CH;
+ const tile=(t,v,s,c)=>'<div class="card" style="min-width:150px;flex:1"><span class="metric-label">'+esc(t)+'</span><div class="metric '+(c||'')+'" style="font-size:26px">'+esc(v)+'</div><span class="sub">'+esc(s||'')+'</span></div>';
+ // ---------- data lebar (sampai 365 hari) ----------
+ const AN={d:{},days:0,at:0,busy:false,err:'',att:[],attAt:0};
+ const TABS=['KOLI','UNLOADING_SESI','GR_COUNT','PUTAWAY','GR_ASSIGN','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT'];
+ async function anLoad(days,force){
+  if(AN.busy||(!force&&AN.days>=days&&Date.now()-AN.at<120000))return;AN.busy=true;
+  try{const f=back(days),to=back(-14),q=TABS.map(t=>t+':'+f+':'+to).concat(['PO_INFO::','MASTER_VENDOR::']).join(',');
+   const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);
+   TABS.forEach(t=>{AN.d[t]=r.data[t+'|'+f+'|'+to]||[]});setData('PO_INFO',r.data['PO_INFO||']||[]);setData('MASTER_VENDOR',r.data['MASTER_VENDOR||']||[]);
+   AN.days=days;AN.at=Date.now();AN.err='';V3.redraw()}catch(e){AN.err=String(e&&e.message||e)}
+  try{if(window.WOSStore){const c=window.WOSStore.config(),r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab:'ATTENDANCE',from:back(days),to:today()})),j=await r.json();AN.att=j.rows||[];AN.attAt=Date.now()}}catch(e){}
+  AN.busy=false;V3.redraw()}
+ V3.an=AN;
+ const inRange=(r,f)=>String(r.tanggal||'')>=f;
+ const R=t=>AN.d[t]||[];
+ // kelompok waktu
+ function buckets(days,mode){const out=[],map={},labels=[];
+  const d0=new Date(Date.now()+8*3600e3);
+  const key=(d)=>{const iso=d.toISOString().slice(0,10);if(mode==='bulan')return iso.slice(0,7);if(mode==='minggu'){const x=new Date(d);const wd=(x.getUTCDay()+6)%7;x.setUTCDate(x.getUTCDate()-wd);return x.toISOString().slice(5,10)}return iso.slice(5,10)};
+  for(let i=days-1;i>=0;i--){const d=new Date(d0.getTime()-i*864e5);const k=key(d);if(!(k in map)){map[k]=labels.length;labels.push(k)}}
+  const kf=iso=>{const d=new Date(iso+'T00:00:00Z');return key(d)};
+  return{labels,idx:iso=>{const k=kf(iso);return k in map?map[k]:-1}}}
+ function series(rows,fnDate,fnVal,B){const v=B.labels.map(()=>0);rows.forEach(r=>{const d=fnDate(r);if(!d)return;const i=B.idx(String(d).slice(0,10));if(i>=0)v[i]+=fnVal(r)});return v}
+ // ---------- hitung metrik ----------
+ function compute(days){
+  const f=back(days),m={f},K=R('KOLI').filter(r=>inRange(r,f)),GC=R('GR_COUNT').filter(r=>inRange(r,f)),PA=R('PUTAWAY').filter(r=>inRange(r,f)),GA=R('GR_ASSIGN').filter(r=>inRange(r,f)),PI=R('PICK_ITEM').filter(r=>inRange(r,f)),PK=R('PICK_KOLI').filter(r=>inRange(r,f)),PD=R('PICK_DOK').filter(r=>inRange(r,f)),PG=R('PICK_GR').filter(r=>inRange(r,f)),LT=R('LC_TASK').filter(r=>inRange(r,f)),AD=R('ADJUSTMENT').filter(r=>inRange(r,f));
+  Object.assign(m,{K,GC,PA,GA,PI,PK,PD,PG,LT,AD});
+  // vendor
+  const ven={};GC.forEach(r=>{const v=vendorOfPo(r.po)||'(tanpa vendor)',o=ven[v]||(ven[v]={v,lines:0,ok:0,pcsSJ:0,pcsAct:0,pos:new Set(),koli:0,bad:0});o.lines++;if(r.status==='Sesuai')o.ok++;o.pcsSJ+=num(r.qty_sj);o.pcsAct+=num(r.qty_actual);o.pos.add(r.po)});
+  K.forEach(r=>{const v=vendorOfPo(r.po)||'(tanpa vendor)',o=ven[v]||(ven[v]={v,lines:0,ok:0,pcsSJ:0,pcsAct:0,pos:new Set(),koli:0,bad:0});o.koli++;if(/Bermasalah|Masalah/.test(r.status))o.bad++});
+  m.vendor=Object.values(ven).sort((a,b)=>b.lines-a.lines);
+  // ekspedisi inbound
+  const ek={};K.forEach(r=>{const e=r.ekspedisi||'(tanpa nama)',o=ek[e]||(ek[e]={e,koli:0,bad:0});o.koli++;if(/Bermasalah|Masalah/.test(r.status))o.bad++});m.ekIn=Object.values(ek).sort((a,b)=>b.koli-a.koli);
+  // ekspedisi outbound (terima vs estimasi tiba, masalah saat diterima)
+  const eo={};PD.forEach(d=>{const ks=PK.filter(k=>k.dok===d.id&&k.rcv_waktu);if(!d.ekspedisi&&!ks.length)return;const e=(d.ekspedisi||'(belum diisi)')+(d.metode==='Direct'?' (Direct)':''),o=eo[e]||(eo[e]={e,kirim:0,koli:0,telat:0,bad:0,n:0});o.kirim++;ks.forEach(k=>{o.koli++;o.n++;const rd=wd(k.rcv_waktu);if(d.eta&&rd>d.eta)o.telat++;if(k.status==='Diterima-Masalah')o.bad++})});m.ekOut=Object.values(eo).sort((a,b)=>b.koli-a.koli);
+  // tim
+  const T={},ot=c=>T[c]||(T[c]={c,grKoli:0,grPcs:0,putPcs:0,pickPcs:0,pickRows:0,pickSalah:0,vpRows:0,lc:0,estMenit:0});
+  GC.forEach(r=>{if(!r.operator)return;const o=ot(r.operator);o.grPcs+=num(r.qty_actual);o.estMenit+=V3.est.count(r.item,num(r.qty_actual))});
+  GA.filter(a=>a.status==='Selesai').forEach(a=>{ot(a.operator).grKoli++});
+  PA.forEach(r=>{if(!r.operator)return;const o=ot(r.operator);o.putPcs+=num(r.qty);o.estMenit+=V3.est.put(r.item,num(r.qty))});
+  PI.forEach(r=>{if(r.picker&&num(r.qty_actual)>0){const o=ot(r.picker);o.pickPcs+=num(r.qty_actual);o.pickRows++;o.estMenit+=V3.est.pick(r.item,num(r.qty_actual));if(r.vp==='Salah'||r.vp==='Dikoreksi')o.pickSalah++}if(r.vp_oleh&&r.vp)ot(r.vp_oleh).vpRows++});
+  LT.filter(t=>['OK','Selisih'].includes(t.status)).forEach(t=>{ot(t.operator).lc++});
+  m.tim=Object.values(T).sort((a,b)=>b.estMenit-a.estMenit);
+  // outbound
+  const tgt=PI.filter(r=>r.kategori!=='OTHER'&&!/\|X\d+$/.test(r.id)).reduce((a,r)=>a+num(r.qty),0),got=PI.filter(r=>r.kategori!=='OTHER').reduce((a,r)=>a+num(r.qty_actual),0);
+  m.pickTarget=tgt;m.pickGot=got;m.fill=pct(Math.min(got,tgt),tgt);
+  m.grLines=PG.length;m.grSalah=PG.filter(g=>g.status==='Salah').length;m.grOpen=PG.filter(g=>g.status==='Salah'&&!g.resolusi).length;
+  const mo={};PG.filter(g=>g.status==='Salah').forEach(g=>{const o=g.outlet||'?';mo[o]=(mo[o]||0)+1});m.missOutlet=Object.entries(mo).sort((a,b)=>b[1]-a[1]);
+  const mp={};PG.filter(g=>g.status==='Salah').forEach(g=>{const k=PK.find(x=>x.dok===g.dok&&String(x.koli)===String(g.koli));const p=k?(k.picker_nama||k.picker):'?';mp[p]=(mp[p]||0)+1});m.missPicker=Object.entries(mp).sort((a,b)=>b[1]-a[1]);
+  // siklus outbound: SOQ diunggah -> berangkat -> diterima (jam)
+  const cyc=[];PD.forEach(d=>{const ks=PK.filter(k=>k.dok===d.id);const ld=ks.map(k=>k.load_waktu).filter(Boolean).sort()[0],rc=ks.map(k=>k.rcv_waktu).filter(Boolean).sort().pop();if(d.waktu&&ld)cyc.push({o:d.outlet,toShip:(Date.parse(ld)-Date.parse(d.waktu))/36e5,toRcv:rc?(Date.parse(rc)-Date.parse(ld))/36e5:null})});m.cyc=cyc;
+  // inventory
+  m.lcDone=LT.filter(t=>['OK','Selisih'].includes(t.status)).length;m.lcOk=LT.filter(t=>t.status==='OK').length;m.adjN=AD.filter(a=>a.status==='Disetujui').length;m.adjPcs=AD.filter(a=>a.status==='Disetujui').reduce((a,x)=>a+Math.abs(num(x.selisih)),0);m.adjWait=AD.filter(a=>a.status==='Menunggu SPV').length;
+  // kehadiran
+  const att=AN.att.filter(r=>String(r.tanggal)>=f),perDay={};att.filter(r=>r.aksi==='Attendance in'&&r.simulasi!=='hapus').forEach(r=>{const o=perDay[r.tanggal]||(perDay[r.tanggal]={n:0,late:0});o.n++;const mm=/^(\d+):(\d+)/.exec(r.jam_wita||'');if(mm&&(+mm[1]*60+ +mm[2])>8*60+5)o.late++});m.attDay=perDay;
+  return m}
+ const wd=iso=>{const t=Date.parse(iso);return isFinite(t)?new Date(t+8*3600e3).toISOString().slice(0,10):''};
+ // ---------- tampilan ----------
+ const st={tab:'Ringkasan',days:30,mode:'hari'};
+ const TABSUI=['Ringkasan','Tim','Vendor','Ekspedisi','Outbound','Inventory','Kehadiran'];
+ const RANGE=[[1,'Hari ini'],[7,'7 hari'],[30,'30 hari'],[90,'90 hari'],[365,'1 tahun']];
+ function vTabs(){return '<div class="filters" style="margin-bottom:10px">'+TABSUI.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-antab="'+t+'" type="button">'+t+'</button>').join('')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><div class="filters" style="margin:0">'+RANGE.map(r=>'<button class="filter'+(st.days===r[0]?' active':'')+'" data-anrange="'+r[0]+'" type="button">'+r[1]+'</button>').join('')+'</div><label class="sub">Kelompok <select data-anmode="1">'+['hari','minggu','bulan'].map(x=>'<option'+(st.mode===x?' selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'}
+ const sec=(t,b)=>'<div class="card" style="margin-top:12px"><h3 style="margin:0 0 6px">'+esc(t)+'</h3>'+b+'</div>';
+ function body(m){
+  const B=buckets(st.days,st.mode),dd=r=>r.tanggal;
+  if(st.tab==='Ringkasan'){
+   const koliN=m.K.filter(k=>/Diterima|Datang/.test(k.status)||k.status==='Bermasalah').length;
+   return '<div style="display:flex;gap:10px;flex-wrap:wrap">'+tile('Koli diterima (inbound)',m.K.length,m.K.filter(k=>/Bermasalah|Masalah/.test(k.status)).length+' bermasalah')+tile('Pcs di-counting',m.GC.reduce((a,r)=>a+num(r.qty_actual),0).toLocaleString('id-ID'),'GR sesuai '+pct(m.GC.filter(r=>r.status==='Sesuai').length,m.GC.length)+'%')+tile('Pcs di-put away',m.PA.reduce((a,r)=>a+num(r.qty),0).toLocaleString('id-ID'),m.PA.length+' lokasi')+tile('SOQ dikirim',m.PD.length,'fill rate '+m.fill+'%')+tile('Miss-picking',m.grSalah,m.grOpen+' belum selesai',m.grOpen?'warn':'good')+tile('Adjustment disetujui',m.adjN,m.adjPcs+' pcs · '+m.adjWait+' menunggu')+'</div>'+
+    sec('Koli diterima per '+st.mode,CH.vbar(series(m.K,dd,()=>1,B),B.labels))+
+    sec('Pcs counting vs picking per '+st.mode,CH.line([{n:'Counting',v:series(m.GC,dd,r=>num(r.qty_actual),B)},{n:'Picking',v:series(m.PI,dd,r=>num(r.qty_actual),B)}],B.labels))}
+  if(st.tab==='Tim'){
+   const t=m.tim.filter(x=>x.c);
+   return sec('Output per operator (periode terpilih)','<div style="overflow:auto"><table><thead><tr><th>Operator</th><th>Koli GR selesai</th><th>Pcs counting</th><th>Pcs put away</th><th>Pcs picking</th><th>Verifikasi</th><th>Bin dihitung</th><th>Akurasi picking</th><th>Beban kerja (est. dari norm)</th></tr></thead><tbody>'+(t.map(x=>'<tr><td><strong>'+esc(sname(x.c))+'</strong><div class="sub">'+esc(x.c)+'</div></td><td>'+x.grKoli+'</td><td>'+x.grPcs+'</td><td>'+x.putPcs+'</td><td>'+x.pickPcs+'</td><td>'+x.vpRows+'</td><td>'+x.lc+'</td><td>'+(x.pickRows?pct(x.pickRows-x.pickSalah,x.pickRows)+'%':'-')+'</td><td><strong>'+esc(V3.fm(x.estMenit))+'</strong></td></tr>').join('')||'<tr><td colspan="9" class="sub">Belum ada data.</td></tr>')+'</tbody></table></div>')+
+    sec('Beban kerja per operator (menit estimasi dari Master Norm)',CH.hbar(t.slice(0,12).map((x,i)=>({l:sname(x.c),v:Math.round(x.estMenit),t:V3.fm(x.estMenit),c:PAL[i%PAL.length]}))))+
+    sec('Akurasi picking per operator (baris tanpa koreksi verifikasi)',CH.hbar(t.filter(x=>x.pickRows).map(x=>({l:sname(x.c),v:pct(x.pickRows-x.pickSalah,x.pickRows),t:pct(x.pickRows-x.pickSalah,x.pickRows)+'%',c:'#2e9b5a'})),{max:100}))}
+  if(st.tab==='Vendor'){
+   const v=m.vendor.filter(x=>x.lines);
+   return sec('Kesesuaian surat jalan per vendor','<p class="sub">Persentase baris barang yang jumlahnya sesuai surat jalan saat counting.</p><div style="display:flex;gap:14px;flex-wrap:wrap">'+v.slice(0,8).map(x=>CH.ring(pct(x.ok,x.lines),x.v,x.ok+' dari '+x.lines+' baris')).join('')+'</div>')+
+    sec('Rincian vendor','<div style="overflow:auto"><table><thead><tr><th>Vendor</th><th>PO</th><th>Baris dicek</th><th>Sesuai SJ</th><th>Pcs SJ</th><th>Pcs aktual</th><th>Selisih pcs</th><th>Koli diterima</th><th>Koli bermasalah</th></tr></thead><tbody>'+(m.vendor.map(x=>'<tr><td><strong>'+esc(x.v)+'</strong></td><td>'+x.pos.size+'</td><td>'+x.lines+'</td><td>'+pct(x.ok,x.lines)+'%</td><td>'+x.pcsSJ+'</td><td>'+x.pcsAct+'</td><td>'+(x.pcsAct-x.pcsSJ>0?'+':'')+(x.pcsAct-x.pcsSJ)+'</td><td>'+x.koli+'</td><td>'+x.bad+'</td></tr>').join('')||'<tr><td colspan="9" class="sub">Belum ada data.</td></tr>')+'</tbody></table></div>')}
+  if(st.tab==='Ekspedisi'){
+   return sec('Ekspedisi inbound (kondisi koli saat diterima DC)','<p class="sub">Persentase koli yang diterima tanpa masalah.</p>'+CH.hbar(m.ekIn.map(x=>({l:x.e,v:pct(x.koli-x.bad,x.koli),t:pct(x.koli-x.bad,x.koli)+'% ('+x.koli+' koli)',c:'#2e9b5a'})),{max:100}))+
+    sec('Ekspedisi outbound (pengiriman ke toko)','<p class="sub">Tidak delay = koli diterima toko sebelum atau pada estimasi tiba. Tidak rusak = diterima tanpa catatan masalah.</p>'+(m.ekOut.length?'<div style="overflow:auto"><table><thead><tr><th>Ekspedisi</th><th>Kiriman</th><th>Koli diterima</th><th>Tidak delay</th><th>Tidak rusak/masalah</th></tr></thead><tbody>'+m.ekOut.map(x=>'<tr><td><strong>'+esc(x.e)+'</strong></td><td>'+x.kirim+'</td><td>'+x.koli+'</td><td>'+pct(x.koli-x.telat,x.koli)+'%</td><td>'+pct(x.koli-x.bad,x.koli)+'%</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada kiriman yang diterima toko.</p>'))}
+  if(st.tab==='Outbound'){
+   const cy=m.cyc,avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+   return '<div style="display:flex;gap:10px;flex-wrap:wrap">'+tile('SOQ dikirim',m.PD.length,m.PK.length+' koli')+tile('Fill rate picking',m.fill+'%',m.pickGot+' dari '+m.pickTarget+' pcs','')+tile('SOO (tidak terpenuhi)',Math.max(0,m.pickTarget-m.pickGot),'pcs')+tile('Rata-rata SOQ ke berangkat',cy.length?V3.fm(avg(cy.map(x=>x.toShip*60))):'-','dari upload SOQ')+tile('Rata-rata berangkat ke diterima',cy.filter(x=>x.toRcv!=null).length?V3.fm(avg(cy.filter(x=>x.toRcv!=null).map(x=>x.toRcv*60))):'-','')+'</div>'+
+    sec('Pcs di-picking per '+st.mode,CH.vbar(series(m.PI,dd,r=>num(r.qty_actual),B),B.labels,{color:PAL[1]}))+
+    sec('Miss-picking per toko','<p class="sub">Dari GR Outlet: '+m.grSalah+' selisih pada '+m.grLines+' baris ('+pct(m.grSalah,m.grLines)+'%).</p>'+CH.hbar(m.missOutlet.map(x=>({l:x[0],v:x[1],c:'#d1362b'}))))+
+    sec('Miss-picking per picker',CH.hbar(m.missPicker.map(x=>({l:x[0],v:x[1],c:'#d1362b'}))))}
+  if(st.tab==='Inventory'){
+   return '<div style="display:flex;gap:10px;flex-wrap:wrap">'+tile('Bin dihitung',m.lcDone,m.lcOk+' sesuai ('+pct(m.lcOk,m.lcDone)+'%)')+tile('Adjustment disetujui',m.adjN,m.adjPcs+' pcs')+tile('Menunggu SPV',m.adjWait,'adjustment')+'</div>'+
+    sec('Bin dihitung per '+st.mode,CH.vbar(series(m.LT.filter(t=>['OK','Selisih'].includes(t.status)),r=>r.tanggal,()=>1,B),B.labels,{color:PAL[5]}))+
+    sec('Selisih stok per '+st.mode+' (pcs, absolut)',CH.vbar(series(m.AD.filter(a=>a.status==='Disetujui'),r=>r.tanggal,r=>Math.abs(num(r.selisih)),B),B.labels,{color:PAL[4]}))}
+  if(st.tab==='Kehadiran'){
+   const days=Object.keys(m.attDay).sort(),vals=days.map(d=>m.attDay[d].n),late=days.map(d=>m.attDay[d].late);
+   return '<div style="display:flex;gap:10px;flex-wrap:wrap">'+tile('Hari tercatat',days.length,'')+tile('Rata-rata hadir/hari',days.length?Math.round(vals.reduce((a,b)=>a+b,0)/days.length):0,'')+tile('Terlambat (setelah 08.05)',late.reduce((a,b)=>a+b,0),pct(late.reduce((a,b)=>a+b,0),vals.reduce((a,b)=>a+b,0))+'%')+'</div>'+sec('Kehadiran per hari',CH.line([{n:'Hadir',v:vals},{n:'Terlambat',v:late}],days.map(d=>d.slice(5))))}
+  return ''}
+ function draw(s){
+  const m=compute(st.days);let h=vTabs();
+  if(AN.err)h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(AN.err)+'. Pastikan skrip Google gudang versi terbaru sudah dipasang.</p>';
+  if(!AN.days)h+='<p class="sub">Memuat data…</p>';else h+=body(m)+'<p class="sub" style="margin-top:10px">Sumber: WOS Data Gudang dan Data Operasional (maksimal beberapa ribu baris terbaru per tab). Kolom persentase dihitung dari data yang tercatat di web.</p>';
+  if(s._sig!==h){s._sig=h;const keep=s.scrollTop;s.querySelector('.v3-b').innerHTML=h}}
+ V3.mkPage('analysis','Analysis','Analysis','Performa tim, vendor, ekspedisi, outbound, inventory, dan kehadiran','reports',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Analysis</h2><span class="sub">Performa tim, vendor, ekspedisi, outbound, inventory, dan kehadiran</span></div><button class="button secondary" data-anrefresh="1" type="button">Muat ulang</button></div><div class="v3-b"></div>';
+  s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.antab){st.tab=b.dataset.antab;draw(s)}if(b.dataset.anrange){st.days=Number(b.dataset.anrange);if(st.days===1)st.mode='hari';anLoad(st.days,false);draw(s)}if(b.dataset.anrefresh)anLoad(st.days,true)});
+  s.addEventListener('change',e=>{if(e.target.dataset.anmode){st.mode=e.target.value;draw(s)}});
+  s._draw=()=>draw(s);s._show=()=>{draw(s);anLoad(st.days,false)}},'reports');
+ {const n=document.querySelector('.nav[data-page="analysis"]'),g=[...document.querySelectorAll('.nav-group')].find(x=>x.textContent.trim()==='KONTROL');if(n&&g)g.after(n)}
+
+ // ================= DASHBOARD RINGKAS =================
+ const DS={at:0,att:[],busy:false};
+ async function dsLoad(){if(DS.busy||Date.now()-DS.at<45000)return;DS.busy=true;try{await V3.load(true,60);if(window.WOSStore){const c=window.WOSStore.config(),r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab:'ATTENDANCE',from:today(),to:today()})),j=await r.json();DS.att=j.rows||[]}DS.at=Date.now()}catch(e){}DS.busy=false;drawDash()}
+ function drawDash(){
+  const el=document.getElementById('wos-dash3');if(!el)return;
+  const t=today(),koli=view('KOLI'),ga=view('GR_ASSIGN'),pd=view('PICK_DOK'),pk=view('PICK_KOLI'),pg=view('PICK_GR'),ad=view('ADJUSTMENT');
+  const staff=Object.entries(typeof staffMaster!=='undefined'?staffMaster:{}).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).length,hadir=new Set(DS.att.filter(r=>r.aksi==='Attendance in'&&r.tanggal===t&&r.simulasi!=='hapus').map(r=>r.kode_staf)).size;
+  const rcvToday=koli.filter(k=>k.tanggal===t&&/Diterima|Bermasalah/.test(k.status)).length,grDone=ga.filter(a=>a.status==='Selesai'&&String(a.selesai||'').slice(0,10)===t).length,grOpen=ga.filter(a=>a.status!=='Selesai'&&a.status!=='Batal').length;
+  const soqAktif=pd.filter(d=>!['Diterima','GR selesai','GR Selesai'].includes(d.status)).length,ship=pk.filter(k=>k.status==='Shipping').length,miss=pg.filter(g=>g.status==='Salah'&&!g.resolusi).length,adjW=ad.filter(a=>a.status==='Menunggu SPV').length;
+  const todo=[];if(adjW)todo.push('<li><strong>'+adjW+'</strong> adjustment menunggu persetujuan SPV (Location Control > Adjustment)</li>');if(miss)todo.push('<li><strong>'+miss+'</strong> miss-picking belum diselesaikan (Outbound > Miss-Picking)</li>');if(grOpen)todo.push('<li><strong>'+grOpen+'</strong> koli GR belum selesai (Inbound > Good Receipt)</li>');
+  const h='<div style="display:flex;gap:10px;flex-wrap:wrap">'+tile('Hadir hari ini',hadir+' / '+staff,pct(hadir,staff)+'%','')+tile('Koli diterima hari ini',rcvToday,'inbound')+tile('GR selesai hari ini',grDone,grOpen+' koli masih berjalan')+tile('SOQ aktif',soqAktif,'outbound berjalan')+tile('Koli on delivery',ship,'menuju toko')+tile('Miss-picking terbuka',miss,'dari GR outlet',miss?'warn':'good')+'</div>'+
+   '<div class="card" style="margin-top:12px"><h3 style="margin:0 0 6px">Perlu tindak lanjut</h3>'+(todo.length?'<ul style="margin:6px 0 0 18px">'+todo.join('')+'</ul>':'<p class="sub">Tidak ada yang menunggu. Semua berjalan normal.</p>')+'<p class="sub">Grafik performa lengkap ada di menu <strong>Analysis</strong>.</p></div>'+(V3.err()?'<p class="note" style="color:#b3261e">Sebagian data belum termuat: '+esc(V3.err())+'</p>':'');
+  if(el._sig!==h){el._sig=h;el.innerHTML=h}}
+ {const d=document.getElementById('dashboard');if(d){d._draw=drawDash;d._show=dsLoad;d.querySelectorAll(':scope>*').forEach(x=>x.style.display='none');const box=document.createElement('div');box.id='wos-dash3';d.prepend(box);document.querySelector('.nav[data-page="dashboard"]')?.addEventListener('click',()=>{drawDash();dsLoad()});setTimeout(()=>{drawDash();if(d.classList.contains('active'))dsLoad()},800)}}
+})();
+</script>
+<script>
+// WOS V3: modul Project (pekerjaan di luar rutinitas, misalnya tempel barcode) dengan norm per jenis kegiatan
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3)return;
+ const {$,esc,view,enq,enqDel,call,code,level,nameOf,canAdmin,today,back,setData}=A;
+ const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0};
+ const stIso=()=>new Date().toISOString();
+ const nm=c=>{try{return staffMaster[c].name}catch(e){return c}};
+ const TITLES=['Tempel barcode MAMU','Tempel barcode TIGALAPANKAOS','Pasang hang tag','Packing ulang stok lama','Sortir dan QC ulang','Relabel koli','Re-slotting bin','Inventarisasi khusus','5R area gudang'];
+ // norm awal; durasi diisi dari Master Norm bila ada, sisanya dikosongkan agar diisi tim (ubah di tab Norm Project)
+ const SEED=[['PN01','Tempel barcode MAMU','SKU',/barcode/i,0.5],['PN02','Tempel barcode per pcs','Pcs',null,''],['PN03','Pasang hang tag','Pcs',null,''],['PN04','Packing ulang / rewrap','Pcs',null,''],['PN05','Sortir dan QC ulang','Pcs',null,''],['PN06','Relabel koli','Koli',null,''],['PN07','Pindah lokasi massal (re-slotting)','SKU',/internal move|relokasi/i,2],['PN08','Inventarisasi khusus','SKU',/cycle count/i,0.12],['PN09','5R area','Area',/5R/i,10]];
+ const st={tab:'Project',sel:'',form:{judul:'',kegiatan:'PN01',target:'',deadline:'',peserta:[],catatan:''},msg:'',bad:false};
+ const norms=()=>view('PROJECT_NORM').filter(n=>n.status!=='Nonaktif').sort((a,b)=>String(a.id).localeCompare(b.id));
+ const projs=()=>view('PROJECT').sort((a,b)=>String(b.tanggal+b.id).localeCompare(a.tanggal+a.id));
+ const logs=id=>view('PROJECT_LOG').filter(l=>l.project===id);
+ const fmM=m=>V3.fm(m);
+ function seedNorms(){if(!canAdmin()||view('PROJECT_NORM').length||st._seeded)return;st._seeded=true;
+  SEED.forEach(x=>{let menit=x[4];try{if(x[3]){const r=MasterNormStore.list().find(n=>n.status==='Active'&&x[3].test(n.activity));if(r&&String(r.uom).toLowerCase()===x[2].toLowerCase())menit=Number(r.minutes)||menit}}catch(e){}
+   enq('PROJECT_NORM',{id:x[0],kegiatan:x[1],satuan:x[2],menit:String(menit),catatan:menit===''?'Durasi belum diisi':'Dari Master Norm',status:'Aktif'})})}
+ function prog(p){const L=logs(p.id),done=L.reduce((a,l)=>a+num(l.qty),0),tgt=num(p.target_qty),mpu=num(p.menit_per_satuan),ps=String(p.peserta||'').split(',').filter(Boolean);
+  const act=L.reduce((a,l)=>a+(num(l.menit)||num(l.qty)*mpu),0),estAll=tgt*mpu,rem=Math.max(0,tgt-done)*mpu;return{L,done,tgt,mpu,ps,act,estAll,rem,pct:tgt?Math.min(100,Math.round(100*done/tgt)):0,eta:ps.length&&rem?rem/ps.length:0}}
+ function msgH(){return st.msg?'<p class="note" style="color:'+(st.bad?'#b3261e':'#1b7a46')+'">'+esc(st.msg)+'</p>':''}
+ function vProject(){
+  const adm=canAdmin(),list=projs().filter(p=>adm||String(p.peserta||'').split(',').includes(code())||level()==='hrd');
+  let h='';
+  if(adm){const ns=norms(),f=st.form,ops=Object.entries(typeof staffMaster!=='undefined'?staffMaster:{}).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
+   h+='<div class="card"><h3 style="margin:0">Buat project baru</h3><p class="sub">Durasi mengikuti norm kegiatan yang dipilih. Estimasi selesai dihitung dari sisa target dan jumlah peserta.</p><datalist id="pj-t">'+TITLES.map(t=>'<option value="'+esc(t)+'">').join('')+'</datalist><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px"><label class="sub">Judul project<input data-pjf="judul" list="pj-t" value="'+esc(f.judul)+'" style="width:100%"></label><label class="sub">Jenis kegiatan (norm)<select data-pjf="kegiatan" style="width:100%">'+ns.map(n=>'<option value="'+esc(n.id)+'"'+(f.kegiatan===n.id?' selected':'')+'>'+esc(n.kegiatan)+' ('+(n.menit!==''?esc(n.menit)+' mnt/'+esc(n.satuan):'durasi belum diisi')+')</option>').join('')+'</select></label><label class="sub">Target qty<input data-pjf="target" type="number" min="1" value="'+esc(f.target)+'" style="width:100%"></label><label class="sub">Tenggat<input data-pjf="deadline" type="date" value="'+esc(f.deadline)+'" style="width:100%"></label></div><div class="sub" style="margin-top:8px">Peserta:</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+ops.map(([c,p])=>'<label style="font-size:12px;border:1px solid #cfc3bb;border-radius:999px;padding:3px 9px;background:'+(f.peserta.includes(c)?'#fbe5d6':'#fff')+'"><input type="checkbox" data-pjp="'+esc(c)+'"'+(f.peserta.includes(c)?' checked':'')+'> '+esc(p.name.split(' ')[0])+'</label>').join('')+'</div><label class="sub" style="display:block;margin-top:8px">Catatan<input data-pjf="catatan" value="'+esc(f.catatan)+'" style="width:100%"></label><div class="ob-actions"><button class="button" data-pjmake="1" type="button">Buat project</button></div></div>'}
+  h+=list.map(p=>{const g=prog(p);return '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">'+esc(p.judul)+'</h3><span class="tag '+(p.status==='Selesai'?'green':p.status==='Batal'?'red':'amber')+'">'+esc(p.status)+'</span></div><p class="sub">'+esc(p.kegiatan_nama)+' · target '+esc(p.target_qty)+' '+esc(p.satuan)+' · norm '+esc(p.menit_per_satuan||'-')+' mnt/'+esc(p.satuan)+(p.deadline?' · tenggat '+esc(p.deadline):'')+'</p>'+
+   '<div style="height:12px;background:#e6e6e6;border-radius:6px;overflow:hidden"><div style="height:12px;width:'+g.pct+'%;background:#2e9b5a"></div></div><p class="sub">'+g.done+' dari '+g.tgt+' '+esc(p.satuan)+' ('+g.pct+'%) · peserta '+esc(g.ps.map(c=>nm(c).split(' ')[0]).join(', ')||'-')+'</p><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="tag">Estimasi total '+esc(fmM(g.estAll))+'</span><span class="tag green">Terpakai '+esc(fmM(g.act))+'</span>'+(g.eta?'<span class="tag amber">Perkiraan selesai '+esc(fmM(g.eta))+' lagi (dengan '+g.ps.length+' orang)</span>':'')+'</div>'+
+   (g.L.length?'<details style="margin-top:6px"><summary class="sub">Catatan hasil kerja ('+g.L.length+')</summary><table><thead><tr><th>Tanggal</th><th>Operator</th><th>Qty</th><th>Menit</th><th>Catatan</th></tr></thead><tbody>'+g.L.slice().sort((a,b)=>String(b.jam).localeCompare(a.jam)).slice(0,30).map(l=>'<tr><td>'+esc(l.tanggal)+'</td><td>'+esc(nm(l.operator))+'</td><td>'+esc(l.qty)+'</td><td>'+esc(l.menit||Math.round(num(l.qty)*g.mpu*10)/10)+'</td><td>'+esc(l.catatan)+'</td></tr>').join('')+'</tbody></table></details>':'')+
+   (p.status==='Berjalan'&&(g.ps.includes(code())||canAdmin())?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:end"><label class="sub">Hasil kerja ('+esc(p.satuan)+')<input data-pjq="'+esc(p.id)+'" type="number" min="1" style="width:110px;display:block"></label><label class="sub">Menit aktual (opsional)<input data-pjm="'+esc(p.id)+'" type="number" min="1" style="width:110px;display:block"></label><label class="sub" style="flex:1;min-width:140px">Catatan<input data-pjc="'+esc(p.id)+'" style="width:100%;display:block"></label><button class="button" data-pjlog="'+esc(p.id)+'" type="button">Catat</button></div>':'')+
+   (canAdmin()&&p.status==='Berjalan'?'<div class="ob-actions"><button class="button secondary" data-pjdone="'+esc(p.id)+'" type="button">Tandai selesai</button> <button class="button secondary" data-pjcancel="'+esc(p.id)+'" type="button" style="color:#b3261e">Batalkan</button></div>':'')+'</div>'}).join('')||'<p class="sub" style="margin-top:12px">Belum ada project.</p>';
+  return h}
+ function vNorm(){const adm=canAdmin(),l=view('PROJECT_NORM').sort((a,b)=>String(a.id).localeCompare(b.id));
+  return '<div class="card"><h3 style="margin:0">Norm project</h3><p class="sub">Jenis kegiatan beserta durasi per satuan ukur. Isi durasi yang masih kosong. Perubahan hanya berlaku untuk project baru.</p>'+(l.length?'<div style="overflow:auto"><table><thead><tr><th>Kode</th><th>Jenis kegiatan</th><th>Satuan ukur</th><th>Menit per satuan</th><th>Catatan</th>'+(adm?'<th></th>':'')+'</tr></thead><tbody>'+l.map(n=>'<tr><td>'+esc(n.id)+'</td><td>'+(adm?'<input data-pnf="'+esc(n.id)+'|kegiatan" value="'+esc(n.kegiatan)+'" style="width:100%">':esc(n.kegiatan))+'</td><td>'+(adm?'<input data-pnf="'+esc(n.id)+'|satuan" value="'+esc(n.satuan)+'" style="width:80px">':esc(n.satuan))+'</td><td>'+(adm?'<input data-pnf="'+esc(n.id)+'|menit" type="number" step="0.001" value="'+esc(n.menit)+'" style="width:100px">':esc(n.menit))+'</td><td>'+esc(n.catatan)+'</td>'+(adm?'<td><button class="button secondary" data-pndel="'+esc(n.id)+'" type="button" style="color:#b3261e">Nonaktifkan</button></td>':'')+'</tr>').join('')+'</tbody></table></div>':'<p class="sub">Memuat norm…</p>')+(adm?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><input id="pn-k" placeholder="Jenis kegiatan baru" style="flex:2;min-width:180px"><input id="pn-s" placeholder="Satuan (Pcs/SKU/Koli)" style="width:140px"><input id="pn-m" type="number" step="0.001" placeholder="Menit/satuan" style="width:120px"><button class="button" data-pnadd="1" type="button">+ Tambah norm</button></div>':'')+'</div>'}
+ function draw(s){
+  if(!canAdmin()&&st.tab==='Norm Project'&&false)st.tab='Project';seedNorms();
+  const h='<div class="filters" style="margin-bottom:10px">'+['Project','Norm Project'].map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-pjtab="'+t+'" type="button">'+t+'</button>').join('')+'</div>'+msgH()+(V3.err()?'<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(V3.err())+'. Pastikan skrip Google gudang versi terbaru sudah dipasang.</p>':'')+(st.tab==='Project'?vProject():vNorm());
+  if(s._sig!==h){s._sig=h;const ae=document.activeElement,key=ae&&(ae.dataset.pjf||ae.dataset.pnf),pos=ae&&ae.selectionStart;s.querySelector('.v3-b').innerHTML=h;if(key){const el=s.querySelector('[data-pjf="'+key+'"],[data-pnf="'+key+'"]');if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}}}}
+ V3.mkPage('project','Project','Project','Pekerjaan khusus di luar rutinitas, dengan norm dan estimasi','compliance',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Project</h2><span class="sub">Pekerjaan khusus (tempel barcode dan sejenisnya) dengan norm dan estimasi</span></div></div><div class="v3-b"></div>';
+  const say=(t,b)=>{st.msg=t;st.bad=!!b;draw(s)};
+  s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+   if(d.pjtab){st.tab=d.pjtab;st.msg='';draw(s);return}
+   if(d.pjmake){const f=st.form,n=norms().find(x=>x.id===f.kegiatan);if(!f.judul.trim())return say('Isi judul project.',true);if(!n)return say('Pilih jenis kegiatan.',true);if(!(num(f.target)>0))return say('Isi target qty.',true);if(!f.peserta.length)return say('Pilih minimal satu peserta.',true);
+    const id='PRJ-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,5).toUpperCase();
+    enq('PROJECT',{id,tanggal:today(),judul:f.judul.trim(),kegiatan:n.id,kegiatan_nama:n.kegiatan,satuan:n.satuan,menit_per_satuan:String(n.menit||''),target_qty:String(num(f.target)),deadline:f.deadline,peserta:f.peserta.join(','),status:'Berjalan',dibuat_oleh:code(),catatan:f.catatan});
+    f.peserta.forEach(c=>{});st.form={judul:'',kegiatan:n.id,target:'',deadline:'',peserta:[],catatan:''};say('Project dibuat. Peserta melihatnya di Tugas Saya dan menu Project.')}
+   if(d.pjlog){const id=d.pjlog,q=num(s.querySelector('[data-pjq="'+id+'"]').value),m=s.querySelector('[data-pjm="'+id+'"]').value,c=s.querySelector('[data-pjc="'+id+'"]').value;if(!(q>0))return say('Isi hasil kerja.',true);enq('PROJECT_LOG',{id:'PL-'+Date.now().toString(36).toUpperCase(),tanggal:today(),project:id,operator:code(),qty:String(q),menit:m,catatan:c,jam:stIso()});say('Hasil kerja dicatat.')}
+   if(d.pjdone){const p=view('PROJECT').find(x=>x.id===d.pjdone);if(p){enq('PROJECT',Object.assign({},p,{status:'Selesai'}));say('Project ditandai selesai.')}}
+   if(d.pjcancel){const p=view('PROJECT').find(x=>x.id===d.pjcancel);if(p&&confirm('Batalkan project ini?')){enq('PROJECT',Object.assign({},p,{status:'Batal'}));say('Project dibatalkan.')}}
+   if(d.pnadd){const k=$('pn-k').value.trim(),u=$('pn-s').value.trim(),m=$('pn-m').value;if(!k||!u)return say('Isi jenis kegiatan dan satuan.',true);const ids=view('PROJECT_NORM').map(n=>num(String(n.id).replace(/\D/g,'')));const id='PN'+String(Math.max(0,...ids)+1).padStart(2,'0');enq('PROJECT_NORM',{id,kegiatan:k,satuan:u,menit:m,catatan:m===''?'Durasi belum diisi':'',status:'Aktif'});say('Norm ditambahkan.')}
+   if(d.pndel){const n=view('PROJECT_NORM').find(x=>x.id===d.pndel);if(n&&confirm('Nonaktifkan norm ini?')){enq('PROJECT_NORM',Object.assign({},n,{status:'Nonaktif'}));say('Norm dinonaktifkan.')}}});
+  s.addEventListener('change',e=>{const t=e.target,d=t.dataset;
+   if(d.pjf){st.form[d.pjf]=t.value;if(d.pjf==='kegiatan')draw(s);return}
+   if(d.pjp){const f=st.form,i=f.peserta.indexOf(d.pjp);if(t.checked&&i<0)f.peserta.push(d.pjp);if(!t.checked&&i>=0)f.peserta.splice(i,1);draw(s);return}
+   if(d.pnf){const[id,fld]=d.pnf.split('|'),n=view('PROJECT_NORM').find(x=>x.id===id);if(n)enq('PROJECT_NORM',Object.assign({},n,{[fld]:t.value,catatan:fld==='menit'&&t.value!==''?'Diisi manual':n.catatan}))}});
+  s.addEventListener('input',e=>{const d=e.target.dataset;if(d.pjf&&d.pjf!=='kegiatan')st.form[d.pjf]=e.target.value});
+  s._draw=()=>draw(s);s._show=()=>{draw(s);V3.load(true)}});
 })();
 </script>
 </body></html>

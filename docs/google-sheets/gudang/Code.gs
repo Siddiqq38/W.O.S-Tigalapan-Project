@@ -7,7 +7,7 @@
 // Kata sandi bersama antara WOS dan skrip ini. Boleh diganti, tetapi harus sama dengan yang dipakai di WOS.
 const TOKEN = 'c0rssm2uBdoW2j4MDkPvKbkzeRKG';
 const FOLDER_NAME = 'WOS-Gudang-Foto';          // folder Google Drive untuk foto unloading, GR, dan bukti outbound
-const MAX_READ_ROWS = 4000;              // baris terakhir yang dibaca per permintaan
+const MAX_READ_ROWS = 12000;              // baris terakhir yang dibaca per permintaan
 
 // Daftar tab dan judul kolom. Kolom pertama selalu "id" (kunci unik).
 const TABS = {
@@ -34,6 +34,9 @@ const TABS = {
   PICK_KOLI: ['id','tanggal','dok','koli','picker','picker_nama','status','task_id','mulai','selesai','vp_oleh','vp_selesai','tfs_oleh','tfs_waktu','area','pack_oleh','pack_waktu','load_oleh','load_waktu','rcv_oleh','rcv_waktu','rcv_ket','rcv_nama'],
   PICK_GR: ['id','tanggal','dok','outlet','koli','item','soq','qty_dc','status','qty_gr','item_gr','ket','foto_id','oleh','jam','resolusi','resolusi_ket','resolusi_oleh','resolusi_jam'],
   DATA_ENTRY: ['id','tanggal','po','item','qty','oleh','jam'],
+  PROJECT: ['id','tanggal','judul','kegiatan','kegiatan_nama','satuan','menit_per_satuan','target_qty','deadline','peserta','status','dibuat_oleh','catatan'],
+  PROJECT_NORM: ['id','kegiatan','satuan','menit','catatan','status'],
+  PROJECT_LOG: ['id','tanggal','project','operator','qty','menit','catatan','jam'],
   LC_TASK: ['id','tanggal','jenis','bin','operator','operator_nama','status','ronde','hasil','mulai','selesai','dibuat_oleh','putaran'],
   LC_COUNT: ['id','tanggal','task','bin','sku','item','ronde','qty_sistem','qty_hitung','selisih','oleh','jam'],
   ADJUSTMENT: ['id','tanggal','bin','sku','item','qty_sistem','qty_fisik','selisih','alasan','sumber','status','diminta_oleh','diminta_jam','disetujui_oleh','disetujui_jam','catatan'],
