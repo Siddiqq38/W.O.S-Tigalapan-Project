@@ -723,7 +723,7 @@ if(typeof document!=='undefined') (()=>{
   const total=Object.keys(staffMaster).filter(c=>staffMaster[c].role!=='Supervisor').length,dl=new Date(day+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   count.innerHTML='<div class="card"><span class="metric-label">Sudah check-in</span><div class="metric good">'+ins.size+'<span class="metric-of"> / '+total+'</span></div><span class="sub">'+dl+'</span></div><div class="card"><span class="metric-label">Sudah check-out</span><div class="metric">'+outs.size+'<span class="metric-of"> / '+ins.size+'</span></div><span class="sub">Dari staf yang sudah check-in</span></div><div class="card"><span class="metric-label">Pengajuan menunggu</span><div class="metric warn">'+pending+'</div><span class="sub">Change Off, cuti, dan izin</span></div>';
   const log=document.getElementById('attendance-log');
-  const outHintHtml=e=>{try{const i=window.__wosEarliestOut&&window.__wosEarliestOut(e.code,Date.parse(e.at));if(!i)return'';const t=new Date(i.out).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour12:false});return '<br><span class="sub"><strong>Attendance out paling cepat '+t+' WITA</strong>'+(i.released?' · dibuka SPV (kompensasi)':i.friday?' · Jumat mulai 16.00':' · 7 jam kerja dihitung mulai 08.00')+'</span>'}catch(x){return''}};
+  const outHintHtml=e=>{try{const i=window.__wosEarliestOut&&window.__wosEarliestOut(e.code,Date.parse(e.at));if(!i)return'';const t=new Date(i.out).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour12:false});return '<br><span class="sub"><strong>Attendance out paling cepat '+t+' WITA</strong>'+(i.released?' · dibuka SPV (kompensasi)':' · terbuka otomatis mulai 16.01')+'</span>'}catch(x){return''}};
   if(log)log.innerHTML=entries.sort((a,b)=>String(b.at).localeCompare(String(a.at))).map(e=>'<div class="mini"><div><strong>'+escape(staffMaster[e.code]?.name||e.code)+' ('+escape(e.code)+')</strong><br><span class="sub">'+escape(e.action)+' · '+escape(new Date(e.at).toLocaleString('id-ID',{timeZone:'Asia/Makassar',hour12:false}))+' WITA</span>'+(e.action==='Attendance in'?outHintHtml(e):'')+'</div><span class="tag green">Tercatat</span></div>').join('')||'<p class="sub">Belum ada presensi hari ini.</p>';
  }
  function persistApplications(){try{localStorage.setItem(storageKey,JSON.stringify({changeOff:jotmRequests,annualLeave:annualLeaveRequests,used:jotmUsed,leaveBalances:annualLeaveMaster,changeOffHistory:jotmHistory,leaveHistory:annualLeaveHistory}))}catch{notice.style.display='block';notice.textContent='Penyimpanan pengajuan di perangkat gagal. Periksa kapasitas penyimpanan browser.'}renderSummary()}
@@ -958,11 +958,11 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','tugas','tracking','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
+const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound'],HRD:['attendance','analysis','compliance','coaching','project'],PROD:['wms-inbound'],FAT:['wms-inbound'],PRDM:['analysis','tracking','wms-inbound','wms-outbound','wms-inventory']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound'],HRD:['dashboard','attendance','analysis','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound'],PRDM:['analysis','tracking','wms-inbound','wms-outbound','wms-inventory']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -1147,7 +1147,7 @@ const brk=ms=>new Date(ms+WITA).getUTCDay()===5?[705,810]:[720,780];
 const clock=ms=>{const d=new Date(ms+WITA);return String(d.getUTCHours()).padStart(2,'0')+'.'+String(d.getUTCMinutes()).padStart(2,'0')};
 const isFri=ms=>new Date(ms+WITA).getUTCDay()===5,startOf=ms=>Math.max(ms,Date.parse(dayOf(ms)+'T08:00:00+08:00')),friOut=ms=>Date.parse(dayOf(ms)+'T16:00:00+08:00');
 function worked(inMs,nowMs){inMs=startOf(inMs);let total=(nowMs-inMs)/60000;const [b0,b1]=brk(inMs);if(dayOf(inMs)===dayOf(nowMs)){total-=Math.max(0,Math.min(minOfDay(nowMs),b1)-Math.max(minOfDay(inMs),b0))}else total-=(b1-b0);return total}
-function earliestOut(inMs){if(isFri(inMs))return friOut(inMs);let t=startOf(inMs);for(let i=0;i<1500;i++){if(worked(inMs,t)>=NEED)return t;t+=60000}return t}
+function earliestOut(inMs){return Date.parse(dayOf(inMs)+'T16:01:00+08:00')}
 window.__wosEarliestOut=(code,inMs)=>({out:earliestOut(inMs),released:released(code),friday:isFri(inMs)});
 const rows=()=>{try{const r=JSON.parse(localStorage.getItem(ATT)||'[]');return Array.isArray(r)?r:[]}catch(e){return[]}};
 const readRel=()=>{try{return JSON.parse(localStorage.getItem(REL)||'{}')||{}}catch(e){return{}}};
@@ -1166,7 +1166,7 @@ function check(code,action,now){
  if(!inMs)return 'Belum ada Attendance in hari ini untuk staff ini.';
  if(released(code))return null;
  const out=earliestOut(inMs);if(now>=out)return null;
- return 'Attendance out belum dibuka. '+(isFri(inMs)?'Hari Jumat Attendance out mulai 16.00 WITA.':'Wajib 7 jam kerja dihitung mulai 08.00 WITA (istirahat tidak dihitung), paling cepat keluar '+clock(out)+' WITA.')+' Masuk tercatat '+clock(inMs)+', kurang '+Math.ceil((out-now)/60000)+' menit. Hubungi SPV untuk kompensasi.';
+ return 'Attendance out belum dibuka. Check-out terbuka otomatis untuk semua karyawan mulai 16.01 WITA.'+' Masuk tercatat '+clock(inMs)+', kurang '+Math.ceil((out-now)/60000)+' menit. Hubungi SPV untuk kompensasi.';
 }
 document.addEventListener('click',e=>{
  if(!e.target.closest?.('#attendance-confirm'))return;
@@ -1179,9 +1179,9 @@ function info(){
  const host=$('attendance-summary');if(!host)return;let box=$('wos-out-rule');
  if(!box){box=document.createElement('div');box.id='wos-out-rule';box.className='note';box.style.margin='10px 0';host.before(box)}
  const code=selCode(),inMs=inTime(code);let t;
- if(!sm()[code])t='Aturan jam kerja: wajib 7 jam kerja per hari, dihitung mulai 08.00 WITA (masuk lebih awal tidak mempercepat). Istirahat 12.00–13.00 tidak dihitung. Jumat: Attendance out mulai 16.00.';
- else if(!inMs)t='Aturan jam kerja: wajib 7 jam kerja mulai 08.00 WITA (Jumat: out mulai 16.00). Belum ada Attendance in hari ini untuk '+sm()[code].name+'.';
- else{const out=earliestOut(inMs);t='Masuk '+clock(inMs)+' WITA → Attendance out paling cepat '+clock(out)+' WITA'+(released(code)?' · <strong>dibuka SPV (kompensasi)</strong>':Date.now()>=out?' · sudah bisa Attendance out':'')+(isFri(inMs)?'. Jumat: Attendance out mulai 16.00 WITA.':'. Wajib 7 jam kerja, dihitung mulai 08.00 WITA; istirahat 12.00–13.00 tidak dihitung.')}
+ if(!sm()[code])t='Jam masuk 08.00 WITA, toleransi terlambat 10 menit (terlambat dihitung setelah 08.10). Check-out terbuka otomatis untuk semua karyawan mulai 16.01 WITA.';
+ else if(!inMs)t='Belum Attendance in hari ini untuk '+sm()[code].name+'. Jam masuk 08.00 WITA, toleransi 10 menit. Check-out terbuka mulai 16.01 WITA.';
+ else{const out=earliestOut(inMs);t='Masuk '+clock(inMs)+' WITA → Attendance out dibuka otomatis '+clock(out)+' WITA'+(released(code)?' · <strong>dibuka SPV (kompensasi)</strong>':Date.now()>=out?' · sudah bisa Attendance out':'')+'. Terlambat dihitung setelah 08.10 WITA.'}
  if(box.dataset.s!==t){box.dataset.s=t;box.innerHTML=t}
 }
 
@@ -1198,7 +1198,7 @@ function spvPanel(){
  function panel(){
   const d=todayKey(),ins=Object.keys(sm()).filter(c=>!sm()[c].out).sort((a,b)=>a.localeCompare(b,'id',{numeric:true})),rel=readRel()[d]||{};
   const keep=$('wos-rel-code')?.value||'',noteKeep=$('wos-rel-note')?.value||'';
-  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Operator wajib 7 jam kerja (mulai 08.00 WITA; Jumat out mulai 16.00) sebelum Attendance out. Buka akses di sini agar operator tertentu boleh Attendance out lebih awal. Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staf (semua nama)</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · '+(inTime(c)?'masuk '+clock(inTime(c)):'belum Attendance in')+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-reason">Jenis kompensasi</label><select id="wos-rel-reason"><option>Sakit</option><option>Disuruh pulang (keperluan kerja)</option><option>Keperluan pribadi</option><option>Lainnya</option></select></div><div class="field"><label for="wos-rel-note">Keterangan (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staf</th><th>Jenis</th><th>Keterangan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.reason||'-')+'</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
+  const html='<h2>Kompensasi Attendance out (SPV)</h2><p class="sub">Check-out terbuka otomatis mulai 16.01 WITA untuk semua karyawan. Buka akses di sini agar karyawan tertentu boleh Attendance out lebih awal (mis. izin pulang). Berlaku hari ini saja ('+d+').</p><div class="form-grid"><div class="field"><label for="wos-rel-code">Staf (semua nama)</label><select id="wos-rel-code"><option value="">— pilih staff —</option>'+ins.filter(c=>!rel[c]).map(c=>'<option value="'+esc(c)+'">'+esc(sm()[c].name)+' ('+esc(c)+') · '+(inTime(c)?'masuk '+clock(inTime(c)):'belum Attendance in')+'</option>').join('')+'</select></div><div class="field"><label for="wos-rel-reason">Jenis kompensasi</label><select id="wos-rel-reason"><option>Sakit</option><option>Disuruh pulang (keperluan kerja)</option><option>Keperluan pribadi</option><option>Lainnya</option></select></div><div class="field"><label for="wos-rel-note">Keterangan (opsional)</label><input id="wos-rel-note" placeholder="Contoh: lembur kemarin / keperluan keluarga"></div></div><button class="button" id="wos-rel-grant" type="button" style="margin-top:10px">Buka akses Attendance out</button>'+(Object.keys(rel).length?'<table style="margin-top:12px"><thead><tr><th>Staf</th><th>Jenis</th><th>Keterangan</th><th>Dibuka</th><th></th></tr></thead><tbody>'+Object.entries(rel).map(([c,v])=>'<tr><td>'+esc(sm()[c]?.name||c)+' ('+esc(c)+')</td><td>'+esc(v.reason||'-')+'</td><td>'+esc(v.note||'—')+'</td><td>'+clock(Date.parse(v.at))+'</td><td><button class="button secondary" data-revoke="'+esc(c)+'" type="button">Cabut</button></td></tr>').join('')+'</tbody></table>':'<p class="sub" style="margin-top:10px">Belum ada kompensasi dibuka hari ini.</p>');
   if(box.dataset.sig!==html){box.dataset.sig=html;box.innerHTML=html;const c=$('wos-rel-code'),n=$('wos-rel-note');if(c&&keep)c.value=keep;if(n)n.value=noteKeep}
  }
 }
@@ -1668,6 +1668,7 @@ init();
  const raw=Storage.prototype.setItem;let merging=false,busy=false,busyAt=0,state='off',lastErr='';
  const queue=()=>rj(QK,[]),saveQ=q=>{try{raw.call(localStorage,QK,JSON.stringify(q.slice(-300)))}catch(e){}};
  const dayWita=d=>new Date((d||new Date()).getTime()+WITA).toISOString().slice(0,10);
+ const pdC={t:0,v:2};function pd(){if(window.__fullPull)return 7;if(Date.now()-pdC.t<5000)return pdC.v;pdC.t=Date.now();pdC.v=2;try{if(sessionStorage.getItem('wos-session-v1')==='hrd'&&Date.now()-(window.__wideAt||0)>600000){window.__wideAt=Date.now();pdC.v=40}}catch(e){}return pdC.v}
  const rid=r=>(r.code+'-'+r.day+'-'+r.action).replace(/\s+/g,'_');
  const rkey=r=>r.code+'|'+r.day+'|'+r.action;
  const chip=document.createElement('div');chip.id='st-chip';chip.style.cursor='pointer';chip.title='Ketuk untuk memeriksa koneksi';document.body.append(chip);
@@ -1683,12 +1684,12 @@ init();
     q=queue()}
    state='ok';lastErr=''}catch(e){state='err';lastErr=String(e&&e.message||e)}
   busy=false;paint()}
- function shrink(url,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,480/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.6).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
+ function shrink(url,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,720/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.72).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
  function sendRow(r){
   const name=(typeof staffMaster!=='undefined'&&staffMaster[r.code]&&staffMaster[r.code].name)||'';
   const loc=r.manual?{}:(typeof attendanceLocation!=='undefined'&&attendanceLocation)||{};
   const wt=new Date(Date.parse(r.at)+WITA);
-  const row={id:rid(r),waktu_iso:r.at,tanggal:r.day,kode_staf:r.code,nama:name,aksi:r.action,jam_wita:isNaN(wt)?'':wt.toISOString().slice(11,16),lat:loc.lat||'',lng:loc.lng||'',akurasi_m:loc.accuracy||'',jarak_m:loc.meters||'',foto_id:'',simulasi:r.sim?'ya':'',perangkat:r.manual?'koreksi master':(navigator.userAgent||'').slice(0,90)};
+  const row={id:rid(r),waktu_iso:r.at,tanggal:r.day,kode_staf:r.code,nama:name,aksi:r.action,jam_wita:isNaN(wt)?'':wt.toISOString().slice(11,16),lat:loc.lat||'',lng:loc.lng||'',akurasi_m:loc.accuracy||'',jarak_m:loc.meters||'',foto_id:'',simulasi:r.sim?'ya':'',perangkat:r.manual?'koreksi master':((loc.flag?'[GPS? '+loc.flag+'] ':'')+(navigator.userAgent||'').slice(0,90))};
   const push=()=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});saveQ(q);flush();if(!r.manual)ackOverlay(row.id)};
   const ph=r.manual?null:(typeof attendancePhoto!=='undefined'&&attendancePhoto)||null;
   if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});if(b64)q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id,date:r.day,kategori:'Presensi',row:row});saveQ(q);flush();ackOverlay(row.id)})}else push()}
@@ -1729,7 +1730,7 @@ init();
   enq('append','DRM',{id:r.id,tanggal:r.day,kode_staf:r.code,nama:nm(r.code),status:v,ditandai_oleh:sessionStorage.getItem('wos-session-code')||sessionStorage.getItem('wos-session-v1')||'',waktu:new Date().toISOString()})})};
  Storage.prototype.setItem=function(k,v){raw.apply(this,arguments);if(this!==localStorage||merging||!on())return;
   if(k===AK){try{JSON.parse(v).forEach(r=>{if(r&&r.code&&!seen.has(rkey(r))){seen.add(rkey(r));sendRow(r)}})}catch(e){}}
-  else if(k===RK)diffRoles();else if(k===TK)diffTasks();else if(k===LK)diffRel()};
+  else if(k===RK)diffRoles();else if(k===TK)diffTasks();else if(k===LK)diffRel();else if(k===SPK)diffSpl()};
  const hh=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?(m[1].length<2?'0':'')+m[1]+':'+m[2]:t};
  const pending=tab=>queue().some(x=>x.tab===tab);
  async function pullMore(){const d=today();
@@ -1742,12 +1743,12 @@ init();
   if(!pending('DRM')&&window.__wosDrmApply){const r=await call({action:'list',tab:'DRM',from:d,to:d},true);if(r.ok){const list=r.rows.filter(x=>x.status==='yes'||x.status==='no').map(x=>({id:x.id,day:x.tanggal,code:x.kode_staf,drm:x.status,by:x.ditandai_oleh}));list.forEach(x=>drmSeen[x.id]=x.drm);merging=true;try{await window.__wosDrmApply(list)}finally{merging=false}}}}
  // ambil Attendance dari sheet (lintas perangkat)
  async function pull(){if(!on()||document.hidden||!sessionStorage.getItem('wos-session-code'))return;
-  try{window.__mc=null;try{const t0=new Date(),f2=dayWita(new Date(t0.getTime()-864e5*(window.__fullPull?7:2))),d0=dayWita(t0),m=await call({action:'multi',q:['ATTENDANCE:'+f2+':'+d0,'ROLE_HARIAN:'+d0+':'+d0,'TASK:'+d0+':'+d0,'DRM:'+d0+':'+d0,'KOMPENSASI_OUT:'+d0+':'+d0,'LAPORAN_5R:'+f2+':'+d0,'PENGAJUAN::'].join(',')},true);if(m&&m.ok)window.__mc=m.data}catch(e){window.__mc=null}
-  const t=new Date(),from=dayWita(new Date(t.getTime()-864e5*(window.__fullPull?7:2))),r=await call({action:'list',tab:'ATTENDANCE',from,to:dayWita(t)},true);if(!r.ok)throw new Error(r.error);
+  try{window.__mc=null;try{const t0=new Date(),f2=dayWita(new Date(t0.getTime()-864e5*pd())),d0=dayWita(t0),m=await call({action:'multi',q:['ATTENDANCE:'+f2+':'+d0,'ROLE_HARIAN:'+d0+':'+d0,'TASK:'+d0+':'+d0,'DRM:'+d0+':'+d0,'KOMPENSASI_OUT:'+d0+':'+d0,'LAPORAN_5R:'+f2+':'+d0,'PENGAJUAN::'].join(',')},true);if(m&&m.ok)window.__mc=m.data}catch(e){window.__mc=null}
+  const t=new Date(),from=dayWita(new Date(t.getTime()-864e5*pd())),r=await call({action:'list',tab:'ATTENDANCE',from,to:dayWita(t)},true);if(!r.ok)throw new Error(r.error);
    const local=rj(AK,[]),have=new Set(local.map(rkey));let add=0;
    r.rows.forEach(x=>{const row={code:x.kode_staf,action:x.aksi,day:x.tanggal,at:x.waktu_iso};if(x.simulasi==='hapus'){const i=local.findIndex(l=>rkey(l)===rkey(row));if(i>=0){local.splice(i,1);add++}have.delete(rkey(row));seen.add(rkey(row));return}if(row.code&&row.action&&row.day&&!have.has(rkey(row))){if(x.simulasi==='ya')row.sim=true;local.push(row);have.add(rkey(row));seen.add(rkey(row));add++}});
    if(add){merging=true;try{raw.call(localStorage,AK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'));if(window.__renderDrm)try{window.__renderDrm()}catch(e){}}
-   for(const f of [pullPengajuan,pullMore,pullRelease,pullR5,pullStatus]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}window.__mc=null;if(state!=='err')state='ok'}catch(e){window.__mc=null;state='err';lastErr=String(e&&e.message||e)}paint()}
+   for(const f of [pullPengajuan,pullMore,pullRelease,pullR5,pullStatus,pullSpl]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}window.__mc=null;if(state!=='err')state='ok'}catch(e){window.__mc=null;state='err';lastErr=String(e&&e.message||e)}paint()}
  // ---- Attendance: koreksi master (hapus = tanda hapus di sheet, perangkat lain ikut menghapus)
  function attDelete(code,day,action){const k=code+'|'+day+'|'+action;merging=true;try{const l=rj(AK,[]),i=l.findIndex(r=>rkey(r)===k);if(i>=0){l.splice(i,1);raw.call(localStorage,AK,JSON.stringify(l))}}finally{merging=false}seen.add(k);
   enq('append','ATTENDANCE',{id:rid({code,day,action}),tanggal:day,kode_staf:code,nama:nm(code),aksi:action,simulasi:'hapus',perangkat:'dihapus oleh '+(sessionStorage.getItem('wos-session-code')||'master')});window.dispatchEvent(new Event('storage'))}
@@ -1800,6 +1801,12 @@ init();
  try{if(!document.getElementById('att-decisions')){const d=document.createElement('div');d.id='att-decisions';d.className='card';d.style.margin='14px 0';d.style.display='none';approvalCard.after(d)}}catch(e){}
  try{renderUnifiedApproval()}catch(e){}
  setTimeout(()=>{try{syncOut()}catch(e){}},5000);
+ // ---- SPL (surat perintah lembur): dibagikan ke semua perangkat supaya HRD melihat semuanya
+ const SPK='wos-spl-v1';let splSeen={};const splId=l=>(l.no||'')+'|'+(l.code||'')+'|'+(l.date||'');
+ function diffSpl(){if(!on()||merging)return;const log=(rj(SPK,{}).log||[]);log.forEach(l=>{if(!l||!l.no)return;const j=JSON.stringify(l),id=splId(l);if(splSeen[id]!==j){splSeen[id]=j;enq('append','SPL',{id,tanggal:l.date||'',kode_staf:l.code||'',nama:l.name||'',menit:String(l.minutes||''),json:j,waktu:new Date().toISOString()})}})}
+ async function pullSpl(){if(pending('SPL'))return;const r=await call({action:'list',tab:'SPL'},true);if(!r.ok)return;const s=rj(SPK,{log:[],seq:{}}),log=Array.isArray(s.log)?s.log:[];let ch=false;
+  r.rows.forEach(x=>{let o;try{o=JSON.parse(x.json)}catch(e){return}if(!o||!o.no)return;const id=splId(o);splSeen[id]=JSON.stringify(o);const i=log.findIndex(l=>splId(l)===id);if(i<0){log.push(o);ch=true}else if(!log[i].printedAt&&o.printedAt){log[i]=o;ch=true}});
+  if(!ch)return;log.sort((a,b)=>String(b.date).localeCompare(String(a.date)));s.log=log;merging=true;try{raw.call(localStorage,SPK,JSON.stringify(s))}finally{merging=false}window.dispatchEvent(new Event('storage'))}
  // ---- Status karyawan (resign + tanggal terakhir): dibagikan ke semua perangkat
  const SK='wos-employee-status-v1';
  function statusPush(c,v){const row={id:c,kode_staf:c,nama:nm(c),status:v.status,tgl_terakhir:v.last||'',keterangan:v.note||'',dicatat_oleh:(rj('wos-session-v1',{})||{}).code||'',waktu:new Date().toISOString()};enq('append','KARYAWAN_STATUS',row)}
@@ -1833,7 +1840,7 @@ init();
   const r=await call({action:'photo',data:b64,mime,name:'5R-'+row.day+'-'+row.code+'.'+ext,date:row.day,kategori:'5R'});
   if(!r.ok)throw new Error(r.error);dset(f,r.file_id);return r.file_id}
  async function r5Run(days){
-  if(r5Busy||!on())return;const from=dayWita(new Date(Date.now()-864e5*(window.__fullPull?7:2)));
+  if(r5Busy||!on())return;const from=dayWita(new Date(Date.now()-864e5*pd()));
   const rows=(days||[]).filter(r=>r&&r.report&&r.id&&r.day>=from&&r5Seen[r.id]!==r5Sig(r)+(dmap()[r.report.fileId]||String(r.report.fileId).startsWith('drive:')?'1':'0'));
   if(!rows.length)return;r5Busy=true;
   try{for(const row of rows){const p=row.report;let did='';
@@ -1848,7 +1855,7 @@ init();
   if(!window.__wosApplyReports||!window.__wosDrmDays)return;
   await r5Run(window.__wosDrmDays());
   if(pending('LAPORAN_5R'))return;
-  const from=dayWita(new Date(Date.now()-864e5*(window.__fullPull?7:2))),r=await call({action:'list',tab:'LAPORAN_5R',from,to:today()},true);if(!r.ok)return;
+  const from=dayWita(new Date(Date.now()-864e5*pd())),r=await call({action:'list',tab:'LAPORAN_5R',from,to:today()},true);if(!r.ok)return;
   const list=[];r.rows.forEach(x=>{let rep;try{rep=JSON.parse(x.catatan_spv||'{}')}catch(e){return}if(!rep||!rep.at)return;rep.fileId=x.file_id?'drive:'+x.file_id:'';rep.kind=x.jenis_file||rep.kind;rep.approval=x.status||rep.approval||'pending';list.push({id:x.id,day:x.tanggal,code:x.kode_staf,area:x.area,report:rep})});
   if(!list.length)return;
   const days=window.__wosDrmDays();
@@ -1860,7 +1867,7 @@ init();
   async test(){try{const r=await call({action:'ping'},true);return r.ok?'OK '+r.tabs.length+' tab':'Gagal: '+r.error}catch(e){return 'Gagal: '+e.message}},status:()=>({state,lastErr,queued:queue().length})};
   document.addEventListener('click',e=>{try{if(e.target.closest&&e.target.closest('.nav[data-page="attendance"]'))setTimeout(()=>{flush();pull()},300)}catch(x){}});
  setInterval(()=>{flush();pull()},30000);setInterval(()=>{try{if(queue().length)flush()}catch(e){}},8000);window.addEventListener('online',flush);document.addEventListener('visibilitychange',()=>{if(!document.hidden){flush();pull()}});
- setTimeout(()=>{try{diffRoles();diffTasks();diffRel()}catch(e){}flush();pull()},4000);paint();
+ setTimeout(()=>{try{diffRoles();diffTasks();diffRel();diffSpl()}catch(e){}flush();pull()},4000);paint();
 })();
 </script>
 <style id="gl-css">
@@ -3555,8 +3562,8 @@ init();
    const rows=ops.map(([c,p])=>({c,n:p.name,t:myTasks(c)})).filter(x=>x.t.length);
    h='<div class="card"><h3 style="margin:0">Beban kerja tim hari ini</h3><p class="sub">Tugas aktif per operator dengan estimasi waktu dari Master Norm.</p></div>'+(rows.length?'<div class="card" style="margin-top:12px;overflow:auto"><table><thead><tr><th>Operator</th><th>Tugas</th><th>Est. total</th></tr></thead><tbody>'+rows.map(x=>'<tr><td><strong>'+esc(x.n)+'</strong><div class="sub">'+esc(x.c)+'</div></td><td>'+x.t.map(t=>esc(t.judul)+' <span class="sub">('+esc(t.jenis)+' · '+esc(t.est.map(e=>e[0]+' '+fm(e[1])).join(', '))+')</span>').join('<br>')+'</td><td><strong>'+esc(fm(rows&&x.t.reduce((a,t)=>a+MINP(t),0)))+'</strong></td></tr>').join('')+'</tbody></table></div>':'<p class="note" style="margin-top:12px">Belum ada tugas aktif.</p>')+h}
   if(s._sig!==h){s._sig=h;s.querySelector('.v3-b').innerHTML=h}}
- V3.mkPage('tugas','Tugas Saya','Tugas Saya','Tugas, estimasi waktu, dan beban kerja','attendance',s=>{
-  s.innerHTML='<div class="toolbar"><div><h2>Tugas Saya</h2><span class="sub">Tugas aktif beserta estimasi waktu dari Master Norm</span></div></div><div class="v3-b"></div>';
+ V3.mkPage('tugas','Task','Task','Tugas, estimasi waktu, dan beban kerja','attendance',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Task</h2><span class="sub">Tugas aktif beserta estimasi waktu dari Master Norm</span></div></div><div class="v3-b"></div>';
   s.addEventListener('click',e=>{const b=e.target.closest('[data-v3go]');if(b)document.querySelector('.nav[data-page="'+b.dataset.v3go+'"]')?.click()});
   s._draw=()=>drawTugas(s);s._show=()=>{drawTugas(s);V3.load(true)}});
  setInterval(()=>{if(!document.hidden){const p=document.querySelector('.page.active');if(p&&p._draw)V3.load(false)}},30000);
@@ -3769,7 +3776,7 @@ init();
   return '<div class="an-kpi">'+kpi('Hari tercatat',days.length,'')+kpi('Rata-rata hadir / hari',days.length?Math.round(th/days.length):0,'')+kpi('Terlambat (lewat 08.05)',tl,pf(pct(tl,th))+' dari kehadiran',tl?'o':'g')+'</div>'+card('Kehadiran per hari','',CH.line([{n:'Hadir',v:hv,c:PAL[2]},{n:'Terlambat',v:lv,c:PAL[4]}],days.map(d=>d.slice(8,10)+'/'+d.slice(5,7))))}
  // ----- Rekap Presensi (HRD): periode bebas, bawaan potong 23 sampai 22 -----
  const cut2223=ref=>{const d=ref||t0,y=+d.slice(0,4),m=+d.slice(5,7),day=+d.slice(8,10);let ys=y,ms=m;if(day<23){ms=m-1;if(ms<1){ms=12;ys=y-1}}let ye=ys,me=ms+1;if(me>12){me=1;ye++}return[ys+'-'+String(ms).padStart(2,'0')+'-23',ye+'-'+String(me).padStart(2,'0')+'-22']};
- const RK={att:[],pg:[],busy:false,err:'',key:'',at:0},rk={f:cut2223()[0],t:cut2223()[1],late:'08:00'};
+ const RK={att:[],pg:[],busy:false,err:'',key:'',at:0},rk={f:cut2223()[0],t:cut2223()[1],late:'08:10'};
  async function rkLoad(force){
   const key=rk.f+'|'+rk.t;if(RK.busy||(!force&&RK.key===key&&Date.now()-RK.at<90000))return;RK.busy=true;V3.redraw();
   try{if(!window.WOSStore)throw new Error('penyimpanan belum siap');const c=window.WOSStore.config(),q=(tab,fr,to)=>fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token,action:'list',tab},fr?{from:fr,to}:{}))).then(r=>r.json());
@@ -3897,7 +3904,7 @@ init();
    if(d.pjmake){const f=st.form,n=norms().find(x=>x.id===f.kegiatan);if(!f.judul.trim())return say('Isi judul project.',true);if(!n)return say('Pilih jenis kegiatan.',true);if(!(num(f.target)>0))return say('Isi target qty.',true);if(!f.peserta.length)return say('Pilih minimal satu peserta.',true);
     const id='PRJ-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,5).toUpperCase();
     enq('PROJECT',{id,tanggal:today(),judul:f.judul.trim(),kegiatan:n.id,kegiatan_nama:n.kegiatan,satuan:n.satuan,menit_per_satuan:String(n.menit||''),target_qty:String(num(f.target)),deadline:f.deadline,peserta:f.peserta.join(','),status:'Berjalan',dibuat_oleh:code(),catatan:f.catatan});
-    f.peserta.forEach(c=>{});st.form={judul:'',kegiatan:n.id,target:'',deadline:'',peserta:[],catatan:''};say('Project dibuat. Peserta melihatnya di Tugas Saya dan menu Project.')}
+    f.peserta.forEach(c=>{});st.form={judul:'',kegiatan:n.id,target:'',deadline:'',peserta:[],catatan:''};say('Project dibuat. Peserta melihatnya di Task dan menu Project.')}
    if(d.pjlog){const id=d.pjlog,q=num(s.querySelector('[data-pjq="'+id+'"]').value),m=s.querySelector('[data-pjm="'+id+'"]').value,c=s.querySelector('[data-pjc="'+id+'"]').value;if(!(q>0))return say('Isi hasil kerja.',true);enq('PROJECT_LOG',{id:'PL-'+Date.now().toString(36).toUpperCase(),tanggal:today(),project:id,operator:code(),qty:String(q),menit:m,catatan:c,jam:stIso()});say('Hasil kerja dicatat.')}
    if(d.pjdone){const p=view('PROJECT').find(x=>x.id===d.pjdone);if(p){enq('PROJECT',Object.assign({},p,{status:'Selesai'}));say('Project ditandai selesai.')}}
    if(d.pjcancel){const p=view('PROJECT').find(x=>x.id===d.pjcancel);if(p&&confirm('Batalkan project ini?')){enq('PROJECT',Object.assign({},p,{status:'Batal'}));say('Project dibatalkan.')}}
@@ -3955,6 +3962,181 @@ init();
    b.onclick=ev=>{ev.stopPropagation();b.disabled=true;b.textContent='Menyiapkan…';Promise.resolve().then(()=>dl(t)).catch(()=>{}).finally(()=>{b.disabled=false;b.textContent='⬇ Unduh Excel'})};
    bar.appendChild(b);host.parentNode.insertBefore(bar,host)})}
  setInterval(()=>{if(!document.hidden)try{scan()}catch(e){}},2500);setTimeout(scan,1500);
+})();
+</script>
+<script>
+// ATTENDANCE V4: kamera langsung terbuka (depan, ikon balik kamera), cap waktu pada foto, validasi lokasi anti Fake GPS, selisih jam HP dengan server.
+(()=>{
+ const $=id=>document.getElementById(id),WITA=8*3600e3;
+ const page=$('attendance');if(!page||!$('camera-start'))return;
+ const st=document.createElement('style');st.textContent='#attendance-video{transform:scaleX(-1)}#attendance-video.back{transform:none}#att-cam{position:relative;border-radius:12px;overflow:hidden;background:#102131}#att-cam video,#att-cam img{display:block;width:100%;max-height:360px;object-fit:cover}#att-shutter{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:62px;height:62px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;padding:0}#att-shutter::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#fff}#att-flip,#att-retake{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:22px;cursor:pointer}#att-retake{width:auto;padding:0 14px;font-size:13px;font-weight:700;border-radius:22px}#att-cam-msg{position:absolute;left:0;right:0;top:40%;text-align:center;color:#fff;font-size:13px;padding:0 16px}';document.head.appendChild(st);
+ // susunan: video + pratinjau + tombol di dalam satu bingkai
+ const video=$('attendance-video'),prev=$('attendance-preview'),cvs=$('attendance-canvas');
+ const box=document.createElement('div');box.id='att-cam';video.before(box);box.append(video,prev,cvs);
+ const msg=document.createElement('div');msg.id='att-cam-msg';box.appendChild(msg);
+ const shutter=document.createElement('button');shutter.type='button';shutter.id='att-shutter';shutter.title='Ambil foto';shutter.style.display='none';box.appendChild(shutter);
+ const flip=document.createElement('button');flip.type='button';flip.id='att-flip';flip.title='Ganti kamera depan / belakang';flip.innerHTML='&#128260;';flip.style.display='none';box.appendChild(flip);
+ const retake=document.createElement('button');retake.type='button';retake.id='att-retake';retake.textContent='Foto ulang';retake.style.display='none';box.appendChild(retake);
+ ['camera-start','camera-capture','camera-flip'].forEach(i=>{const b=$(i);if(b)b.style.display='none'});
+ const sub=$('camera-status');if(sub)sub.textContent='Kamera terbuka otomatis. Tekan tombol bulat putih untuk mengambil foto.';
+ // ---------- waktu server ----------
+ let skew=0,skewOk=false;
+ async function syncClock(){try{if(!window.WOSStore)return;const c=window.WOSStore.config(),t0=Date.now(),r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'ping'})),j=await r.json(),t1=Date.now();if(j&&j.time){skew=Date.parse(j.time)-(t0+t1)/2;skewOk=true}}catch(e){}}
+ syncClock();setInterval(syncClock,600000);
+ const nowSrv=()=>Date.now()+(skewOk?skew:0);
+ // ---------- kamera ----------
+ let denied=false,starting=false;
+ const running=()=>{try{return !!attendanceStream}catch(e){return false}};
+ const hasPhoto=()=>{try{return !!attendancePhoto}catch(e){return false}};
+ function setUi(){const live=running()&&video.style.display==='block',shot=hasPhoto();shutter.style.display=live?'block':'none';flip.style.display=live?'block':'none';retake.style.display=shot?'block':'none';video.classList.toggle('back',window.__attFacing!=='user');
+  if(live||shot)msg.textContent='';else if(denied)msg.innerHTML='Kamera tidak dapat dibuka.<br>Izinkan kamera untuk situs ini lalu <u id="att-retry" style="cursor:pointer">coba lagi</u>.';else msg.textContent='Membuka kamera…';
+  const r=$('att-retry');if(r)r.onclick=()=>{denied=false;start()}}
+ async function start(){if(starting||running()||hasPhoto())return;starting=true;prev.style.display='none';
+  try{$('camera-start').click();await new Promise(r=>setTimeout(r,1500));if(!running()){await new Promise(r=>setTimeout(r,2500));if(!running())denied=true}}catch(e){denied=true}
+  starting=false;setUi()}
+ function stop(){try{if(attendanceStream)attendanceStream.getTracks().forEach(t=>t.stop());attendanceStream=null}catch(e){}video.srcObject=null;video.style.display='none';setUi()}
+ flip.onclick=()=>{window.__attFacing=window.__attFacing==='user'?'environment':'user';stop();starting=false;start()};
+ // cap waktu, tanggal, nama dan aksi pada foto (seperti kamera timestamp)
+ function stamp(g,w,h){const d=new Date(nowSrv()+WITA),days=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'],mons=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'],p=n=>String(n).padStart(2,'0');
+  const tgl=days[d.getUTCDay()]+', '+d.getUTCDate()+' '+mons[d.getUTCMonth()]+' '+d.getUTCFullYear(),jam=p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds())+' WITA';
+  const code=($('attendance-code')||{}).value||'',nm=(($('attendance-name')||{}).value||'').trim(),act=($('attendance-action')||{}).value||'';
+  const fs=Math.max(14,Math.round(h*0.05)),pad=Math.round(fs*.7);g.font='700 '+fs+'px Arial,sans-serif';
+  const lines=[jam,tgl,(nm?nm+' ('+code+')':code)+(act?' · '+act:''),'DC 38 Tigalapan'];
+  g.font='700 '+Math.round(fs*1.6)+'px Arial,sans-serif';const wBig=g.measureText(jam).width;g.font='600 '+fs+'px Arial,sans-serif';const wRest=Math.max(...lines.slice(1).map(t=>g.measureText(t).width));
+  const bw=Math.min(w,Math.max(wBig,wRest)+pad*2),bh=Math.round(fs*1.6)+fs*3.3+pad*2;g.fillStyle='rgba(0,0,0,.5)';g.fillRect(0,h-bh,bw,bh);
+  g.fillStyle='#fff';g.textBaseline='top';let y=h-bh+pad;g.font='700 '+Math.round(fs*1.6)+'px Arial,sans-serif';g.fillText(jam,pad,y);y+=Math.round(fs*1.6)+4;g.font='600 '+fs+'px Arial,sans-serif';lines.slice(1).forEach(t=>{g.fillText(t,pad,y);y+=Math.round(fs*1.1)})}
+ shutter.onclick=()=>{if(!video.videoWidth){msg.textContent='Kamera belum siap.';return}
+  cvs.width=video.videoWidth;cvs.height=video.videoHeight;const g=cvs.getContext('2d');
+  if(window.__attFacing==='user'){g.save();g.translate(cvs.width,0);g.scale(-1,1);g.drawImage(video,0,0);g.restore()}else g.drawImage(video,0,0);
+  stamp(g,cvs.width,cvs.height);attendancePhoto=cvs.toDataURL('image/jpeg',.86);prev.src=attendancePhoto;prev.style.display='block';stop();
+  try{updateAttendanceReady()}catch(e){}setUi()};
+ retake.onclick=()=>{attendancePhoto=null;prev.style.display='none';try{updateAttendanceReady()}catch(e){}starting=false;denied=false;start()};
+ // buka otomatis saat halaman Attendance aktif; matikan saat ditinggalkan
+ setInterval(()=>{const active=page.classList.contains('active')&&!document.hidden;
+  if(!active){if(running())stop();return}
+  if(!hasPhoto()&&!running()&&!denied&&!starting)start();
+  if(hasPhoto()&&prev.style.display==='none'&&!running()){}
+  setUi()},900);
+ // ---------- lokasi: anti Fake GPS ----------
+ const wp=(typeof warehousePoint!=='undefined')?warehousePoint:{lat:-5.098994,lng:119.48658,radius:25};
+ const dist=(a,b,c,d)=>{const R=6371e3,p=Math.PI/180,x=(c-a)*p,y=(d-b)*p,q=Math.sin(x/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y/2)**2;return 2*R*Math.atan2(Math.sqrt(q),Math.sqrt(1-q))};
+ const LK='wos-last-fix-v1';
+ function sample(n,ms){return new Promise((res,rej)=>{const out=[];let id=null,done=false;const fin=()=>{if(done)return;done=true;try{navigator.geolocation.clearWatch(id)}catch(e){}out.length?res(out):rej(new Error('timeout'))};
+  try{id=navigator.geolocation.watchPosition(p=>{out.push(p);if(out.length>=n)fin()},e=>{if(!out.length&&!done){done=true;try{navigator.geolocation.clearWatch(id)}catch(x){}rej(e)}else fin()},{enableHighAccuracy:true,maximumAge:0,timeout:ms})}catch(e){rej(e)}setTimeout(fin,ms)})}
+ function judge(s){
+  const strong=[],weak=[];
+  try{if(!/\[native code\]/.test(Function.prototype.toString.call(navigator.geolocation.getCurrentPosition))||!/\[native code\]/.test(Function.prototype.toString.call(navigator.geolocation.watchPosition)))strong.push('API lokasi dimodifikasi')}catch(e){}
+  if(navigator.webdriver)strong.push('browser otomatis');
+  if(skewOk&&Math.abs(skew)>5*60e3)strong.push('jam HP berbeda '+Math.round(skew/60000)+' menit dari server');
+  const last=s[s.length-1].coords;
+  try{const prevFix=JSON.parse(localStorage.getItem(LK)||'null');if(prevFix){const dt=(Date.now()-prevFix.t)/1000,dm=dist(prevFix.lat,prevFix.lng,last.latitude,last.longitude);if(dt>=0&&dt<900&&dm>2000&&dm/Math.max(dt,1)>70)strong.push('lompatan lokasi '+Math.round(dm/1000)+' km dalam '+Math.round(dt/60)+' menit')}}catch(e){}
+  if(s.length>=3){const f=s[0].coords;if(s.every(p=>p.coords.latitude===f.latitude&&p.coords.longitude===f.longitude&&p.coords.accuracy===f.accuracy))weak.push('koordinat statis')}
+  if(s.every(p=>p.coords.accuracy!=null&&p.coords.accuracy<=1))weak.push('akurasi tidak wajar');
+  if(s.every(p=>p.coords.altitude===0&&(p.coords.speed===0||p.coords.speed==null)&&p.coords.altitudeAccuracy===0))weak.push('altitude nol');
+  if(s.every(p=>p.coords.accuracy===0))strong.push('akurasi nol');
+  return{strong,weak,bad:strong.length>0||weak.length>=2,flag:[...strong,...weak].join('; ')}}
+ let locBusy=false;
+ async function checkLoc(){
+  const status=$('location-status');if(locBusy)return;locBusy=true;
+  const done=()=>{locBusy=false;try{updateAttendanceReady()}catch(e){}};
+  if(!navigator.geolocation){status.textContent='GPS tidak didukung browser ini.';attendanceLocation={valid:false};return done()}
+  status.textContent='Memeriksa GPS (±5 detik)…';
+  try{const s=await sample(4,9000),c=s[s.length-1].coords,j=judge(s),m=Math.round(dist(c.latitude,c.longitude,wp.lat,wp.lng));
+   try{localStorage.setItem(LK,JSON.stringify({lat:c.latitude,lng:c.longitude,t:Date.now()}))}catch(e){}
+   if(j.bad){attendanceLocation={valid:false,fake:true,flag:j.flag,meters:m,accuracy:Math.round(c.accuracy),lat:c.latitude,lng:c.longitude};status.innerHTML='<span style="color:#b3261e">Lokasi terindikasi palsu ('+j.flag.replace(/&/g,'&amp;').replace(/</g,'&lt;')+').</span> Matikan aplikasi Fake GPS / mock location dan nyalakan GPS asli, lalu periksa ulang. Bila GPS Anda asli, hubungi SPV.'}
+   else{attendanceLocation={valid:m<=wp.radius,meters:m,accuracy:Math.round(c.accuracy),lat:c.latitude,lng:c.longitude,flag:j.flag};status.textContent=attendanceLocation.valid?'Lokasi valid · '+m+' m dari DC 38':'Di luar radius · '+m+' m dari DC 38'}
+  }catch(e){attendanceLocation={valid:false};status.textContent='Lokasi tidak tersedia. Nyalakan GPS dan izinkan lokasi presisi pada browser.'}
+  done()}
+ $('location-check').onclick=checkLoc;
+ // periksa lokasi otomatis saat halaman dibuka (sekali per 3 menit bila belum valid)
+ let lastAuto=0;setInterval(()=>{const active=page.classList.contains('active')&&!document.hidden;if(!active)return;let ok=false;try{ok=!!(attendanceLocation&&attendanceLocation.valid)}catch(e){}if(!ok&&!locBusy&&Date.now()-lastAuto>180000){lastAuto=Date.now();checkLoc()}},1500);
+ document.addEventListener('click',e=>{if(!e.target.closest||!e.target.closest('#attendance-confirm'))return;setTimeout(()=>{if(document.getElementById('wos-ack')){attendancePhoto=null;prev.style.display='none';denied=false;try{updateAttendanceReady()}catch(x){}}},700)},false);
+ window.__wosCheckLoc=checkLoc;
+})();
+</script>
+<script>
+// EVALUASI KARYAWAN: pilih karyawan, evaluator, rekam suara evaluasi, lembar kerja evaluasi diisi langsung di web (disimpan ke Google Sheets, audio ke Google Drive).
+(()=>{
+ const V3=window.WOSV3;if(!V3||!V3.mkPage)return;
+ const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const WITA=8*3600e3,today=()=>new Date(Date.now()+WITA).toISOString().slice(0,10);
+ const DK='wos-eval-draft-v1';
+ // Lembar kerja evaluasi (sementara): ganti bagian ini saat form resmi dikirim. g = kelompok, i = butir penilaian (skor 1-5).
+ const TEMPLATE=[
+  {g:'Kualitas dan produktivitas',i:['Akurasi dan ketelitian kerja','Pencapaian target / kecepatan kerja','Kepatuhan terhadap SOP']},
+  {g:'Sikap dan disiplin',i:['Kehadiran dan ketepatan waktu','Kepatuhan aturan dan keselamatan kerja','Kerja sama tim']},
+  {g:'Kompetensi',i:['Pemahaman tugas dan role','Inisiatif dan tanggung jawab','Komunikasi']}];
+ const SCORE=[['','Pilih'],['1','1 · Perlu perbaikan besar'],['2','2 · Di bawah harapan'],['3','3 · Sesuai harapan'],['4','4 · Di atas harapan'],['5','5 · Sangat baik']];
+ const cfg=()=>window.WOSStore&&window.WOSStore.config?window.WOSStore.config():null;
+ async function api(body,get){const c=cfg();if(!c)throw new Error('Penyimpanan belum siap');const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),60000);
+  try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
+   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}
+  catch(e){throw new Error(e&&e.name==='AbortError'?'koneksi lambat, coba lagi':String(e&&e.message||e))}finally{clearTimeout(tm)}}
+ const me=()=>{try{return sessionStorage.getItem('wos-session-code')||''}catch(e){return''}};
+ const nameOf=c=>{try{return staffMaster[c].name}catch(e){return c}};
+ const staff=()=>{try{return Object.entries(staffMaster).filter(([,p])=>!p.out).sort((a,b)=>a[1].name.localeCompare(b[1].name))}catch(e){return[]}};
+ const loadDraft=()=>{try{return JSON.parse(localStorage.getItem(DK)||'null')}catch(e){return null}};
+ const saveDraft=d=>{try{localStorage.setItem(DK,JSON.stringify(d))}catch(e){}};
+ let list=[],busy=false,msg='',bad=false,form=null,rec=null,view=null;
+ const fresh=()=>({id:'EV-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6),kode:'',evaluator:me(),tanggal:today(),periode:today().slice(0,7),skor:{},kekuatan:'',perbaikan:'',rencana:'',komentar:'',audioId:'',audioMenit:0,status:'Draft'});
+ async function load(s){busy=true;draw(s);try{const r=await api({action:'list',tab:'EVALUASI'},true);if(!r.ok)throw new Error(r.error||'gagal memuat');list=(r.rows||[]).sort((a,b)=>String(b.waktu).localeCompare(String(a.waktu)));msg=''}catch(e){msg='Data evaluasi belum bisa dimuat: '+e.message+(/tidak dikenal/.test(e.message)?' (tab EVALUASI belum ada: tempel script operasional terbaru, jalankan setup, deploy versi baru)':'');bad=true}busy=false;draw(s)}
+ const avg=sk=>{const v=Object.values(sk||{}).map(Number).filter(x=>x>0);return v.length?Math.round(10*v.reduce((a,b)=>a+b,0)/v.length)/10:0};
+ function drawList(){
+  let h='<div class="an-card" style="margin-top:0"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div><h3>Riwayat evaluasi</h3><p class="sub" style="margin:0">Evaluasi tersimpan di Google Sheets. Rekaman suara tersimpan di Google Drive (folder Evaluasi).</p></div><button class="button" data-ev="new" type="button">+ Evaluasi baru</button></div>';
+  if(!list.length)h+='<p class="sub" style="margin-top:12px">'+(busy?'Memuat…':'Belum ada evaluasi.')+'</p>';
+  else h+='<div class="an-wrap"><table class="an-t"><thead><tr><th>Tanggal</th><th>Karyawan</th><th>Evaluator</th><th>Periode</th><th>Skor rata-rata</th><th>Status</th><th>Rekaman</th><th></th></tr></thead><tbody>'+list.map(r=>'<tr><td>'+esc(r.tanggal)+'</td><td>'+esc(r.nama)+' <span style="color:#8896ab">'+esc(r.kode_staf)+'</span></td><td>'+esc(r.evaluator_nama)+'</td><td>'+esc(r.periode)+'</td><td><b>'+esc(r.skor_rata||'-')+'</b></td><td>'+esc(r.status)+'</td><td>'+(r.audio_id?'<a href="https://drive.google.com/file/d/'+esc(r.audio_id)+'/view" target="_blank" rel="noopener">Putar</a>':'-')+'</td><td><button class="button secondary" data-ev="open" data-id="'+esc(r.id)+'" type="button" style="padding:4px 10px">Buka</button></td></tr>').join('')+'</tbody></table></div>';
+  return h+'</div>'}
+ function drawForm(){
+  const f=form,recOn=rec&&rec.state==='rec',min=f.audioMenit;
+  const opt=(arr,sel)=>arr.map(([c,p])=>'<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('');
+  let h='<div class="an-card" style="margin-top:0"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3>'+(f.status==='Final'?'Evaluasi (final)':'Evaluasi karyawan')+'</h3><button class="button secondary" data-ev="back" type="button">&larr; Kembali</button></div>';
+  h+='<div class="form-grid" style="margin-top:8px"><div class="field"><label>Karyawan yang dievaluasi</label><select data-evf="kode"><option value="">Pilih karyawan…</option>'+opt(staff(),f.kode)+'</select></div><div class="field"><label>Evaluator</label><select data-evf="evaluator"><option value="">Pilih evaluator…</option>'+opt(staff(),f.evaluator)+'</select></div><div class="field"><label>Tanggal evaluasi</label><input type="date" data-evf="tanggal" value="'+esc(f.tanggal)+'"></div><div class="field"><label>Periode penilaian</label><input type="month" data-evf="periode" value="'+esc(f.periode)+'"></div></div>';
+  h+='<div class="note" style="margin:12px 0"><b>Rekaman suara evaluasi</b><div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+(recOn?'<button class="button" data-ev="stop" type="button" style="background:#b3261e">&#9632; Hentikan rekaman</button><span id="ev-timer" style="font-weight:700">00:00</span>':'<button class="button secondary" data-ev="rec" type="button">&#127908; '+(f.audioId||rec&&rec.blob?'Rekam ulang':'Mulai rekam')+'</button>')+(rec&&rec.blob&&!recOn?'<audio controls src="'+esc(rec.url)+'" style="max-width:100%"></audio>':'')+(f.audioId&&!(rec&&rec.blob)?'<a href="https://drive.google.com/file/d/'+esc(f.audioId)+'/view" target="_blank" rel="noopener">Putar rekaman tersimpan ('+min+' menit)</a>':'')+'</div><p class="sub" style="margin:6px 0 0">Rekam percakapan evaluasi dengan izin karyawan. Rekaman diunggah saat Anda menyimpan.</p></div>';
+  h+='<div class="an-wrap"><table class="an-t"><thead><tr><th>Butir penilaian</th><th style="min-width:210px">Skor</th></tr></thead><tbody>'+TEMPLATE.map((G,gi)=>'<tr class="tot"><td colspan="2">'+esc(G.g)+'</td></tr>'+G.i.map((it,ii)=>{const k=gi+'.'+ii;return '<tr><td>'+esc(it)+'</td><td><select data-evs="'+k+'">'+SCORE.map(([v,t])=>'<option value="'+v+'"'+(String(f.skor[k]||'')===v?' selected':'')+'>'+t+'</option>').join('')+'</select></td></tr>'}).join('')).join('')+'<tr class="tot"><td>Skor rata-rata</td><td><b>'+(avg(f.skor)||'-')+'</b> / 5</td></tr></tbody></table></div>';
+  const ta=(k,l)=>'<div class="field" style="margin-top:10px"><label>'+l+'</label><textarea data-evf="'+k+'" rows="3" style="width:100%">'+esc(f[k])+'</textarea></div>';
+  h+=ta('kekuatan','Kekuatan / hal yang sudah baik')+ta('perbaikan','Hal yang perlu diperbaiki')+ta('rencana','Rencana tindak lanjut / target berikutnya')+ta('komentar','Tanggapan karyawan');
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="button secondary" data-ev="save" data-st="Draft" type="button">Simpan draft</button><button class="button" data-ev="save" data-st="Final" type="button">Simpan final</button></div></div>';
+  return h}
+ function draw(s){const b=s.querySelector('.v3-b');if(!b)return;
+  let h=(msg?'<p class="note" style="'+(bad?'color:#b3261e':'')+'">'+esc(msg)+'</p>':'')+(form?drawForm():drawList());
+  const keep=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.v3-b')?document.activeElement:null;
+  if(s._sig!==h){s._sig=h;b.innerHTML=h;if(keep&&keep.dataset&&(keep.dataset.evf||keep.dataset.evs)){const e=b.querySelector('[data-evf="'+(keep.dataset.evf||'')+'"],[data-evs="'+(keep.dataset.evs||'')+'"]');if(e&&e.tagName==='TEXTAREA'){e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(x){}}}}}
+ let timer=null;
+ async function startRec(s){
+  try{const st=await navigator.mediaDevices.getUserMedia({audio:true}),mt=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'',mr=new MediaRecorder(st,mt?{mimeType:mt,audioBitsPerSecond:24000}:{audioBitsPerSecond:24000}),ch=[];
+   rec={state:'rec',mr,st,ch,t0:Date.now(),blob:null,url:'',mime:mr.mimeType||mt||'audio/webm'};
+   mr.ondataavailable=e=>{if(e.data&&e.data.size)ch.push(e.data)};
+   mr.onstop=()=>{st.getTracks().forEach(t=>t.stop());const blob=new Blob(ch,{type:rec.mime});rec.blob=blob;rec.url=URL.createObjectURL(blob);rec.state='done';rec.min=Math.max(1,Math.round((Date.now()-rec.t0)/60000));clearInterval(timer);s._sig='';draw(s)};
+   mr.start(1000);clearInterval(timer);timer=setInterval(()=>{const e=document.getElementById('ev-timer');if(e){const t=Math.round((Date.now()-rec.t0)/1000);e.textContent=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}},500);s._sig='';draw(s)}
+  catch(e){msg='Mikrofon tidak bisa dipakai: '+(e&&e.message||e)+'. Izinkan mikrofon untuk situs ini.';bad=true;s._sig='';draw(s)}}
+ const b64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(r.error);r.readAsDataURL(blob)});
+ async function save(s,status){
+  const f=form;if(!f.kode)return(msg='Pilih karyawan yang dievaluasi.',bad=true,s._sig='',draw(s));if(!f.evaluator)return(msg='Pilih evaluator.',bad=true,s._sig='',draw(s));
+  if(status==='Final'&&avg(f.skor)===0)return(msg='Isi minimal satu skor sebelum menyimpan final.',bad=true,s._sig='',draw(s));
+  if(rec&&rec.state==='rec')return(msg='Hentikan rekaman dulu.',bad=true,s._sig='',draw(s));
+  msg='Menyimpan…';bad=false;s._sig='';draw(s);
+  try{
+   if(rec&&rec.blob){if(rec.blob.size>14e6)throw new Error('Rekaman terlalu besar (maks ±14 MB).');const data=await b64(rec.blob),ext=/mp4/.test(rec.mime)?'.m4a':'.webm',r=await api({action:'photo',data,mime:rec.mime.split(';')[0],name:('EVAL_'+f.id+ext),date:f.tanggal,kategori:'Evaluasi'});if(!r.ok)throw new Error(r.error||'unggah rekaman gagal');f.audioId=r.file_id;f.audioMenit=rec.min||0;rec.blob=null;rec.url=''}
+   const row={id:f.id,tanggal:f.tanggal,kode_staf:f.kode,nama:nameOf(f.kode),evaluator_kode:f.evaluator,evaluator_nama:nameOf(f.evaluator),periode:f.periode,skor_rata:String(avg(f.skor)||''),status,audio_id:f.audioId||'',audio_menit:String(f.audioMenit||''),json:JSON.stringify({skor:f.skor,kekuatan:f.kekuatan,perbaikan:f.perbaikan,rencana:f.rencana,komentar:f.komentar,template:TEMPLATE.map(g=>g.g)}),dibuat_oleh:me(),waktu:new Date().toISOString()};
+   const r=await api({action:'append',tab:'EVALUASI',row});if(!r.ok)throw new Error(r.error||'gagal menyimpan');
+   f.status=status;saveDraft(null);msg='Evaluasi '+(status==='Final'?'final':'draft')+' tersimpan.';bad=false;form=null;rec=null;await load(s);return}
+  catch(e){msg='Gagal menyimpan: '+e.message+'. Data isian masih ada di layar, coba lagi.';bad=true}
+  s._sig='';draw(s)}
+ function open(id){const r=list.find(x=>x.id===id);if(!r)return;let j={};try{j=JSON.parse(r.json||'{}')}catch(e){}
+  form={id:r.id,kode:r.kode_staf,evaluator:r.evaluator_kode,tanggal:r.tanggal,periode:r.periode,skor:j.skor||{},kekuatan:j.kekuatan||'',perbaikan:j.perbaikan||'',rencana:j.rencana||'',komentar:j.komentar||'',audioId:r.audio_id||'',audioMenit:r.audio_menit||0,status:r.status}}
+ V3.mkPage('evaluasi','Evaluasi','Evaluasi karyawan','Evaluasi kinerja dengan rekaman suara dan lembar kerja','coaching',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Evaluasi karyawan</h2><span class="sub">Pilih karyawan dan evaluator, rekam suara, isi lembar kerja evaluasi</span></div></div><div class="v3-b"></div>';
+  s.addEventListener('click',e=>{const b=e.target.closest('[data-ev]');if(!b)return;const a=b.dataset.ev;
+   if(a==='new'){form=fresh();const d=loadDraft();if(d&&d.kode&&confirm('Ada draft evaluasi yang belum disimpan ('+nameOf(d.kode)+'). Lanjutkan draft itu?'))form=d;msg='';rec=null}
+   else if(a==='back'){if(rec&&rec.state==='rec'&&!confirm('Rekaman masih berjalan. Keluar dan buang rekaman?'))return;if(rec&&rec.mr&&rec.state==='rec'){rec.mr.onstop=null;try{rec.mr.stop();rec.st.getTracks().forEach(t=>t.stop())}catch(x){}}form=null;rec=null;msg=''}
+   else if(a==='open'){open(b.dataset.id);msg='';rec=null}
+   else if(a==='rec'){startRec(s);return}
+   else if(a==='stop'){try{rec.mr.stop()}catch(x){}return}
+   else if(a==='save'){save(s,b.dataset.st);return}
+   s._sig='';draw(s)});
+  s.addEventListener('change',e=>{const t=e.target;if(!form)return;if(t.dataset.evf){form[t.dataset.evf]=t.value;saveDraft(form)}else if(t.dataset.evs){form.skor[t.dataset.evs]=t.value;saveDraft(form);s._sig='';draw(s)}});
+  s.addEventListener('input',e=>{const t=e.target;if(form&&t.dataset.evf&&t.tagName==='TEXTAREA'){form[t.dataset.evf]=t.value;saveDraft(form)}});
+  s._draw=()=>draw(s);s._show=()=>load(s)},'coaching');
 })();
 </script>
 </body></html>
