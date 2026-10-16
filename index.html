@@ -980,7 +980,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory'))o.push('wms-inventory');return o};
+ const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory'))o.push('wms-inventory');if(!o.includes('wms-inbound'))o.unshift('wms-inbound');return o};
  const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project',...(attendanceState()==='in'&&roleCats().length?['tugas']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
