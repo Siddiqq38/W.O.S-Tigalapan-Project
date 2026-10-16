@@ -3984,7 +3984,7 @@ init();
  let skew=0,skewOk=false;
  async function syncClock(){try{if(!window.WOSStore)return;const c=window.WOSStore.config(),t0=Date.now(),r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'ping'})),j=await r.json(),t1=Date.now();if(j&&j.time){skew=Date.parse(j.time)-(t0+t1)/2;skewOk=true}}catch(e){}}
  syncClock();setInterval(syncClock,600000);
- const nowSrv=()=>Date.now()+(skewOk?skew:0);
+ const nowSrv=()=>Date.now()+(skewOk?skew:0);window.__attNowMs=nowSrv;
  // ---------- kamera ----------
  let denied=false,starting=false;
  const running=()=>{try{return !!attendanceStream}catch(e){return false}};
@@ -4138,6 +4138,26 @@ init();
   s.addEventListener('change',e=>{const t=e.target;if(!form)return;if(t.dataset.evf){form[t.dataset.evf]=t.value;saveDraft(form)}else if(t.dataset.evs){form.skor[t.dataset.evs]=t.value;saveDraft(form);s._sig='';draw(s)}});
   s.addEventListener('input',e=>{const t=e.target;if(form&&t.dataset.evf&&t.tagName==='TEXTAREA'){form[t.dataset.evf]=t.value;saveDraft(form)}});
   s._draw=()=>draw(s);s._show=()=>load(s)},'coaching');
+})();
+</script>
+<script>
+// PENCATAT PRESENSI: menyimpan setiap konfirmasi presensi ke penyimpanan lokal (wos-attendance-kpi-v1); modul Sheets lalu mengirimnya ke server.
+// (Dipulihkan: pencatat lama ikut terhapus saat pembersihan fitur Performance.)
+(()=>{
+ const btn=document.getElementById('attendance-confirm');if(!btn||btn.dataset.recorder)return;btn.dataset.recorder='1';
+ const AK='wos-attendance-kpi-v1',prior=btn.onclick,day=()=>new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
+ btn.onclick=function(...args){
+  const code=(document.getElementById('attendance-code').value||'').trim().toUpperCase(),action=document.getElementById('attendance-action').value;
+  let ready=false;try{ready=!btn.disabled&&!!staffMaster[code]&&!!attendancePhoto&&!!(attendanceLocation&&attendanceLocation.valid)}catch(e){}
+  const r=prior?prior.apply(this,args):undefined;
+  if(!ready)return r;
+  try{let a=[];try{a=JSON.parse(localStorage.getItem(AK)||'[]');if(!Array.isArray(a))a=[]}catch(e){a=[]}
+   const entry={code,action,day:day(),at:new Date(window.__attNowMs?window.__attNowMs():Date.now()).toISOString()};
+   const next=[...a.filter(x=>!(x.code===entry.code&&x.day===entry.day&&x.action===entry.action)),entry];
+   localStorage.setItem(AK,JSON.stringify(next));
+   try{window.__renderAttSummary&&window.__renderAttSummary()}catch(e){}
+  }catch(e){const s=document.getElementById('attendance-summary');if(s)s.textContent='Presensi GAGAL disimpan: penyimpanan browser penuh atau diblokir. Hubungi SPV.'}
+  return r};
 })();
 </script>
 </body></html>
