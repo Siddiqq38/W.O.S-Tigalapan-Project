@@ -2175,6 +2175,16 @@ init();
 
  // ---- Incoming (on delivery): koli satu PO yang belum datang
  function incomingRows(){
+  const A=incomingNumbered(),B=incomingCounted(),inB=new Set(B.map(o=>o.po));
+  return A.filter(o=>!inB.has(o.po)).concat(B).sort((a,b)=>String(a.last).localeCompare(String(b.last)))}
+ // PO dengan STTB nomor-bebas: sisa dihitung per STTB = jumlah koli di STTB - koli yang sudah diterima dengan STTB itu (nomor koli yang akan datang belum diketahui)
+ function incomingCounted(){
+  const K=view('KOLI').filter(k=>k.status!=='Batal'),by={};
+  view('UNLOADING_RESI').forEach(r=>{if(!isFree(r))return;const po=poKey(r.po),o=by[po]||(by[po]={po,stt:{},eks:'',last:'',area:'',resi:new Set()});o.resi.add(r.resi);const t=o.stt[r.resi]||(o.stt[r.resi]={resi:r.resi,decl:0,rec:0});t.decl=Math.max(t.decl,freeExp(r));if(String(r.tanggal)>=o.last){o.last=r.tanggal;o.eks=r.ekspedisi||o.eks}if(r.area_staging)o.area=r.area_staging});
+  K.forEach(k=>{const o=by[poKey(k.po)];if(!o)return;const t=o.stt[k.resi];if(t)t.rec++});
+  return Object.values(by).map(o=>{const L=Object.values(o.stt).filter(t=>t.decl>0),decl=L.reduce((a,t)=>a+t.decl,0),rec=L.reduce((a,t)=>a+Math.min(t.rec,t.decl),0),rem=L.map(t=>({resi:t.resi,rem:Math.max(0,t.decl-t.rec)})).filter(t=>t.rem>0),n=rem.reduce((a,t)=>a+t.rem,0);return Object.assign(o,{total:decl,rec,miss:new Array(n).fill(0),unk:true,rem,vendor:vendorOfPo(o.po)})}).filter(o=>o.miss.length>0);
+ }
+ function incomingNumbered(){
   const got={};view('KOLI').filter(k=>isFinal(k.status)).forEach(k=>{(got[poKey(k.po)]=got[poKey(k.po)]||new Set()).add(Number(k.no_koli))});
   const pos={};view('UNLOADING_RESI').forEach(r=>{const po=poKey(r.po),o=pos[po]||(pos[po]={po,resi:new Set(),eks:'',last:'',area:''});o.resi.add(r.resi);if(String(r.tanggal)>=o.last){o.last=r.tanggal;o.eks=r.ekspedisi||o.eks}if(r.area_staging)o.area=r.area_staging});
   return Object.values(pos).map(o=>{const total=totalOf(o.po),g=got[o.po]||new Set(),miss=[];if(total)for(let i=1;i<=Math.min(total,2000);i++)if(!g.has(i))miss.push(i);return Object.assign(o,{total,rec:g.size,miss,vendor:vendorOfPo(o.po)})}).filter(o=>o.total&&o.miss.length).sort((a,b)=>String(a.last).localeCompare(String(b.last)));
@@ -2183,14 +2193,14 @@ init();
  function htmlIncoming(){
   const rows=incomingRows(),sum=rows.reduce((a,r)=>a+r.miss.length,0);
   return '<div class="grid three"><div class="card"><span class="metric-label">Incoming (on delivery)</span><div class="metric warn">'+sum+' koli</div><span class="sub">'+rows.length+' PO masih punya kiriman yang belum datang</span></div></div>'+
-  '<div class="card" style="margin-top:12px"><h3>Kiriman yang belum datang</h3><p class="sub">Koli dari PO yang total koli-nya sudah diketahui tetapi belum diterima. Saat kiriman lanjutan tiba, ketuk <strong>Terima</strong>, pilih operator dan ekspedisi: sesi unloading berikutnya (ke-2, ke-3, dan seterusnya) otomatis terbentuk dengan STTB yang sama, operator tinggal menandai koli yang masuk.</p><div style="overflow:auto">'+
-  (rows.length?'<table><thead><tr><th>PO</th><th>Vendor</th><th>STTB</th><th>Ekspedisi</th><th>Total</th><th>Sudah diterima</th><th>Incoming</th><th>Sejak unload terakhir</th><th></th></tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor||'-')+'</td><td>'+esc([...r.resi].join(', '))+'</td><td>'+esc(r.eks||'-')+'</td><td>'+r.total+'</td><td>'+r.rec+'</td><td><strong>'+r.miss.length+' koli</strong><br><span class="sub">'+esc(compress(r.miss).slice(0,120))+'</span></td><td>'+esc(r.last)+'<br><span class="sub">'+age(r.last)+'</span></td><td><button class="button" data-inc="'+esc(r.po)+'" type="button">Terima</button></td></tr>').join('')+'</tbody></table>':'<p class="sub">Tidak ada kiriman gantung. Kiriman tercatat sebagai incoming setelah total koli PO diisi dan sebagian koli sudah diterima.</p>')+'</div></div>';
+  '<div class="card" style="margin-top:12px"><h3>Kiriman yang belum datang</h3><p class="sub">Koli yang belum diterima: dari PO yang total koli-nya diketahui (nomor koli terlihat), atau dari STTB dengan nomor koli bebas (dihitung dari jumlah koli di STTB dikurangi yang sudah diterima; nomornya baru diketahui saat tiba). Saat kiriman lanjutan tiba, ketuk <strong>Terima</strong>, pilih operator dan ekspedisi: sesi unloading berikutnya (ke-2, ke-3, dan seterusnya) otomatis terbentuk dengan STTB yang sama, operator tinggal menandai koli yang masuk.</p><div style="overflow:auto">'+
+  (rows.length?'<table><thead><tr><th>PO</th><th>Vendor</th><th>STTB</th><th>Ekspedisi</th><th>Total</th><th>Sudah diterima</th><th>Incoming</th><th>Sejak unload terakhir</th><th></th></tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor||'-')+'</td><td>'+esc([...r.resi].join(', '))+'</td><td>'+esc(r.eks||'-')+'</td><td>'+r.total+'</td><td>'+r.rec+'</td><td><strong>'+r.miss.length+' koli</strong><br><span class="sub">'+(r.unk?esc((r.rem||[]).map(t=>t.resi+': '+t.rem).join(' · '))+' (nomor koli belum diketahui)':esc(compress(r.miss).slice(0,120)))+'</span></td><td>'+esc(r.last)+'<br><span class="sub">'+age(r.last)+'</span><br><span class="sub">sudah '+nSes(r.po)+' pengantaran · berikut: <b>ke-'+(nSes(r.po)+1)+'</b></span></td><td><button class="button" data-inc="'+esc(r.po)+'" type="button">Terima</button></td></tr>').join('')+'</tbody></table>':'<p class="sub">Tidak ada kiriman gantung. Kiriman tercatat sebagai incoming setelah total koli PO diisi dan sebagian koli sudah diterima.</p>')+'</div></div>';
  }
  function openIncoming(po){
   const o=incomingRows().find(x=>x.po===po);if(!o)return;const n=nSes(po)+1,eks=activeEks(),meC=code();
   const staff=Object.entries((()=>{try{return staffMaster}catch(e){return{}}})()).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
   const m=document.createElement('div');m.className='iv2-modal';
-  m.innerHTML='<div class="box"><h3>Terima kiriman lanjutan · PO '+esc(po)+'</h3><p class="sub">Unloading ke-'+n+' · incoming '+o.miss.length+' koli ('+esc(compress(o.miss).slice(0,80))+') · STTB '+esc([...o.resi].join(', '))+'</p>'+
+  m.innerHTML='<div class="box"><h3>Terima kiriman lanjutan · PO '+esc(po)+'</h3><p class="sub">Unloading ke-'+n+' · incoming '+o.miss.length+' koli ('+(o.unk?esc((o.rem||[]).map(t=>t.resi+': '+t.rem).join(' · '))+', nomor belum diketahui':esc(compress(o.miss).slice(0,80)))+') · STTB '+esc([...o.resi].join(', '))+'</p>'+
   '<label style="display:block;font-weight:600;margin-top:6px">Ekspedisi</label><select id="iv2-ie" style="width:100%">'+eks.map(x=>'<option'+(x.nama===o.eks?' selected':'')+'>'+esc(x.nama)+'</option>').join('')+'</select>'+
   '<label style="display:block;font-weight:600;margin-top:10px">Operator yang ditugaskan</label><select id="iv2-io" style="width:100%"'+(canAdmin()?'':' disabled')+'>'+staff.map(([c,p])=>'<option value="'+esc(c)+'"'+(c===meC?' selected':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</select>'+
   '<label style="display:block;font-weight:600;margin-top:10px">Jam mulai</label><input id="iv2-ij" type="time" value="'+nowHM()+'">'+
@@ -2199,7 +2209,7 @@ init();
   m.querySelector('#iv2-ino').onclick=()=>m.remove();
   m.querySelector('#iv2-igo').onclick=()=>{const ek=m.querySelector('#iv2-ie').value,op=m.querySelector('#iv2-io').value||meC;if(!ek){alert('Pilih ekspedisi.');return}
    const s={id:'SS-'+today().replace(/-/g,'')+'-'+op+'-'+Math.random().toString(36).slice(2,6),tanggal:today(),ekspedisi:ek,pic_kode:op,pic_nama:nameOf(op),jam_mulai:m.querySelector('#iv2-ij').value||nowHM(),jam_selesai:'',status:'Berjalan',catatan:'Unloading ke-'+n+' PO '+po};
-   const rs=[...o.resi].map(resi=>({id:s.id+'|'+resi+'|'+po,tanggal:s.tanggal,sesi_id:s.id,resi,po,vendor:o.vendor||vendorOfPo(po),ekspedisi:ek,koli_list:'',area_staging:o.area||'',pic_kode:meC}));
+   const rs=o.unk?(o.rem||[]).map(t=>({id:s.id+'|'+t.resi+'|'+po,tanggal:s.tanggal,sesi_id:s.id,resi:t.resi,po,vendor:o.vendor||vendorOfPo(po),ekspedisi:ek,koli_list:'*'+t.rem,area_staging:o.area||'',pic_kode:meC})):[...o.resi].map(resi=>({id:s.id+'|'+resi+'|'+po,tanggal:s.tanggal,sesi_id:s.id,resi,po,vendor:o.vendor||vendorOfPo(po),ekspedisi:ek,koli_list:'',area_staging:o.area||'',pic_kode:meC}));
    curId=s.id;localStorage.setItem(SK,curId);curResi=rs[0]?rs[0].id:'';showAdd=false;tab='recv';taskStart(s);enq('UNLOADING_SESI',s);rs.forEach(r=>enq('UNLOADING_RESI',r));m.remove();setMsg('Unloading ke-'+n+' dimulai untuk PO '+po+'. Tandai koli yang masuk.');render()}
  }
  // kartu Incoming di Dashboard utama (SPV / Admin)
