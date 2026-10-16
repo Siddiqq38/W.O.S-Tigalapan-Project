@@ -4409,5 +4409,38 @@ init();
  setInterval(()=>{if(!document.hidden)try{sweep()}catch(e){}},1500);
 })();
 </script>
+<script>
+// DASHBOARD COMPLIANCE: ringkasan 5R, komplain / SOP, dan rekap di bagian atas halaman Compliance; kartu contoh statis disembunyikan.
+(()=>{
+ const pg=document.getElementById('compliance');if(!pg||document.getElementById('cp-dash'))return;
+ const st=document.createElement('style');st.textContent='#compliance>.grid.three,#compliance #cp-totals,#compliance #cp-totals+br{display:none!important}#compliance .cp-fold{margin-top:12px}#compliance .cp-fold>summary{font-size:16px;font-weight:700;cursor:pointer;padding:4px 0}#compliance .cp-fold[open]>summary{margin-bottom:10px;border-bottom:1px solid #e3e8f0;padding-bottom:8px}#cp-dash{margin:14px 0}#cp-dash h3{margin:0 0 2px}#cp-dash .sub{margin:0 0 10px}';document.head.appendChild(st);
+ const dash=document.createElement('div');dash.id='cp-dash';dash.className='an-card';
+ const mount=()=>{if(dash.isConnected)return true;const a=document.getElementById('cp-totals')||pg.querySelector('.cp-stack');if(!a)return false;a.before(dash);return true};
+ const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const LV=()=>{try{return sessionStorage.getItem('wos-session-v1')||''}catch(e){return''}},ME=()=>{try{return sessionStorage.getItem('wos-session-code')||''}catch(e){return''}};
+ const k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>';
+ const nm=c=>{try{return staffMaster[c].name}catch(e){return c}};
+ let last='';
+ function draw(){
+  if(!pg.classList.contains('active')||document.hidden||!mount())return;
+  let D;try{D=window.getComplianceKpiData&&window.getComplianceKpiData()}catch(e){}
+  if(!D||!D.ready){if(!dash.innerHTML)dash.innerHTML='<h3>Ringkasan Compliance</h3><p class="sub">Memuat data…</p>';return}
+  const lv=LV(),me=ME(),own=(lv==='operator'||lv==='admin'),dEl=document.getElementById('cp-date'),mEl=document.getElementById('cp-month'),
+   date=(dEl&&dEl.value)||new Date(Date.now()+288e5).toISOString().slice(0,10),month=(mEl&&mEl.value)||date.slice(0,7);
+  let days=D.days,events=D.events;if(own){days=days.filter(r=>r.code===me);events=events.filter(e=>e.code===me)}
+  const req=days.filter(r=>r.day===date&&!r.exempt&&r.fiveRRequired!==false),ok=a=>a==='approved'||a==='partial';
+  const done=req.filter(r=>r.report&&ok(r.report.approval)).length,wait=req.filter(r=>r.report&&!ok(r.report.approval)&&r.report.approval!=='rejected').length,rej=req.filter(r=>r.report&&r.report.approval==='rejected').length,none=req.filter(r=>!r.report).length;
+  const mon=complianceMonthly({days,events},month),S=f=>mon.reduce((a,x)=>a+x[f],0);
+  const pend=events.filter(e=>e.status==='pending').length;
+  let h='<h3>Ringkasan Compliance'+(own?' · '+esc(nm(me)):'')+'</h3><p class="sub">Tanggal '+esc(date)+' (5R harian) dan bulan '+esc(month)+' (komplain / SOP). Ubah tanggal atau bulan di filter di bawah.</p>'+
+   '<h4 style="margin:6px 0">5R hari ini</h4><div class="an-kpi">'+k('Wajib lapor',req.length,'petugas pada tanggal ini')+k('5R selesai (di-ACC)',done+' / '+req.length,req.length?Math.round(100*done/req.length)+'%':'-',done===req.length&&req.length?'g':'')+k('Menunggu approval SPV',wait,'bukti sudah terkirim',wait?'o':'g')+k('Ditolak',rej,'perlu perbaikan',rej?'r':'g')+k('Belum lapor',none,'belum ada bukti',none?'r':'g')+'</div>'+
+   '<h4 style="margin:14px 0 6px">Komplain, SOP, dan rekap bulan ini</h4><div class="an-kpi">'+k('Komplain terverifikasi',S('complaints'),'miss picking / put away / lainnya',S('complaints')?'r':'g')+k('Pelanggaran SOP',S('sop'),'terverifikasi',S('sop')?'r':'g')+k('5R lewat batas',S('fiveR'),'tercatat otomatis',S('fiveR')?'o':'g')+k('Menunggu verifikasi',pend,'laporan kejadian',pend?'o':'g')+k('5R disetujui (bulan)',S('reports')+' / '+S('scheduled'),'hari wajib lapor')+'</div>';
+  if(!own){const top=mon.map(x=>({c:x.code,v:x.valid+x.rejectedReports,x})).filter(o=>o.v>0).sort((a,b)=>b.v-a.v).slice(0,5);
+   h+='<h4 style="margin:14px 0 6px">Perlu perhatian bulan ini</h4>'+(top.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>Karyawan</th><th>Kejadian valid</th><th>Komplain</th><th>SOP</th><th>5R lewat batas</th><th>5R ditolak</th></tr></thead><tbody>'+top.map(o=>'<tr><td>'+esc(nm(o.c))+' <span style="color:#8896ab">'+esc(o.c)+'</span></td><td><b>'+o.x.valid+'</b></td><td>'+o.x.complaints+'</td><td>'+o.x.sop+'</td><td>'+o.x.fiveR+'</td><td>'+o.x.rejectedReports+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Tidak ada kejadian terverifikasi bulan ini.</p>');}
+  if(h!==last){last=h;dash.innerHTML=h}
+ }
+ setInterval(draw,2500);setTimeout(draw,1500);
+})();
+</script>
 </body></html>
 
