@@ -2106,8 +2106,12 @@ init();
  // ---- 2. sesi berjalan: penerimaan (hijau) lalu validasi (centang)
  const isFinal=st=>st==='Diterima'||st==='Bermasalah',isTent=st=>st==='Datang'||st==='Datang-Masalah';
  const totalOf=po=>{const i=view('PO_INFO').find(x=>x.id===poKey(po));return i&&Number(i.total_koli)||0};
+ let fsort='masuk';
  const isFree=r=>String((r&&r.koli_list)||'').charAt(0)==='*',freeExp=r=>Number(String((r&&r.koli_list)||'').slice(1))||0;
- function universe(r){if(isFree(r)){const po=poKey(r.po);return view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===r.sesi_id&&k.resi===r.resi&&k.status!=='Batal').map(k=>Number(k.no_koli)).sort((a,b)=>a-b)}const l=parseKoli(r.koli_list);if(l.length)return l;const t=totalOf(r.po);return t>0?Array.from({length:Math.min(t,2000)},(_,i)=>i+1):[]}
+ function universe(r){if(isFree(r)){const po=poKey(r.po);const rows=view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===r.sesi_id&&k.resi===r.resi&&k.status!=='Batal');
+  if(fsort==='kecil')rows.sort((a,b)=>Number(a.no_koli)-Number(b.no_koli));else if(fsort==='besar')rows.sort((a,b)=>Number(b.no_koli)-Number(a.no_koli));
+  else rows.sort((a,b)=>String(a.waktu_server||'').localeCompare(String(b.waktu_server||''))||Number(a.no_koli)-Number(b.no_koli));
+  return rows.map(k=>Number(k.no_koli))}const l=parseKoli(r.koli_list);if(l.length)return l;const t=totalOf(r.po);return t>0?Array.from({length:Math.min(t,2000)},(_,i)=>i+1):[]}
  const phaseLabel={Berjalan:'Penerimaan',Validasi:'Validasi',Selesai:'Selesai'};
  function htmlSession(){
   const s=sesiNow(),phase=s.status||'Berjalan',done=phase==='Selesai',val=phase==='Validasi';
@@ -2138,6 +2142,7 @@ init();
     if(!done)h+='<div class="ob-actions" style="margin:6px 0"><button class="button secondary" data-resiedit="'+esc(r.id)+'" type="button">&#9998; Ubah STTB / PO</button><button class="button secondary" data-residel="'+esc(r.id)+'" type="button" style="color:#b3261e">Hapus STTB</button></div>';
     if(phase==='Berjalan')h+='<div class="ob-actions" style="margin:6px 0"><button class="button'+(mode==='ok'?'':' secondary')+'" data-mode="ok" type="button">✓ In-Koli</button><button class="button'+(mode==='bad'?'':' secondary')+'" data-mode="bad" type="button" style="'+(mode==='bad'?'background:#c0392b':'')+'">⚠ Tandai masalah</button></div>';
     if(!done)h+=isFree(r)?'<div class="field" style="max-width:460px"><label for="iv2-qk">Ketik nomor koli yang datang lalu Enter. Boleh banyak sekaligus: <b>1,2,30,50</b> atau <b>12-29</b></label><input id="iv2-qk" type="text" inputmode="text" autocomplete="off" placeholder="contoh: 1,2,30,50"></div>':'<div class="field" style="max-width:360px"><label for="iv2-qk">Ketik no. koli lalu Enter (cepat)</label><input id="iv2-qk" type="number" inputmode="numeric" autocomplete="off"></div>';
+    if(isFree(r)&&t.U.length>1)h+='<div class="ob-actions" style="margin:6px 0;align-items:center"><span class="sub" style="margin:0">Urutan tampilan:</span>'+[['masuk','Urutan masuk'],['kecil','Kecil → besar'],['besar','Besar → kecil']].map(o=>'<button class="button'+(fsort===o[0]?'':' secondary')+'" data-fsort="'+o[0]+'" type="button" style="padding:4px 10px">'+o[1]+'</button>').join('')+'</div>';
     h+='<div class="kl">'+t.U.map(n=>{const k=K.get(po+'|'+n),st=k&&k.status,mine=k&&k.sesi_id===s.id;let cls='',lab=String(n),sm='';
      if(k&&isFinal(st)){cls=st==='Diterima'?'ok':'bad';lab='✓ '+n;if(!mine){cls+=' lk';sm='<small>'+esc(String(k.tanggal||'').slice(5))+'</small>'}else if(st==='Bermasalah')sm='<small>⚠ temuan</small>';else if(k.resi&&k.resi!==r.resi)sm='<small>'+esc(k.resi)+'</small>'}
      else if(k&&mine&&st==='Datang'){cls='dt'}else if(k&&mine&&st==='Datang-Masalah'){cls='dtm';lab='⚠ '+n}
@@ -2267,7 +2272,9 @@ init();
  function taskEdit(fn){try{const a=JSON.parse(localStorage.getItem(TKEY)||'[]'),arr=Array.isArray(a)?a:[];fn(arr);localStorage.setItem(TKEY,JSON.stringify(arr.slice(-300)))}catch(e){}}
  function taskStart(s){const id='TR-'+s.id,iso=new Date().toISOString();taskEdit(arr=>{if(!arr.some(t=>t.id===id))arr.push({id,day:s.tanggal,at:iso,title:'Receiving '+s.ekspedisi,qty:'',by:'SISTEM',to:s.pic_kode,status:'diterima',by2:s.pic_kode,ackAt:iso,kind:'receiving'})})}
  function taskDone(s,n){const id='TR-'+s.id,iso=new Date().toISOString();taskEdit(arr=>{const t=arr.find(x=>x.id===id);if(t){t.status='selesai';t.doneAt=iso;t.qty=n+' koli'}else arr.push({id,day:s.tanggal,at:iso,title:'Receiving '+s.ekspedisi,qty:n+' koli',by:'SISTEM',to:s.pic_kode,status:'selesai',by2:s.pic_kode,ackAt:iso,doneAt:iso,kind:'receiving'})})}
- function mkKoli(r,n,status,ket){const old=kmap().get(poKey(r.po)+'|'+n),s=sesiNow(),same=old&&old.sesi_id===s.id;return{id:poKey(r.po)+'|'+n,tanggal:same&&old.tanggal||s.tanggal,po:poKey(r.po),no_koli:String(n),resi:r.resi,sesi_id:s.id,ekspedisi:r.ekspedisi||s.ekspedisi,status,keterangan:ket||'',pic_kode:me(),jam_wita:nowHM(),foto_id:same&&old.foto_id||''}}
+
+ let lastStamp=0;const stampNow=()=>{lastStamp=Math.max(lastStamp+1,Date.now());return new Date(lastStamp+288e5).toISOString().replace('T',' ').slice(0,23)};
+ function mkKoli(r,n,status,ket){const old=kmap().get(poKey(r.po)+'|'+n),s=sesiNow(),same=old&&old.sesi_id===s.id;return{id:poKey(r.po)+'|'+n,waktu_server:(same&&old.status!=='Batal'&&old.waktu_server)?old.waktu_server:stampNow(),tanggal:same&&old.tanggal||s.tanggal,po:poKey(r.po),no_koli:String(n),resi:r.resi,sesi_id:s.id,ekspedisi:r.ekspedisi||s.ekspedisi,status,keterangan:ket||'',pic_kode:me(),jam_wita:nowHM(),foto_id:same&&old.foto_id||''}}
  function setKoli(r,n,status,ket){enq('KOLI',mkKoli(r,n,status,ket))}
  const curR=()=>view('UNLOADING_RESI').find(x=>x.id===curResi);
  function koliTap(n){
@@ -2345,6 +2352,7 @@ init();
    if(!confirm('Selesaikan validasi?'+(pend.length?'\n'+pend.length+' koli hijau belum divalidasi akan dibatalkan (dianggap belum datang).':'')+'\nKoli tervalidasi: '+fin+'.'))return;
    pend.forEach(o=>setKoli(o.r,o.n,'Batal',''));
    const noTtb=ttbNo(s);enq('UNLOADING_SESI',Object.assign({},s,{status:'Selesai',jam_selesai:nowHM(),catatan:(s.catatan?s.catatan+'; ':'')+'Validasi selesai '+nowHM()+'; TTB '+noTtb}));taskDone(s,fin);lastTtb=s.id;curId='';localStorage.removeItem(SK);setMsg('Receiving selesai. '+fin+' koli masuk Staging In dan tercatat sebagai pekerjaan operator.');tab='recv';render();return}
+  if(b.dataset.fsort){fsort=b.dataset.fsort;render();return}
   if(b.dataset.resi){curResi=b.dataset.resi;render();return}
   if(b.dataset.mode){mode=b.dataset.mode;render();return}
   if(b.dataset.k){koliTap(Number(b.dataset.k));return}
