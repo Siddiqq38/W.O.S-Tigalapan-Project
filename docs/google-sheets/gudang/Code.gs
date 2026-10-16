@@ -364,15 +364,24 @@ function periksaTab() {
 
 /* Langkah 2: hapus HANYA tab milik spreadsheet lain atau tab bawaan yang KOSONG (baris data = 0). Tab berisi data tidak pernah disentuh. */
 function rapikanTab() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet(), own = Object.keys(TABS), del = [], keep = [];
-  ss.getSheets().slice().forEach(function (sh) {
-    const n = sh.getName();
-    if (own.indexOf(n) >= 0 || n === 'LOG') return;
-    if (TAB_SALAH_SHEET.indexOf(n) < 0 && TAB_KOSONG_BAWAAN.indexOf(n) < 0) return;
-    if (sh.getLastRow() > 1) { keep.push(n + ' (' + (sh.getLastRow() - 1) + ' baris data)'); return; }
-    if (ss.getSheets().length <= 1) return;
-    ss.deleteSheet(sh); del.push(n);
-  });
-  Logger.log('Dihapus (kosong): ' + (del.join(', ') || '-') + '\nDipertahankan karena berisi data: ' + (keep.join(', ') || '-'));
-  notify_('Dihapus ' + del.length + ' tab kosong. Dipertahankan karena berisi data: ' + keep.length);
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), own = Object.keys(TABS), del = [], keep = [], gagal = [];
+  // Daftar nama dikumpulkan dulu, lalu dihapus satu per satu (tiap penghapusan dicoba terpisah supaya satu kegagalan tidak membatalkan yang lain).
+  const names = ss.getSheets().map(function (sh) { return sh.getName(); });
+  for (let i = 0; i < names.length; i++) {
+    const n = names[i];
+    if (own.indexOf(n) >= 0 || n === 'LOG') continue;
+    if (TAB_SALAH_SHEET.indexOf(n) < 0 && TAB_KOSONG_BAWAAN.indexOf(n) < 0) continue;
+    try {
+      const sh = ss.getSheetByName(n);
+      if (!sh) continue;
+      if (sh.getLastRow() > 1) { keep.push(n + ' (' + (sh.getLastRow() - 1) + ' baris data)'); continue; }
+      if (ss.getSheets().length <= 1) continue;
+      ss.deleteSheet(sh);
+      del.push(n);
+      SpreadsheetApp.flush();
+      Utilities.sleep(400);
+    } catch (e) { gagal.push(n + ': ' + e); }
+  }
+  Logger.log('Dihapus (kosong): ' + (del.join(', ') || '-') + '\nDipertahankan karena berisi data: ' + (keep.join(', ') || '-') + '\nGagal dihapus (jalankan lagi): ' + (gagal.join(' | ') || '-'));
+  notify_('Dihapus ' + del.length + ' tab kosong. Berisi data (dipertahankan): ' + keep.length + '. Gagal: ' + gagal.length);
 }
