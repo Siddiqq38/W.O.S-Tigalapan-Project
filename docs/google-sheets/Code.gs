@@ -264,3 +264,41 @@ function notify_(msg) {
   Logger.log(msg);
   try { SpreadsheetApp.getActiveSpreadsheet().toast(String(msg), "WOS", 8); } catch (e) {}
 }
+
+// ===== Pemeriksaan dan perapian tab (AMAN: tidak pernah menghapus tab yang berisi data) =====
+// Tab milik spreadsheet operasional sudah dikenal lewat TABS. Daftar berikut adalah tab milik spreadsheet gudang
+// yang kadang ikut terbuat di sini akibat skrip tertukar saat setup.
+const TAB_SALAH_SHEET = ['MASTER_VENDOR', 'MASTER_EKSPEDISI', 'MASTER_AREA', 'MASTER_HPP', 'PO_INFO', 'UNLOADING_SESI', 'UNLOADING_RESI', 'KOLI', 'PO_DOK', 'SJ_ITEM', 'HPP_ITEM', 'GR_ASSIGN', 'GR_COUNT', 'PUTAWAY', 'MASTER_BIN', 'MASTER_MOKA', 'STOK_BIN', 'PICK_DOK', 'PICK_KOLI', 'PICK_GR', 'DATA_ENTRY', 'PROJECT', 'PROJECT_NORM', 'PROJECT_LOG', 'LC_TASK', 'LC_COUNT', 'ADJUSTMENT', 'PICK_ITEM'];
+const TAB_KOSONG_BAWAAN = ['Sheet1', 'Lembar1', 'Sheet 1'];
+
+/* Langkah 1 (aman, hanya membaca): lihat semua tab, jumlah baris datanya, dan statusnya. Lihat hasil di Execution log (Lihat > Log eksekusi). */
+function periksaTab() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), own = Object.keys(TABS), out = [];
+  ss.getSheets().forEach(function (sh) {
+    const n = sh.getName(), rows = Math.max(0, sh.getLastRow() - 1);
+    let st = 'tidak dikenal (dibiarkan)';
+    if (own.indexOf(n) >= 0) st = 'OK, milik spreadsheet ini';
+    else if (TAB_SALAH_SHEET.indexOf(n) >= 0) st = rows === 0 ? 'SALAH SHEET dan kosong (aman dihapus oleh rapikanTab)' : 'SALAH SHEET dan BERISI DATA (tidak dihapus, pindahkan manual)';
+    else if (TAB_KOSONG_BAWAAN.indexOf(n) >= 0) st = rows === 0 ? 'tab bawaan kosong (aman dihapus oleh rapikanTab)' : 'tab bawaan berisi data (dibiarkan)';
+    out.push(n + ' | ' + rows + ' baris data | ' + st);
+  });
+  own.forEach(function (n) { if (!ss.getSheetByName(n)) out.push(n + ' | TIDAK ADA | jalankan setup untuk membuatnya'); });
+  Logger.log('\n' + out.join('\n'));
+  notify_('Pemeriksaan tab selesai. Lihat Execution log.');
+  return out;
+}
+
+/* Langkah 2: hapus HANYA tab milik spreadsheet lain atau tab bawaan yang KOSONG (baris data = 0). Tab berisi data tidak pernah disentuh. */
+function rapikanTab() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), own = Object.keys(TABS), del = [], keep = [];
+  ss.getSheets().slice().forEach(function (sh) {
+    const n = sh.getName();
+    if (own.indexOf(n) >= 0 || n === 'LOG') return;
+    if (TAB_SALAH_SHEET.indexOf(n) < 0 && TAB_KOSONG_BAWAAN.indexOf(n) < 0) return;
+    if (sh.getLastRow() > 1) { keep.push(n + ' (' + (sh.getLastRow() - 1) + ' baris data)'); return; }
+    if (ss.getSheets().length <= 1) return;
+    ss.deleteSheet(sh); del.push(n);
+  });
+  Logger.log('Dihapus (kosong): ' + (del.join(', ') || '-') + '\nDipertahankan karena berisi data: ' + (keep.join(', ') || '-'));
+  notify_('Dihapus ' + del.length + ' tab kosong. Dipertahankan karena berisi data: ' + keep.length);
+}
