@@ -2067,7 +2067,7 @@ init();
   sec.innerHTML='<div class="toolbar"><div><h2>Inbound</h2><span class="sub">Receiving (penerimaan fisik barang) dan Good Receipt</span></div><span id="iv2-state" class="tag amber">Memeriksa…</span></div>'+
   '<style>.kl{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;margin:10px 0}.kb{padding:14px 0;border-radius:10px;border:2px solid #cfc3bb;background:#fff;font-size:17px;font-weight:700;cursor:pointer;color:#3b2a20;touch-action:manipulation}.kb.ok{background:#d6efdd;border-color:#2e9b5a;color:#14663a}.kb.bad{background:#fbdcd9;border-color:#d1362b;color:#9b1c13}.kb.alt{border-style:dashed}.kb.dt{background:#e6f5ec;border-color:#8fd0a8;color:#1d6a3d}.kb.dtm{background:#fff0ee;border-color:#e08a82;color:#9b1c13}.kb.lk{opacity:.55}.kb small{display:block;font-size:10px;font-weight:600}.rc{display:inline-block;margin:0 6px 6px 0;padding:8px 12px;border-radius:999px;border:2px solid #cfc3bb;background:#fff;cursor:pointer;font-size:13px}.rc.on{border-color:#b5532a;background:#fbe5d6;font-weight:700}.iv2-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9996;display:flex;align-items:center;justify-content:center;padding:14px}.iv2-modal .box{background:#fff;color:#222;border-radius:14px;padding:18px;width:100%;max-width:420px;max-height:90vh;overflow:auto}</style>'+
   '<div class="filters" style="margin-bottom:12px"><button class="filter active" data-f="recv" type="button">Receiving</button><button class="filter" data-f="gr" type="button">Good Receipt</button></div>'+
-  '<div id="iv2-recv"><div class="filters" style="margin-bottom:12px"><button class="filter active" data-t="recv" type="button">Unloading</button><button class="filter" data-t="inc" type="button">Incoming</button><button class="filter" data-t="stg" type="button">Staging In</button><button class="filter" data-t="mst" type="button">Master data</button></div><p class="note" id="iv2-msg" hidden></p><div id="iv2-b"></div></div>'+
+  '<div id="iv2-recv"><div class="filters" style="margin-bottom:12px"><button class="filter active" data-t="recv" type="button">Unloading</button><button class="filter" data-t="inc" type="button">Incoming</button><button class="filter" data-t="stg" type="button">Staging In</button></div><p class="note" id="iv2-msg" hidden></p><div id="iv2-b"></div></div>'+
   '<div id="iv2-gr" hidden>'+phBlock('gr')+'</div>';phFill('gr','Counting');
   sec.addEventListener('click',onClick);sec.addEventListener('change',onChange);sec.addEventListener('input',onInput);sec.addEventListener('keydown',onKey);
   {const NM={recv:'Unloading',inc:'Incoming',stg:'Staging In',mst:'Master data'};let first='';
@@ -2100,7 +2100,7 @@ init();
   '<div class="field"><label for="iv2-tgl">Tanggal terima</label><input id="iv2-tgl" type="date" value="'+today()+'"></div>'+
   '<div class="field"><label for="iv2-jam">Jam mulai</label><input id="iv2-jam" type="time" value="'+nowHM()+'"></div></div>'+
   '<div class="ob-actions"><button class="button" id="iv2-start" type="button">Mulai unloading</button></div></div>'+
-  '<div class="card" style="margin-top:12px"><h3>Sesi unloading terbaru</h3>'+(sesi.length?'<div style="overflow:auto"><table><thead><tr><th>Tanggal</th><th>Ekspedisi</th><th>Operator</th><th>Jam</th><th>STTB</th><th>Koli diterima</th><th>Status</th><th></th></tr></thead><tbody>'+sesi.map(s=>{const rs=resi.filter(r=>r.sesi_id===s.id),ks=K.filter(k=>k.sesi_id===s.id);return '<tr><td>'+esc(s.tanggal)+'</td><td>'+esc(s.ekspedisi)+'</td><td>'+esc(s.pic_nama||s.pic_kode)+'</td><td>'+esc(s.jam_mulai)+(s.jam_selesai?' - '+esc(s.jam_selesai):'')+'</td><td>'+rs.length+'</td><td><strong>'+ks.length+'</strong>'+(ks.filter(k=>k.status==='Bermasalah').length?' <span class="tag red">'+ks.filter(k=>k.status==='Bermasalah').length+' masalah</span>':'')+'</td><td><span class="tag '+(s.status==='Selesai'?'green':'amber')+'">'+esc(s.status||'Berjalan')+'</span></td><td><button class="button secondary" data-open="'+esc(s.id)+'" type="button">'+(s.status==='Selesai'?'Lihat':'Lanjutkan')+'</button>'+(s.status==='Selesai'&&canAdmin()?' <button class="button secondary" data-ttb="'+esc(s.id)+'" type="button">Cetak tanda terima</button> <button class="button secondary" data-ttbdoc="'+esc(s.id)+'" type="button">Word</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="sub">Belum ada sesi unloading.</p>')+'</div>';
+  '<div class="card" style="margin-top:12px"><h3>Sesi unloading terbaru</h3>'+(sesi.length?'<div style="overflow:auto"><table><thead><tr><th>Tanggal</th><th>Ekspedisi</th><th>Operator</th><th>Jam</th><th>STTB</th><th>Koli diterima</th><th>Status</th><th>Keterangan</th><th></th></tr></thead><tbody>'+sesi.map(s=>{const rs=resi.filter(r=>r.sesi_id===s.id),ks=K.filter(k=>k.sesi_id===s.id);return '<tr><td>'+esc(s.tanggal)+'</td><td>'+esc(s.ekspedisi)+'</td><td>'+esc(s.pic_nama||s.pic_kode)+'</td><td>'+esc(s.jam_mulai)+(s.jam_selesai?' - '+esc(s.jam_selesai):'')+'</td><td>'+rs.length+'</td><td><strong>'+ks.length+'</strong>'+(ks.filter(k=>k.status==='Bermasalah').length?' <span class="tag red">'+ks.filter(k=>k.status==='Bermasalah').length+' masalah</span>':'')+'</td><td><span class="tag '+(s.status==='Selesai'?'green':'amber')+'">'+esc(s.status||'Berjalan')+'</span></td><td><span class="tag">Unloading '+ordOf(s)+'</span></td><td><button class="button secondary" data-open="'+esc(s.id)+'" type="button">'+(s.status==='Selesai'?'Lihat':'Lanjutkan')+'</button>'+(isSpv()?' <button class="button secondary" data-sesedit="'+esc(s.id)+'" type="button">Edit</button> <button class="button secondary" data-sesdel="'+esc(s.id)+'" type="button" style="color:#b3261e">Hapus</button>':'')+(s.status==='Selesai'&&canAdmin()?' <button class="button secondary" data-ttb="'+esc(s.id)+'" type="button">Cetak tanda terima</button> <button class="button secondary" data-ttbdoc="'+esc(s.id)+'" type="button">Word</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="sub">Belum ada sesi unloading.</p>')+'</div>'+(isSpv()?'<div class="note" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span>Khusus SPV / akun master: bersihkan data Receiving (sesi, STTB, koli, info PO) sebelum go-live.</span><button class="button secondary" data-wiperecv="1" type="button" style="color:#b3261e">Hapus semua data Receiving</button></div>':'');
  }
 
  // ---- 2. sesi berjalan: penerimaan (hijau) lalu validasi (centang)
@@ -2124,7 +2124,7 @@ init();
   '<div class="ob-actions">'+
   (phase==='Berjalan'?'<button class="button secondary" data-addtoggle="1" type="button">'+(showAdd?'Tutup form STTB':'+ Tambah STTB / resi')+'</button><button class="button" id="iv2-tovalid" type="button">Selesai penerimaan, mulai validasi</button>':'')+
   (val?'<button class="button secondary" id="iv2-toback" type="button">Kembali ke penerimaan</button><button class="button secondary" data-validall="1" type="button">Validasi semua yang hijau</button><button class="button" id="iv2-finish" type="button">Selesaikan validasi</button>':'')+
-  '<button class="button secondary" id="iv2-leave" type="button">Keluar dari sesi</button></div></div>';
+  '<button class="button secondary" id="iv2-leave" type="button" title="Kembali" aria-label="Kembali" style="font-size:18px;line-height:1;padding:6px 14px">&larr;</button></div></div>';
   if(phase==='Berjalan'&&(showAdd||!rs.length)){
    h+='<div class="card" style="margin-top:12px"><h3>Tambah STTB / resi</h3><p class="sub">Isi dari surat jalan ekspedisi: nomor STTB dan kode PO. Total koli PO diisi sekali; layar menampilkan semua nomor koli dari 1 sampai total, dan Anda menandai yang benar-benar datang.</p>'+
    '<div class="form-grid"><div class="field"><label for="iv2-resi">No. STTB / resi</label><input id="iv2-resi" autocomplete="off" inputmode="text"></div>'+
@@ -2371,13 +2371,16 @@ init();
   if(b.dataset.ttbdoc){ttbOut(b.dataset.ttbdoc,true);return}
   if(b.id==='iv2-kopsave'){const o={};['nama','unit','alamat','telp','kaki'].forEach(k=>{o[k]=($('iv2-kop-'+k).value||'').trim()});try{localStorage.setItem(KOPK,JSON.stringify(o))}catch(e){}setMsg('Kop tanda terima disimpan di perangkat ini.');return}
   if(b.dataset.inc){openIncoming(b.dataset.inc);return}
+  if(b.dataset.sesedit){const x=view('UNLOADING_SESI').find(y=>y.id===b.dataset.sesedit);if(x)editSesi(x);return}
+  if(b.dataset.sesdel){const x=view('UNLOADING_SESI').find(y=>y.id===b.dataset.sesdel);if(x)delSesi(x);return}
+  if(b.dataset.wiperecv){wipeRecv();return}
   if(b.id==='iv2-addresi')return addResi();
   if(b.dataset.resiedit){const r=view('UNLOADING_RESI').find(x=>x.id===b.dataset.resiedit);if(r)editResi(r);return}
   if(b.dataset.residel){const r=view('UNLOADING_RESI').find(x=>x.id===b.dataset.residel);if(r)delResi(r);return}
   if(b.dataset.total){const po=b.dataset.total,v=prompt('Total koli untuk PO '+po+' (seluruh pengiriman)');if(v&&+v>0)enq('PO_INFO',Object.assign({id:po,vendor:vendorOfPo(po),pekan:'',catatan:'',diperbarui:today()},view('PO_INFO').find(x=>x.id===po)||{},{total_koli:String(+v)}));return}
   if(b.dataset.mt){const[t,id,act]=b.dataset.mt.split('|'),r=view(t).find(x=>x.id===id);if(!r)return;if(act==='toggle')enq(t,Object.assign({},r,{status:r.status==='Tidak aktif'?'Aktif':'Tidak aktif'}));else{const n=prompt('Ubah nama',r.nama||'');if(n&&n.trim())enq(t,Object.assign({},r,{nama:n.trim()}));if(t==='MASTER_VENDOR'){const p=prompt('Awalan kode PO (mis. BY) - kosongkan bila tidak ada',r.pola_po||'');if(p!==null){const em=prompt('Email supplier (dipakai di file import MOKA)',r.email||'');enq(t,Object.assign({},r,{nama:(n&&n.trim())||r.nama,pola_po:p.trim().toUpperCase(),email:em===null?(r.email||''):em.trim()}))}}}return}
   if(b.dataset.madd){const t=b.dataset.madd,g=k=>($('iv2-m-'+t+'-'+k)||{value:''}).value.trim();const nama=g('nama');if(!nama)return setMsg('Isi nama dulu.',true);
-   const row={id:nama.toUpperCase(),nama,status:'Aktif',catatan:g('catatan')};if(t==='MASTER_VENDOR'){row.kode=g('kode');row.pola_po=g('pola_po').toUpperCase();row.pks=g('pks');row.email=g('email')}if(t==='MASTER_EKSPEDISI')row.kontak=g('kontak');enq(t,row);sec.querySelectorAll('input[id^="iv2-m-'+t+'"]').forEach(i=>i.value='');setMsg(nama+' ditambahkan.');return}
+   const row={id:nama.toUpperCase(),nama,status:'Aktif',catatan:g('catatan')};if(t==='MASTER_VENDOR'){row.kode=g('kode');row.pola_po=g('pola_po').toUpperCase();row.pks=g('pks');row.email=g('email')}if(t==='MASTER_EKSPEDISI')row.kontak=g('kontak');enq(t,row);document.querySelectorAll('input[id^="iv2-m-'+t+'"]').forEach(i=>i.value='');setMsg(nama+' ditambahkan.');return}
   if(b.id==='iv2-hppsave'){const lines=($('iv2-hpp').value||'').split('\n').map(s=>s.trim()).filter(Boolean);lines.forEach(l=>{const p=l.split(/[;\t]/);enq('MASTER_HPP',{id:poKey(p[0]),vendor:(p[1]||'').trim(),status_hpp:'Ada',catatan:''})});$('iv2-hpp').value='';setMsg(lines.length+' PO disimpan ke Master HPP.')}
  }
  function addResi(){
@@ -2439,6 +2442,71 @@ init();
    if(mine&&(isTent(st)||isFinal(st))){bad.push(n+' (sudah ditandai)');return}
    if(mode==='bad'){if(list.length===1){openProblem(r,n,k,false);ok.push(n)}else bad.push(n+' (mode masalah: satu per satu)')}else{setKoli(r,n,'Datang','');ok.push(n)}});
   setMsg((ok.length?(phase==='Validasi'?'Tervalidasi: ':'In-Koli: ')+compress(ok)+'. ':'')+(bad.length?'Tidak diproses: '+bad.join(', ')+'.':''),!ok.length&&bad.length>0)}
+ // ---- keterangan "Unloading ke-N" per sesi (menghitung pengantaran ke berapa untuk PO di sesi itu)
+ const tkey=s=>String(s.tanggal||'')+' '+String(s.jam_mulai||'').padStart(5,'0');
+ function ordOf(s){
+  const all=view('UNLOADING_SESI'),R2=view('UNLOADING_RESI'),m=/Unloading ke-(\d+)/.exec(s.catatan||'');let best=m?+m[1]:0;
+  [...new Set(R2.filter(r=>r.sesi_id===s.id).map(r=>poKey(r.po)))].forEach(po=>{const n=all.filter(x=>x.id!==s.id&&R2.some(r=>r.sesi_id===x.id&&poKey(r.po)===po)&&tkey(x)<tkey(s)).length+1;if(n>best)best=n});
+  return best||1}
+ // ---- panel SPV / akun master: ubah, buka kembali, atau hapus sesi unloading (revisi dan bersih-bersih simulasi)
+ const isSpv=()=>level()==='supervisor';
+ function editSesi(s){
+  if(!isSpv())return;
+  const staff=Object.entries((()=>{try{return staffMaster}catch(e){return{}}})()).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort(),eks=activeEks();
+  const names=[...new Set(eks.map(x=>x.nama).concat([s.ekspedisi]))];
+  const m=modal('<h3>Ubah sesi unloading</h3><p class="sub">Hanya SPV / akun master. Mengubah ekspedisi atau tanggal ikut memperbarui STTB dan koli pada sesi ini. Status <b>Berjalan</b> membuka kembali sesi yang sudah selesai supaya STTB dan koli bisa diubah.</p>'+
+   '<label style="font-weight:600">Ekspedisi</label><select id="iv2-s-eks" style="width:100%">'+names.map(n=>'<option'+(n===s.ekspedisi?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Operator penerima</label><select id="iv2-s-op" style="width:100%">'+staff.map(([c,p])=>'<option value="'+esc(c)+'"'+(c===s.pic_kode?' selected':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</select>'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Tanggal</label><input id="iv2-s-tgl" type="date" value="'+esc(s.tanggal)+'" style="width:100%">'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Jam mulai</label><input id="iv2-s-jm" type="time" value="'+esc(String(s.jam_mulai||'').padStart(5,'0'))+'" style="width:100%">'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Jam selesai</label><input id="iv2-s-js" type="time" value="'+esc(String(s.jam_selesai||'').padStart(5,'0')==='00000'?'':String(s.jam_selesai||'').padStart(5,'0'))+'" style="width:100%">'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Status</label><select id="iv2-s-st" style="width:100%">'+['Berjalan','Validasi','Selesai'].map(x=>'<option'+(x===(s.status||'Berjalan')?' selected':'')+'>'+x+'</option>').join('')+'</select>'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Catatan</label><input id="iv2-s-cat" value="'+esc(s.catatan||'')+'" style="width:100%">'+
+   '<p id="iv2-s-msg" class="sub"></p><div class="ob-actions"><button class="button" id="iv2-s-ok" type="button">Simpan</button><button class="button secondary" id="iv2-s-x" type="button">Batal</button></div>');
+  const q=sel=>m.querySelector(sel);q('#iv2-s-x').onclick=()=>m.remove();
+  q('#iv2-s-ok').onclick=()=>{
+   const ek=q('#iv2-s-eks').value,op=q('#iv2-s-op').value,tgl=q('#iv2-s-tgl').value,jm=q('#iv2-s-jm').value,js=q('#iv2-s-js').value,st=q('#iv2-s-st').value;
+   if(!tgl){q('#iv2-s-msg').textContent='Isi tanggal.';q('#iv2-s-msg').style.color='#b3261e';return}
+   enq('UNLOADING_SESI',Object.assign({},s,{ekspedisi:ek,pic_kode:op,pic_nama:nameOf(op),tanggal:tgl,jam_mulai:jm||s.jam_mulai,jam_selesai:st==='Selesai'?(js||s.jam_selesai||nowHM()):js,status:st,catatan:q('#iv2-s-cat').value.trim()}));
+   if(ek!==s.ekspedisi||tgl!==s.tanggal){
+    view('UNLOADING_RESI').filter(r=>r.sesi_id===s.id).forEach(r=>enq('UNLOADING_RESI',Object.assign({},r,{ekspedisi:ek,tanggal:tgl})));
+    view('KOLI').filter(k=>k.sesi_id===s.id).forEach(k=>enq('KOLI',Object.assign({},k,{ekspedisi:ek,tanggal:tgl})))}
+   m.remove();setMsg('Sesi diperbarui.')}}
+ function purgePoInfo(pos,skipResi,skipKoli){
+  pos.forEach(po=>{const other=view('UNLOADING_RESI').some(x=>!skipResi.has(x.id)&&poKey(x.po)===po)||view('KOLI').some(k=>!skipKoli.has(k.id)&&poKey(k.po)===po);if(!other&&view('PO_INFO').some(x=>x.id===po))enqDel('PO_INFO',po)})}
+ function delSesi(s){
+  if(!isSpv())return;
+  const rs=view('UNLOADING_RESI').filter(r=>r.sesi_id===s.id),ks=view('KOLI').filter(k=>k.sesi_id===s.id);
+  if(!confirm('Hapus sesi unloading '+s.ekspedisi+' '+s.tanggal+' '+s.jam_mulai+'?\n'+rs.length+' STTB dan '+ks.length+' koli pada sesi ini ikut dihapus.\nTidak bisa dibatalkan.'))return;
+  const pos=[...new Set(rs.map(r=>poKey(r.po)))];
+  rs.forEach(r=>enqDel('UNLOADING_RESI',r.id));ks.forEach(k=>enqDel('KOLI',k.id));enqDel('UNLOADING_SESI',s.id);
+  purgePoInfo(pos,new Set(rs.map(r=>r.id)),new Set(ks.map(k=>k.id)));
+  taskEdit(arr=>{arr.forEach(t=>{if(t.id==='TR-'+s.id&&t.status!=='selesai')t.status='batal'})});
+  if(curId===s.id){curId='';try{localStorage.removeItem(SK)}catch(e){}}
+  setMsg('Sesi dihapus.')}
+ function wipeRecv(){
+  if(!isSpv())return;
+  const S=view('UNLOADING_SESI'),R=view('UNLOADING_RESI'),K=view('KOLI'),P=view('PO_INFO');
+  if(!S.length&&!R.length&&!K.length)return setMsg('Tidak ada data receiving.');
+  if(!confirm('Hapus SEMUA data Receiving: '+S.length+' sesi, '+R.length+' STTB, '+K.length+' koli, dan '+P.length+' info PO (total koli)?\nIni untuk membersihkan data simulasi sebelum go-live. Tidak bisa dibatalkan.'))return;
+  if(prompt('Ketik HAPUS untuk melanjutkan:')!=='HAPUS')return setMsg('Dibatalkan.');
+  K.forEach(k=>enqDel('KOLI',k.id));R.forEach(r=>enqDel('UNLOADING_RESI',r.id));S.forEach(s=>enqDel('UNLOADING_SESI',s.id));P.forEach(p=>enqDel('PO_INFO',p.id));
+  taskEdit(arr=>{arr.forEach(t=>{if(/^TR-/.test(t.id)&&t.status!=='selesai')t.status='batal'})});
+  curId='';try{localStorage.removeItem(SK)}catch(e){}setMsg('Data receiving dihapus.')}
+ // ---- Master data WMS dipindah ke halaman Master Data (modul Kontrol)
+ function mountMaster(){
+  const pg=document.getElementById('master');if(!pg||document.getElementById('wms-master-host'))return;
+  const h=document.createElement('section');h.id='wms-master-host';h.className='card';h.style.marginTop='18px';h.hidden=true;
+  h.innerHTML='<div class="card-head"><div><h2>Master data WMS (Inbound)</h2><p class="sub">Vendor, ekspedisi, area staging, HPP, kop tanda terima, dan master bin. Dipakai di form Unloading dan Put Away.</p></div></div><div id="iv2-mb"></div>';
+  pg.appendChild(h);
+  [['click',onClick],['change',onChange],['input',onInput],['keydown',onKey]].forEach(p=>h.addEventListener(p[0],p[1]));
+  let pulled=0;
+  setInterval(()=>{
+   if(document.hidden)return;const on=pg.classList.contains('active')&&canAdmin();h.hidden=!on;if(!on)return;
+   if(Date.now()-pulled>20000){pulled=Date.now();try{pull(false)}catch(e){}}
+   const host=h.querySelector('#iv2-mb'),html=htmlMaster();
+   if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!=='')el.value=vals[el.id]});if(id&&$(id)){$(id).focus();try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
+  },1500)}
  function onChange(e){
   if(e.target.id==='iv2-filt'){filt=e.target.value;render()}
  }
@@ -2458,6 +2526,7 @@ init();
  }
  setInterval(()=>{flush();if(sec.classList.contains('active'))pull()},15000);setInterval(()=>{try{if(queue().length)flush()}catch(e){}},8000);
  window.addEventListener('online',flush);
+ try{mountMaster()}catch(e){}
  window.WOSGudang={api:{allowTab,storeCode,queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;dv++}}},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
 })();
 </script>
