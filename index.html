@@ -981,7 +981,7 @@ function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),d
 
 function navVisibility(){
  const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory'))o.push('wms-inventory');if(!o.includes('wms-inbound'))o.unshift('wms-inbound');return o};
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project',...(attendanceState()==='in'&&roleCats().length?['tugas']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -3697,19 +3697,49 @@ init();
   view('PROJECT').filter(p=>p.status==='Berjalan'&&String(p.peserta||'').split(',').includes(who)).forEach(p=>{const L=view('PROJECT_LOG').filter(l=>l.project===p.id),done=L.reduce((a,l)=>a+num(l.qty),0),rem=Math.max(0,num(p.target_qty)-done),ps=String(p.peserta).split(',').filter(Boolean).length||1;out.push({jenis:'Project',judul:p.judul,detail:rem+' '+p.satuan+' tersisa dari '+p.target_qty+(p.deadline?' · tenggat '+p.deadline:''),est:[['Sisa pekerjaan (bagian Anda)',rem*num(p.menit_per_satuan)/ps]],status:'Berjalan',menu:'project'})});
   return out}
  const MINP=t=>t.est.reduce((a,x)=>a+x[1],0);
+ // ---- dashboard performa pribadi (hanya milik akun yang login; SPV / akun master bisa memilih karyawan)
+ let perfP='bulan',perfWho='';
+ const perfRange=()=>{const t=today();return perfP==='hari'?[t,t]:perfP==='minggu'?[back(6),t]:perfP==='bulan'?[t.slice(0,8)+'01',t]:[back(59),t]};
+ function perfCalc(who){
+  const [f,t]=perfRange(),inR=d=>{d=String(d||'').slice(0,10);return d>=f&&d<=t};
+  const dok=view('PICK_DOK'),pk=view('PICK_KOLI').filter(k=>k.picker===who&&inR(k.tanggal)),items=view('PICK_ITEM'),gr=view('PICK_GR');
+  const mine=new Set(pk.map(k=>k.dok+'|'+num(k.koli)));
+  const rows=items.filter(r=>r.kategori!=='OTHER'&&mine.has(r.dok+'|'+num(r.koli))&&(r.status==='Sesuai'||r.status==='Selisih'));
+  const q=r=>num(r.qty_actual)||num(r.qty);
+  const byStore={};pk.forEach(k=>{const d=dok.find(x=>x.id===k.dok)||{},o=d.outlet||k.dok,e=byStore[o]||(byStore[o]={kode:d.kode||'',koli:0,pcs:0});e.koli++});
+  rows.forEach(r=>{const d=dok.find(x=>x.id===r.dok)||{},e=byStore[d.outlet||r.dok];if(e)e.pcs+=q(r)});
+  const kol=view('KOLI').filter(k=>k.pic_kode===who&&inR(k.tanggal)&&(k.status==='Diterima'||k.status==='Bermasalah')),gc=view('GR_COUNT').filter(r=>r.operator===who&&inR(r.tanggal)),pa=view('PUTAWAY').filter(r=>r.operator===who&&inR(r.tanggal));
+  const lc=view('LC_TASK').filter(r=>r.operator===who&&inR(r.tanggal)&&['OK','Selisih'].includes(r.status));
+  return{f,t,koli:pk.length,koliDone:pk.filter(k=>!['Ditugaskan','Picking'].includes(k.status)).length,pcs:rows.reduce((a,r)=>a+q(r),0),sku:new Set(rows.map(r=>U(r.item))).size,lines:rows.length,
+   stores:Object.entries(byStore).sort((a,b)=>b[1].pcs-a[1].pcs),selisih:rows.filter(r=>r.status==='Selisih').length,salah:rows.filter(r=>r.vp==='Salah'||r.vp==='Dikoreksi').length,
+   miss:gr.filter(g=>mine.has(g.dok+'|'+num(g.koli))&&g.status&&!/sesuai|ok|selesai/i.test(g.status)).length,
+   recv:kol.length,recvBad:kol.filter(k=>k.status==='Bermasalah').length,cKoli:new Set(gc.map(r=>r.po+'|'+r.no_koli)).size,cPcs:gc.reduce((a,r)=>a+num(r.qty_actual),0),pKoli:new Set(pa.map(r=>r.po+'|'+r.no_koli)).size,pPcs:pa.reduce((a,r)=>a+num(r.qty),0),lc:lc.length}}
+ function perfCard(who){
+  const P=perfCalc(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',fmt=n=>Math.round(n).toLocaleString('id-ID');
+  const pb=[['hari','Hari ini'],['minggu','7 hari'],['bulan','Bulan ini'],['semua','60 hari']].map(o=>'<button class="button'+(perfP===o[0]?'':' secondary')+'" data-perfp="'+o[0]+'" type="button" style="padding:4px 10px">'+o[1]+'</button>').join(' ');
+  return '<div class="an-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div><h3 style="margin:0">Performa · '+esc(nameOf(who))+'</h3><p class="sub" style="margin:0">'+esc(P.f)+' s/d '+esc(P.t)+'</p></div><div>'+pb+'</div></div>'+
+   '<h4 style="margin:12px 0 6px">Outbound · Picking</h4><div class="an-kpi">'+k('Koli dikerjakan',P.koliDone+' / '+P.koli,'selesai dari yang ditugaskan')+k('Total pcs',fmt(P.pcs),P.lines+' baris item')+k('SKU berbeda',P.sku,'jenis item')+k('Toko tujuan',P.stores.length,'toko')+k('Item selisih',P.selisih,'bin / qty berbeda saat picking',P.selisih?'o':'g')+k('Koreksi verifikasi',P.salah,'ditemukan salah saat verifikasi',P.salah?'r':'g')+k('Temuan GR Outlet',P.miss,'miss-picking di toko',P.miss?'r':'g')+'</div>'+
+   (P.stores.length?'<div class="an-wrap" style="margin-top:8px"><table class="an-t"><thead><tr><th>Toko</th><th>Kode</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+P.stores.map(([o,e])=>'<tr><td>'+esc(o)+'</td><td>'+esc(e.kode)+'</td><td>'+e.koli+'</td><td>'+fmt(e.pcs)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada picking pada periode ini.</p>')+
+   '<h4 style="margin:14px 0 6px">Inbound dan lainnya</h4><div class="an-kpi">'+k('Koli diterima (unloading)',P.recv,P.recvBad?P.recvBad+' bermasalah':'tanpa temuan')+k('Counting',P.cKoli+' koli',fmt(P.cPcs)+' pcs')+k('Put away',P.pKoli+' koli',fmt(P.pPcs)+' pcs')+k('Cycle count / opname',P.lc,'bin selesai dihitung')+'</div></div>'}
+ function perfPicker(){
+  const me=code();if(!perfWho)perfWho=me;
+  const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>!p.out).sort((a,b)=>a[1].name.localeCompare(b[1].name));
+  return '<div class="card" style="margin-top:14px"><label class="sub" style="display:block">Lihat performa karyawan (khusus SPV / akun master)<select data-perfwho="1" style="display:block;margin-top:4px">'+ops.map(([c,p])=>'<option value="'+esc(c)+'"'+(c===perfWho?' selected':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</select></label></div>'+perfCard(perfWho)}
  function drawTugas(s){
   const adm=canAdmin(),me=code();let h='';
   if(V3.err())h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(V3.err())+'</p>';
   const card=(t,who)=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><strong>'+esc(t.judul)+'</strong><span class="tag amber">'+esc(t.jenis)+'</span></div><p class="sub">'+esc(t.detail)+' · status '+esc(t.status)+'</p><div style="display:flex;gap:8px;flex-wrap:wrap">'+t.est.map(e=>'<span class="tag green">Est. '+esc(e[0])+' '+esc(fm(e[1]))+'</span>').join('')+'<span class="tag">Total est. '+esc(fm(MINP(t)))+'</span></div>'+(who?'':'<div class="ob-actions"><button class="button secondary" data-v3go="'+esc(t.menu)+'" type="button">Buka menu</button></div>')+'</div>';
-  if(!adm){const t=myTasks(me);h='<div class="card"><h3 style="margin:0">Tugas saya</h3><p class="sub">'+esc(nameOf(me))+' · '+esc(today())+'. Estimasi waktu dihitung dari Master Norm yang berlaku, sebagai patokan beban kerja.</p>'+(t.length?'<p><strong>Total beban kerja: '+esc(fm(t.reduce((a,x)=>a+MINP(x),0)))+'</strong> dari '+t.length+' tugas</p>':'')+'</div>'+(t.length?t.map(x=>card(x)).join(''):'<p class="note" style="margin-top:12px">Belum ada tugas untuk Anda. Tugas dari Admin atau SPV akan muncul di sini dan di notifikasi.</p>')+h}
+  if(level()!=='supervisor'){const t=myTasks(me);h='<div class="card"><h3 style="margin:0">Tugas saya</h3><p class="sub">'+esc(nameOf(me))+' · '+esc(today())+'. Estimasi waktu dihitung dari Master Norm yang berlaku, sebagai patokan beban kerja.</p>'+(t.length?'<p><strong>Total beban kerja: '+esc(fm(t.reduce((a,x)=>a+MINP(x),0)))+'</strong> dari '+t.length+' tugas</p>':'')+'</div>'+(t.length?t.map(x=>card(x)).join(''):'<p class="note" style="margin-top:12px">Belum ada tugas untuk Anda. Tugas dari Admin atau SPV akan muncul di sini dan di notifikasi.</p>')+h;h+=perfCard(me)}
   else{
    const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
    const rows=ops.map(([c,p])=>({c,n:p.name,t:myTasks(c)})).filter(x=>x.t.length);
-   h='<div class="card"><h3 style="margin:0">Beban kerja tim hari ini</h3><p class="sub">Tugas aktif per operator dengan estimasi waktu dari Master Norm.</p></div>'+(rows.length?'<div class="card" style="margin-top:12px;overflow:auto"><table><thead><tr><th>Operator</th><th>Tugas</th><th>Est. total</th></tr></thead><tbody>'+rows.map(x=>'<tr><td><strong>'+esc(x.n)+'</strong><div class="sub">'+esc(x.c)+'</div></td><td>'+x.t.map(t=>esc(t.judul)+' <span class="sub">('+esc(t.jenis)+' · '+esc(t.est.map(e=>e[0]+' '+fm(e[1])).join(', '))+')</span>').join('<br>')+'</td><td><strong>'+esc(fm(rows&&x.t.reduce((a,t)=>a+MINP(t),0)))+'</strong></td></tr>').join('')+'</tbody></table></div>':'<p class="note" style="margin-top:12px">Belum ada tugas aktif.</p>')+h}
+   h='<div class="card"><h3 style="margin:0">Beban kerja tim hari ini</h3><p class="sub">Tugas aktif per operator dengan estimasi waktu dari Master Norm.</p></div>'+(rows.length?'<div class="card" style="margin-top:12px;overflow:auto"><table><thead><tr><th>Operator</th><th>Tugas</th><th>Est. total</th></tr></thead><tbody>'+rows.map(x=>'<tr><td><strong>'+esc(x.n)+'</strong><div class="sub">'+esc(x.c)+'</div></td><td>'+x.t.map(t=>esc(t.judul)+' <span class="sub">('+esc(t.jenis)+' · '+esc(t.est.map(e=>e[0]+' '+fm(e[1])).join(', '))+')</span>').join('<br>')+'</td><td><strong>'+esc(fm(rows&&x.t.reduce((a,t)=>a+MINP(t),0)))+'</strong></td></tr>').join('')+'</tbody></table></div>':'<p class="note" style="margin-top:12px">Belum ada tugas aktif.</p>')+h;h+=perfPicker()}
   if(s._sig!==h){s._sig=h;s.querySelector('.v3-b').innerHTML=h}}
  V3.mkPage('tugas','Task','Task','Tugas, estimasi waktu, dan beban kerja','attendance',s=>{
   s.innerHTML='<div class="toolbar"><div><h2>Task</h2><span class="sub">Tugas aktif beserta estimasi waktu dari Master Norm</span></div></div><div class="v3-b"></div>';
   s.addEventListener('click',e=>{const b=e.target.closest('[data-v3go]');if(b)document.querySelector('.nav[data-page="'+b.dataset.v3go+'"]')?.click()});
+  s.addEventListener('click',e=>{const b=e.target.closest('[data-perfp]');if(b){perfP=b.dataset.perfp;s._sig='';drawTugas(s)}});
+  s.addEventListener('change',e=>{if(e.target.dataset.perfwho&&level()==='supervisor'){perfWho=e.target.value;s._sig='';drawTugas(s)}});
   s._draw=()=>drawTugas(s);s._show=()=>{drawTugas(s);V3.load(true)}});
  setInterval(()=>{if(!document.hidden){const p=document.querySelector('.page.active');if(p&&p._draw)V3.load(false)}},30000);
 })();
@@ -4357,6 +4387,26 @@ init();
    try{window.__renderAttSummary&&window.__renderAttSummary()}catch(e){}
   }catch(e){const s=document.getElementById('attendance-summary');if(s)s.textContent='Presensi GAGAL disimpan: penyimpanan browser penuh atau diblokir. Hubungi SPV.'}
   return r};
+})();
+</script>
+<script>
+// PRIVASI TIM: akun operator dan admin hanya melihat data miliknya sendiri di halaman Attendance, Compliance, dan Project (SPV / akun master tetap melihat semua).
+(()=>{
+ const LV=()=>{try{return sessionStorage.getItem('wos-session-v1')||''}catch(e){return''}},ME=()=>{try{return sessionStorage.getItem('wos-session-code')||''}catch(e){return''}};
+ let cache={n:-1,list:[]};
+ const names=()=>{try{const k=Object.keys(staffMaster).length;if(cache.n!==k){cache={n:k,list:Object.entries(staffMaster).map(([c,p])=>({c,n:String(p.name||'').toUpperCase()})).filter(x=>x.n.length>=4)}}return cache.list}catch(e){return[]}};
+ function sweep(){
+  const lv=LV();if(lv!=='operator'&&lv!=='admin')return;
+  const me=ME(),mp=(typeof staffMaster!=='undefined'&&staffMaster[me])||null;if(!mp)return;
+  const mine=String(mp.name).toUpperCase(),others=names().filter(x=>x.c!==me&&x.n!==mine&&!mine.includes(x.n)&&!x.n.includes(mine));
+  const foreign=t=>{t=String(t||'').toUpperCase();if(t.includes(mine)||t.includes('('+me+')'))return false;return others.some(o=>t.includes(o.n)||t.includes('('+o.c+')'))};
+  document.querySelectorAll('#attendance tbody tr,#attendance .mini,#compliance tbody tr,#compliance .mini,#compliance li,#project tbody tr,#project .mini').forEach(el=>{
+   const hide=foreign(el.textContent);
+   if(hide){if(el.dataset.pv!=='1'){el.dataset.pv='1';el.style.display='none'}}else if(el.dataset.pv==='1'){el.dataset.pv='';el.style.display=''}});
+  document.querySelectorAll('#attendance .metric-label').forEach(m=>{if(!/Sudah check-(in|out)|Pengajuan menunggu/.test(m.textContent))return;const c=m.closest('.card');if(c&&c.querySelectorAll('.metric-label').length===1)c.style.display='none'});
+  ['jotm-employee','late-employee','other-leave-employee'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;[...sel.options].forEach(o=>{const t=String(o.textContent||'').toUpperCase();if(o.value&&!t.includes(mine)&&!t.includes('('+me+')'))o.remove()})});
+ }
+ setInterval(()=>{if(!document.hidden)try{sweep()}catch(e){}},1500);
 })();
 </script>
 </body></html>
