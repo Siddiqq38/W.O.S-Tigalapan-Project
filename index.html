@@ -4442,5 +4442,24 @@ init();
  setInterval(draw,2500);setTimeout(draw,1500);
 })();
 </script>
+<script>
+// LABEL APPROVAL: kata "SPV" dihilangkan dari tombol, status, dan keterangan approval/pengajuan (hanya tampilan; data dan logika tidak berubah).
+(()=>{
+ const RULES=[[/Setelah SPV menyetujui/g,'Setelah disetujui'],[/SPV menyetujui/g,'Approval menyetujui'],[/saat SPV approve/g,'saat di-approve'],[/\s+oleh SPV(?=[\s.…,;:)]|$)/g,''],[/SPV menandai/g,'Petugas menandai'],[/Pilih mode SPV (?:atau Manager )?untuk (?:approval|menyetujui)/g,'Hanya akun approver yang dapat menyetujui'],[/Role aktif:\s*SPV\s*[—-]\s*/g,'Bertindak sebagai: '],[/Menunggu SPV\s*\/\s*Manager/g,'Menunggu approval'],[/Menunggu approval SPV/g,'Menunggu approval'],[/Menunggu SPV/g,'Menunggu approval'],[/Setujui SPV/g,'Setujui'],[/Ajukan ke SPV/g,'Ajukan'],[/Kirim untuk approval SPV\/MGR/g,'Kirim untuk approval'],[/Approval SPV\s*\/\s*Manager/g,'Approval'],[/Approval SPV/g,'Approval'],[/^\s*SPV\/MGR\s*$/g,'Approval'],[/Status \/ aksi SPV/g,'Status / aksi'],[/^\s*Ke SPV\s*$/g,''],[/\s+(?:ke|kepada)\s+SPV(?:\/MGR)?(?=[\s.…,;:)]|$)/gi,''],[/dikirim ke approval SPV\/MGR/g,'dikirim untuk approval'],[/dibuka SPV \(kompensasi\)/g,'dibuka (izin pulang awal)'],[/disetujui SPV/g,'disetujui'],[/verifikasi SPV/g,'verifikasi'],[/Checklist approval SPV/g,'Checklist approval']];
+ const ROOTS='#attendance,#compliance,#project,#tugas,#evaluasi';
+ function fix(s){let o=s;for(const [r,t] of RULES)o=o.replace(r,t);return o}
+ function sweep(){
+  if(document.hidden)return;
+  document.querySelectorAll(ROOTS).forEach(root=>{
+   if(!root.classList.contains('active'))return;
+   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);let n;
+   while((n=w.nextNode())){const v=n.nodeValue;if(v&&v.indexOf('SPV')>=0){const f=fix(v);if(f!==v)n.nodeValue=f}}
+   root.querySelectorAll('#simulation-role option').forEach(o=>{if(o.textContent.trim()==='SPV')o.textContent='Approver'});
+   root.querySelectorAll('[placeholder*="SPV"],[title*="SPV"]').forEach(e=>{['placeholder','title'].forEach(a=>{const v=e.getAttribute(a);if(v&&v.indexOf('SPV')>=0){const f=fix(v);if(f!==v)e.setAttribute(a,f)}})});
+  });
+ }
+ setInterval(()=>{try{sweep()}catch(e){}},900);
+})();
+</script>
 </body></html>
 
