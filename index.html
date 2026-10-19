@@ -2538,9 +2538,9 @@ init();
  // nomor koli bebas: ketik nomor yang benar-benar datang pada STTB ini (tidak harus berurutan)
  function addFree(r,s,raw){
   const list=parseKoli(raw);if(!list.length)return setMsg('Ketik nomor koli, boleh banyak sekaligus: 1,2,30,50 atau 12-29.',true);
-  const po=poKey(r.po),tot=totalOf(po),K=kmap(),ok=[],bad=[],vOk=[];
+  const po=poKey(r.po),decl=view('UNLOADING_RESI').filter(x=>poKey(x.po)===po&&isFree(x)).reduce((a,x)=>a+freeExp(x),0),tot=Math.max(totalOf(po),decl),K=kmap(),ok=[],bad=[],vOk=[];let over=null;
   list.forEach(n=>{
-   if(tot>0&&n>tot){bad.push(n+' (di luar total PO '+tot+')');return}
+   if(tot>0&&n>tot){if(over===null)over=confirm('Nomor koli '+n+' melebihi total koli PO ('+tot+'). Total PO di sistem mungkin kurang. Tetap tambahkan nomor di atas '+tot+'?');if(!over){bad.push(n+' (di luar total PO '+tot+')');return}}
    const k=K.get(po+'|'+n),st=k&&k.status,mine=!!k&&k.sesi_id===s.id&&st!=='Batal';
    if(k&&isFinal(st)&&!mine){bad.push(n+' (sudah diterima '+k.tanggal+')');return}
    if(mine&&k.resi!==r.resi){if(confirm('Koli '+n+' sudah tercatat pada STTB '+k.resi+'. Pindahkan ke STTB '+r.resi+'?')){setKoli(r,n,st,k.keterangan||'');ok.push(n)}else bad.push(n+' (di STTB '+k.resi+')');return}
