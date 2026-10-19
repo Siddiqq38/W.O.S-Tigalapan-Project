@@ -34,6 +34,15 @@ body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba
 <section class="page" id="master"><div class="toolbar"><div><h2>Master Data</h2><span class="sub">Satu sumber data untuk seluruh modul</span></div><button class="button">+ Tambah data</button></div><div class="grid three"><div class="card"><h3>Employee & team</h3><p class="sub">ID staff, posisi, departemen, team, status aktif, dan riwayat penempatan.</p></div><div class="card"><h3>Shift & area</h3><p class="sub">Jadwal kerja, titik lokasi presensi, area 5R, dan area operasional.</p></div><div class="card"><h3>Activity & norm</h3><p class="sub">Activity, kategori, UoM, standard time, version, dan tanggal berlaku.</p></div><div class="card"><h3>Leave entitlement</h3><p class="sub">Saldo Change Off, hak cuti 12 hari, riwayat penggunaan, dan hari libur.</p></div><div class="card"><h3>Target & score rule</h3><p class="sub">Target kegiatan, checkpoint, target performance, serta bobot score.</p></div><div class="card"><h3>Reference link</h3><p class="sub">Link form kerja spreadsheet per departemen, pemilik, dan status akses.</p></div></div></section>
 <section class="page" id="access"><div class="toolbar"><div><h2>Akses pengguna</h2><span class="sub">Pemilik mengundang email yang terdaftar pada data employee dan mengatur akses per fitur</span></div><button class="button">+ Undang pengguna</button></div><div class="note">Email baru hanya dapat diundang bila sudah ditautkan ke employee aktif. Pemilik dapat menonaktifkan akun, mengubah peran, atau memberi akses tambahan tanpa mengubah data historis.</div><div class="grid two"><div class="card"><div class="card-head"><h2>Pengguna dan peran</h2><span class="sub">Contoh pengaturan</span></div><table><thead><tr><th>Email / pengguna</th><th>Peran</th><th>Cakupan data</th><th>Akses</th></tr></thead><tbody><tr><td><strong>owner@tigalapan.id</strong><br><span class="sub">Pemilik</span></td><td><span class="tag purple">Owner</span></td><td>Semua warehouse</td><td>Semua modul</td></tr><tr><td><strong>spv.dc@tigalapan.id</strong></td><td><span class="tag green">SPV</span></td><td>DC 38</td><td>Operasional & approval</td></tr><tr><td><strong>admin.inbound@tigalapan.id</strong></td><td><span class="tag green">Admin Inbound</span></td><td>Inbound</td><td>Productivity & compliance Inbound</td></tr><tr><td><strong>admin.outbound@tigalapan.id</strong></td><td><span class="tag green">Admin Outbound</span></td><td>Outbound</td><td>Productivity & compliance Outbound</td></tr><tr><td><strong>staff@tigalapan.id</strong></td><td><span class="tag amber">Staff</span></td><td>Data sendiri</td><td>Attendance, pengajuan, foto 5R</td></tr></tbody></table></div><div class="card"><div class="card-head"><h2>Undang dan atur izin</h2><span class="tag purple">Owner only</span></div><div class="form-grid"><div class="field"><label>Email terdaftar</label><input type="email" placeholder="nama@perusahaan.com"></div><div class="field"><label>Employee</label><select><option>Cocokkan dengan master employee</option></select></div><div class="field"><label>Peran</label><select><option>Staff</option><option>Admin Inbound</option><option>Admin Outbound</option><option>Supervisor</option><option>Owner</option></select></div></div><hr class="rule"><h3>Hak fitur tambahan</h3><div class="form-grid"><div class="field"><label>Departemen</label><select><option>Hanya data sendiri</option><option>Inbound</option><option>Outbound</option><option>Semua departemen</option></select></div><div class="field"><label>Report</label><select><option>Lihat saja</option><option>Export</option><option>Tidak ada akses</option></select></div><div class="field"><label>Approval</label><select><option>Tidak dapat approve</option><option>Change Off & cuti</option><option>Semua pengajuan</option></select></div></div><br><button class="button secondary">Kirim undangan</button><p class="sub">Pada sistem produksi, setiap perubahan izin dan undangan dicatat pada audit log.</p></div></div></section>
 </main></div><script>
+(function(){try{const d=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');if(!d||!d.set)return;
+ const watch=el=>el.id==='iv2-b'||(el.classList&&el.classList.contains('v3-b'))||(el.dataset&&el.dataset.phbody!==undefined);
+ Object.defineProperty(Element.prototype,'innerHTML',{configurable:true,get:d.get,set:function(v){
+  if(!watch(this))return d.set.call(this,v);
+  const y=window.scrollY,h=this.offsetHeight,self=this;if(h>0)self.style.minHeight=h+'px';
+  d.set.call(self,v);if(Math.abs(window.scrollY-y)>1)window.scrollTo(0,y);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){self.style.minHeight=''})})}})}catch(e){}
+ // pindah halaman lewat menu: mulai dari atas tanpa lompatan; pindah panel/tab: posisi tetap
+ document.addEventListener('click',function(e){const n=e.target.closest&&e.target.closest('.nav');if(n)setTimeout(function(){window.scrollTo(0,0)},0)},true)})();
 const names={dashboard:['Dashboard operasional','Distribusi Center 38 · Minggu, 20 September 2026'],attendance:['Attendance','Presensi, pengajuan, dan approval'],assignment:['Assignment','Rencana kerja warehouse oleh Supervisor'],productivity:['Productivity','Target, actual, dan progres per tim / operator'],compliance:['Compliance','5R, DRM briefing, dan komplain'],performance:['Performance','Score dan trend kinerja'],coaching:['Coaching','Pengembangan dan follow-up staff'],reports:['Report','Rekap operasional'],master:['Master Data','Konfigurasi data utama W.O.S']};document.querySelectorAll('.nav').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.page;document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.getElementById(id).classList.add('active');document.getElementById('title').textContent=names[id][0];document.getElementById('subtitle').textContent=names[id][1]}));
 names.access=['Akses pengguna','Undangan akun dan pengaturan izin'];
 const accessNav=document.createElement('button');accessNav.className='nav';accessNav.dataset.page='access';accessNav.textContent='Akses pengguna';document.querySelector('.profile').before(accessNav);accessNav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));accessNav.classList.add('active');document.getElementById('access').classList.add('active');document.getElementById('title').textContent=names.access[0];document.getElementById('subtitle').textContent=names.access[1]});
@@ -490,7 +499,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   pendingReview={id:button.dataset.review||button.dataset.resolve,status:button.dataset.status||'resolved'};
   const e=state.events.find(e=>e.id===pendingReview.id);
   $('review-title').textContent=(pendingReview.status==='valid'?'Verifikasi':pendingReview.status==='batal'?'Batalkan':'Tindak lanjut')+' — '+label(e.code)+' · '+e.type;
-  $('review-reason').value='';$('review-panel').hidden=false;$('review-reason').focus();
+  $('review-reason').value='';$('review-panel').hidden=false;$('review-reason').focus({preventScroll:true});
  };
  $('review-cancel').onclick=()=>{pendingReview=null;$('review-panel').hidden=true;};
  $('review-save').onclick=async()=>{
@@ -833,7 +842,7 @@ if(typeof document!=='undefined') (()=>{
   try{localStorage.setItem(EMP,JSON.stringify([...loadAdded(),{code,name,role,createdAt:new Date().toISOString()}]));localStorage.setItem(key,JSON.stringify({...drafts,[code]:{name,idStaff,category,department,team,photoPath:null}}));const inf=JSON.parse(localStorage.getItem(INFO)||'{}')||{};inf[code]={...(inf[code]||{}),nik:idStaff,dept:department};localStorage.setItem(INFO,JSON.stringify(inf))}catch{return msg('Penyimpanan browser penuh / tidak tersedia.')}
   msg(name+' ('+code+') ditambahkan. Memuat ulang agar semua daftar diperbarui...');setTimeout(()=>location.reload(),1000);
  };
- window.__openAddEmployee=()=>{section.closest('details')?.setAttribute('open','');box.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});A('name').focus()};
+ window.__openAddEmployee=()=>{section.closest('details')?.setAttribute('open','');box.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});A('name').focus({preventScroll:true})};
  function decorateCards(){for(const card of cards.querySelectorAll('article.kpi-sheet')){if(card.querySelector('.employee-photo-slot'))continue;const title=card.querySelector('h2');if(!title)continue;const code=codes.find(c=>staffMaster[c].name===title.textContent.trim());if(!code)continue;const wrap=document.createElement('div');wrap.className='employee-photo-slot';wrap.innerHTML='<div class="employee-avatar" role="img" aria-label="Foto '+esc(staffMaster[code].name)+' belum tersedia">'+esc(initials(staffMaster[code].name))+'</div><div><span class="tag amber">Foto belum tersedia</span><p class="sub" style="margin:5px 0 0">Slot foto karyawan · unggah setelah database aktif</p></div>';title.before(wrap)}}
  const style=document.createElement('style');style.textContent='.employee-photo-slot{display:flex;align-items:center;gap:14px;margin-bottom:14px}.employee-avatar{width:70px;height:70px;flex:0 0 70px;display:grid;place-items:center;border-radius:50%;border:2px dashed #98b6cb;background:#eaf3f9;color:#315c76;font-size:23px;font-weight:700}@media(max-width:560px){#employee-master{padding:12px}.employee-photo-slot{gap:10px}.employee-avatar{width:58px;height:58px;flex-basis:58px}}';document.head.append(style);
  new MutationObserver(decorateCards).observe(cards,{childList:true});
@@ -1115,7 +1124,7 @@ function openPassModal(){
    const c=readCreds();c[account.code]={hash:await credHash(account.code,n),changedAt:new Date().toISOString()};if(!saveCreds(c)){msg.textContent='Gagal menyimpan di browser ini.';return}
    msg.style.color='#1b7a46';msg.textContent='Password diubah. Gunakan password baru saat login berikutnya.';setTimeout(()=>m.remove(),1400)}
   catch(e){msg.textContent=e.message||'Gagal mengubah password.'}};
- m.querySelector('#pw-old').focus();
+ m.querySelector('#pw-old').focus({preventScroll:true});
 }
 
 // ---------- panel akun master (hanya supervisor, halaman Settings) ----------
@@ -1165,7 +1174,7 @@ form.onsubmit=async ev=>{ev.preventDefault();const code=$('wos-user').value.trim
   sessionStorage.setItem(CODEKEY,code);sessionStorage.removeItem(IMPKEY);$('wos-pass').value='';start(code)}
  catch(e){err.textContent=e.message||'Login gagal.'}
  finally{btn.disabled=false}};
-const saved=getSession();if(saved)start(saved);else{document.documentElement.classList.add('wos-locked');setTimeout(()=>$('wos-user')?.focus(),50)}
+const saved=getSession();if(saved)start(saved);else{document.documentElement.classList.add('wos-locked');setTimeout(()=>$('wos-user')?.focus({preventScroll:true}),50)}
 })();
 </script>
 <script>
@@ -1543,7 +1552,7 @@ init();
  function headOf(c){return c.querySelector(':scope > .card-head')||c.querySelector(':scope > h2')||c.querySelector(':scope > h3')}
  function scan(){
   document.querySelectorAll('.page .card').forEach(c=>{
-   if(c.querySelector(':scope > .metric-label')||c.querySelector(':scope > .metric')||c.id==='wos-login'||c.closest('#iv2-b'))return;
+   if(c.querySelector(':scope > .metric-label')||c.querySelector(':scope > .metric')||c.id==='wos-login'||c.closest('#iv2-b')||c.closest('[data-phbody]'))return;
    const parentCard=c.parentElement&&c.parentElement.closest('.card');if(parentCard&&!parentCard.matches('details'))return;
    const head=headOf(c);if(!head||c.children.length<2)return;
    if(head.classList.contains('wos-head')&&head.querySelector('.wos-fold-btn'))return;
@@ -2121,7 +2130,7 @@ init();
   if(tab==='recv')html=curId&&sesiNow()?htmlSession():htmlStart();else if(tab==='inc')html=htmlIncoming();else if(tab==='stg')html=htmlStaging();else if(tab==='trk')html=htmlTracking();else html=htmlMaster();
   if(pullErr)html='<p class="note" style="color:#b3261e"><strong>Data gudang belum bisa dimuat.</strong> '+esc(pullErr)+'<br>Bila pesannya "tab tidak dikenal" atau "perlu dipasang ulang": tempel skrip gudang terbaru di Apps Script, jalankan <strong>setup</strong>, lalu <strong>Terapkan > Kelola deployment > Versi baru</strong>.</p>'+html;
   const host=$('iv2-b');if(!host)return;
-  if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!==''&&el.id!=='iv2-jam'&&el.id!=='iv2-tgl')el.value=vals[el.id]});if(id&&$(id)){$(id).focus();try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
+  if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!==''&&el.id!=='iv2-jam'&&el.id!=='iv2-tgl')el.value=vals[el.id]});if(id&&$(id)){$(id).focus({preventScroll:true});try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
  }
 
  // ---- 1. mulai / lanjutkan sesi
@@ -2385,7 +2394,7 @@ init();
   const s=view('UNLOADING_SESI').find(x=>x.id===id);if(!s)return;const html=ttbHtml(s),no=ttbNo(s).replace(/[^A-Za-z0-9]+/g,'-');
   if(word){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+html],{type:'application/msword'}));a.download='Tanda-Terima-'+no+'.doc';document.body.appendChild(a);a.click();a.remove();setMsg('File Word diunduh. Buka dengan Word untuk mengedit.');return}
   const w=window.open('','_blank');if(!w){setMsg('Pop-up diblokir browser. Izinkan pop-up lalu coba lagi, atau pakai tombol Word.',true);return}
-  w.document.open();w.document.write(html);w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},500);
+  w.document.open();w.document.write(html);w.document.close();setTimeout(()=>{try{w.focus({preventScroll:true});w.print()}catch(e){}},500);
  }
 
  // ---- 4. master data
@@ -2520,7 +2529,7 @@ init();
   if(tot>0&&tot!==have)enq('PO_INFO',Object.assign({id:po,vendor:vendorOfPo(po),pekan:'',catatan:'',diperbarui:today()},view('PO_INFO').find(x=>x.id===po)||{},{total_koli:String(tot)}));
   const vs=($('iv2-vsel')||{}).value||'';if(vs&&vs!==vendorOfPo(po))enq('PO_INFO',Object.assign({id:po,vendor:vs,total_koli:'',pekan:'',catatan:'',diperbarui:today()},view('PO_INFO').find(x=>x.id===po)||{},{vendor:vs}));
   const row={id,tanggal:s.tanggal,sesi_id:s.id,resi,po,vendor:vs||vendorOfPo(po),ekspedisi:s.ekspedisi,koli_list:free?'*'+(cnt||''):'',area_staging:g('area'),pic_kode:me()};
-  curResi=id;enq('UNLOADING_RESI',row);['resi','tot','cnt'].forEach(k=>{if($('iv2-'+k))$('iv2-'+k).value=''});setMsg('STTB '+resi+' ditambahkan ('+(free?(cnt?cnt+' koli di STTB ini, nomor bebas':'nomor koli bebas'):(tot||have)+' koli pada PO '+po)+').');$('iv2-resi').focus()}
+  curResi=id;enq('UNLOADING_RESI',row);['resi','tot','cnt'].forEach(k=>{if($('iv2-'+k))$('iv2-'+k).value=''});setMsg('STTB '+resi+' ditambahkan ('+(free?(cnt?cnt+' koli di STTB ini, nomor bebas':'nomor koli bebas'):(tot||have)+' koli pada PO '+po)+').');$('iv2-resi').focus({preventScroll:true})}
  // ---- ubah / hapus STTB (kode PO salah ketik, nomor STTB salah, total koli, vendor, area staging)
  function editResi(r){
   const s=sesiNow();if(!s||(s.status||'Berjalan')==='Selesai')return setMsg('Sesi sudah selesai, STTB tidak bisa diubah.',true);
@@ -2635,7 +2644,7 @@ init();
    if(document.hidden)return;const on=pg.classList.contains('active')&&canAdmin();h.hidden=!on;if(!on)return;
    if(Date.now()-pulled>20000){pulled=Date.now();try{pull(false)}catch(e){}}
    const host=h.querySelector('#iv2-mb'),html=htmlMaster();
-   if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!=='')el.value=vals[el.id]});if(id&&$(id)){$(id).focus();try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
+   if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!=='')el.value=vals[el.id]});if(id&&$(id)){$(id).focus({preventScroll:true});try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
   },1500)}
  function onChange(e){
   if(e.target.id==='iv2-vsel'){e.target.dataset.manual=e.target.value?'1':''}
@@ -2723,7 +2732,7 @@ init();
    html='<div class="card"><h3>Riwayat mutasi</h3><div class="form-grid"><div class="field"><label for="inv-from">Dari tanggal</label><input id="inv-from" type="date" value="'+from+'"></div><div class="field"><label for="inv-to">Sampai tanggal</label><input id="inv-to" type="date" value="'+to+'"></div></div><div class="ob-actions"><button class="button secondary" data-r="0" type="button">Hari ini</button><button class="button secondary" data-r="6" type="button">7 hari</button><button class="button secondary" data-r="29" type="button">30 hari</button><button class="button secondary" id="inv-ref" type="button">Muat ulang</button></div><div style="overflow:auto;margin-top:8px">'+(list.length?'<table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Referensi</th><th>PIC</th></tr></thead><tbody>'+list.map(r=>'<tr><td>'+esc(r.tanggal)+'</td><td>'+esc(r.jenis||'-')+'</td><td>'+esc(r.bin)+'</td><td>'+esc(r.sku)+'</td><td>'+esc(r.item||'')+'</td><td>'+(Number(r.qty_masuk)?num(r.qty_masuk):'-')+'</td><td>'+(Number(r.qty_keluar)?num(r.qty_keluar):'-')+'</td><td>'+esc(r.referensi||'')+'</td><td>'+esc(r.pic_kode||'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada mutasi pada rentang ini.</p>')+'</div></div>'}
   else{
    html='<div class="card"><h3>Internal move (relokasi barang)</h3><p class="sub">Memindahkan barang antar bin, per item dan qty: dari bin asal ke bin tujuan. Setiap pemindahan tercatat sebagai dua mutasi (keluar dari bin asal, masuk ke bin tujuan) dengan satu nomor referensi, sehingga saldo per bin selalu seimbang dan riwayatnya bisa dilacak.</p><p class="sub">Formulir pemindahan akan dibuat di menu Location Control setelah alur dan dokumennya dijelaskan. Hasilnya otomatis muncul di Stok per bin dan Riwayat mutasi di halaman ini.</p></div>'}
-  const b=$('inv-body');if(b&&b.dataset.sig!==html){const ae=document.activeElement&&document.activeElement.id;b.dataset.sig=html;b.innerHTML=html;if(ae==='inv-from'||ae==='inv-to')$(ae).focus()}
+  const b=$('inv-body');if(b&&b.dataset.sig!==html){const ae=document.activeElement&&document.activeElement.id;b.dataset.sig=html;b.innerHTML=html;if(ae==='inv-from'||ae==='inv-to')$(ae).focus({preventScroll:true})}
  }
  setInterval(()=>{if(sec.classList.contains('active'))load()},30000);
 })();
@@ -2987,7 +2996,7 @@ init();
   else if(tabName==='Defect Handling')h+=drawDefect();
   else h+=drawEntry();
   const sig=h;if(body.dataset.sig!==sig){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,key=ae&&ae.dataset&&ae.dataset.pb;body.dataset.sig=sig;body.innerHTML=h;
-   if(key){const el=body.querySelector('[data-pb="'+key+'"]');if(el){el.focus();try{el.setSelectionRange(st,st)}catch(e){}}}else if(id&&$(id)){$(id).focus()}}}
+   if(key){const el=body.querySelector('[data-pb="'+key+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(st,st)}catch(e){}}}else if(id&&$(id)){$(id).focus({preventScroll:true})}}}
  function render(b,name){body=b;if(name!==tabName){cur=null;pu={};msg=''}tabName=name;draw();pullGR(false)}
  document.addEventListener('click',e=>{const x=e.target.closest&&e.target.closest('.kx[data-grdel]');if(!x||!body||!body.contains(x))return;e.stopPropagation();e.preventDefault();const id=x.dataset.grdel,a=view('GR_ASSIGN').find(z=>z.id===id);if(!a||a.status!=='Ditugaskan'||!isSpv())return;if(!confirm('Hapus penugasan koli '+a.no_koli+' (PO '+a.po+') dari '+(a.operator_nama||a.operator)+'?'))return;enqDel('GR_ASSIGN',id);if(a.task_id){const sisa=view('GR_ASSIGN').filter(z=>z.task_id===a.task_id&&z.id!==id&&z.status!=='Batal').length;if(!sisa)taskEdit(arr=>{arr.forEach(t=>{if(t.id===a.task_id&&t.status!=='selesai')t.status='batal'})})}draw()},true);
  document.addEventListener('click',e=>{
@@ -3311,7 +3320,7 @@ init();
 
  // ---- cetak surat jalan dan STTB
  const PCSS='<style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#111}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #444;padding:5px 7px;text-align:left;vertical-align:top}th{background:#eee}h2{margin:0}.sig{display:flex;gap:10px;margin-top:20px}.sig div{flex:1;text-align:center;font-size:12px}.sig i{display:block;height:64px;border-bottom:1px solid #111}@media print{button{display:none}}</style>';
- function printWin(title,html){const w=window.open('','_blank');if(!w){say('Pop-up diblokir browser. Izinkan pop-up untuk mencetak.',true);return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+PCSS+'</head><body>'+html+'<p><button onclick="window.print()">Cetak</button></p></body></html>');w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},500)}
+ function printWin(title,html){const w=window.open('','_blank');if(!w){say('Pop-up diblokir browser. Izinkan pop-up untuk mencetak.',true);return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+PCSS+'</head><body>'+html+'<p><button onclick="window.print()">Cetak</button></p></body></html>');w.document.close();setTimeout(()=>{try{w.focus({preventScroll:true});w.print()}catch(e){}},500)}
  const sigs=l=>'<div class="sig">'+l.map(x=>'<div><i></i>'+esc(x)+'</div>').join('')+'</div>';
  const koliItems=k=>koliRows(k).filter(r=>num(r.qty_actual)>0).concat(koliOthers(k));
  const BLN=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
@@ -3430,7 +3439,7 @@ init();
   else if(tabName==='Receiving Outlet')h+=drawRcv();
   else if(tabName==='GR Outlet')h+=cur&&cur.mode==='gr'?drawGrScreen():drawGrList();
   else h+=drawMasalah();
-  if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(id&&$(id))$(id).focus()}}
+  if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(id&&$(id))$(id).focus({preventScroll:true})}}
  const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet','GR Outlet','Miss-Picking'];
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
@@ -3814,7 +3823,7 @@ init();
   let h=(loadErr?'<p class="note" style="color:#b3261e">Data location control belum bisa dimuat: '+esc(loadErr)+'. Pastikan skrip Google gudang sudah diperbarui (setup lalu deploy versi baru).</p>':'')+(msg?'<p class="note" style="color:'+(msgBad?'#b3261e':'#1b7a46')+'">'+esc(msg)+'</p>':'');
   if(!stokRows.length&&loading)h+='<p class="sub">Memuat stok…</p>';
   h+=tabName==='Layout'?drawLayout():tabName==='Stok Opname'?drawSO():tabName==='Cycle Count'?drawCC():tabName==='Internal Move'?drawMove():tabName==='Adjustment'?drawAdj():drawSaldo();
-  if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&(ae.id||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcrow||ae.dataset.lcs),sel=ae&&ae.selectionStart;body.dataset.sig=h;body.innerHTML=h;if(ae&&ae.dataset&&(ae.dataset.lcrow||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcs)){const k=ae.dataset.lcrow?'lcrow':ae.dataset.lcmv?'lcmv':ae.dataset.lcs?'lcs':'lcaf',el=body.querySelector('['+('data-'+k)+'="'+id+'"]');if(el){el.focus();try{el.setSelectionRange(sel,sel)}catch(e){}}}else if(ae&&ae.id&&$(ae.id))$(ae.id).focus()}}
+  if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&(ae.id||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcrow||ae.dataset.lcs),sel=ae&&ae.selectionStart;body.dataset.sig=h;body.innerHTML=h;if(ae&&ae.dataset&&(ae.dataset.lcrow||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcs)){const k=ae.dataset.lcrow?'lcrow':ae.dataset.lcmv?'lcmv':ae.dataset.lcs?'lcs':'lcaf',el=body.querySelector('['+('data-'+k)+'="'+id+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(sel,sel)}catch(e){}}}else if(ae&&ae.id&&$(ae.id))$(ae.id).focus({preventScroll:true})}}
  function render(b,name){body=b;if(name!==tabName){cur=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('[data-lcrack],[data-lcbin],button');if(!t||!body||!body.contains(t))return;const d=t.dataset;
   if(d.lcbin){if(window.__lcDrag)return;selBin=d.lcbin;draw();return}
@@ -4361,7 +4370,7 @@ init();
  function draw(s){
   if(!canAdmin()&&st.tab==='Norm Project'&&false)st.tab='Project';seedNorms();
   const h='<div class="filters" style="margin-bottom:10px">'+['Project','Norm Project'].map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-pjtab="'+t+'" type="button">'+t+'</button>').join('')+'</div>'+msgH()+(V3.err()?'<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(V3.err())+'. Pastikan skrip Google gudang versi terbaru sudah dipasang.</p>':'')+(st.tab==='Project'?vProject():vNorm());
-  if(s._sig!==h){s._sig=h;const ae=document.activeElement,key=ae&&(ae.dataset.pjf||ae.dataset.pnf),pos=ae&&ae.selectionStart;s.querySelector('.v3-b').innerHTML=h;if(key){const el=s.querySelector('[data-pjf="'+key+'"],[data-pnf="'+key+'"]');if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}}}}
+  if(s._sig!==h){s._sig=h;const ae=document.activeElement,key=ae&&(ae.dataset.pjf||ae.dataset.pnf),pos=ae&&ae.selectionStart;s.querySelector('.v3-b').innerHTML=h;if(key){const el=s.querySelector('[data-pjf="'+key+'"],[data-pnf="'+key+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(pos,pos)}catch(e){}}}}}
  V3.mkPage('project','Project','Project','Pekerjaan khusus di luar rutinitas, dengan norm dan estimasi','compliance',s=>{
   s.innerHTML='<div class="toolbar"><div><h2>Project</h2><span class="sub">Pekerjaan khusus (tempel barcode dan sejenisnya) dengan norm dan estimasi</span></div></div><div class="v3-b"></div>';
   const say=(t,b)=>{st.msg=t;st.bad=!!b;draw(s)};
@@ -4576,7 +4585,7 @@ init();
  function draw(s){const b=s.querySelector('.v3-b');if(!b)return;
   let h=(msg?'<p class="note" style="'+(bad?'color:#b3261e':'')+'">'+esc(msg)+'</p>':'')+(form?drawForm():drawList());
   if(s._sig!==h){const ae=document.activeElement,fk=ae&&ae.dataset&&(ae.dataset.evf||ae.dataset.evq!=null&&('q'+ae.dataset.evq));s._sig=h;b.innerHTML=h;
-   if(fk){const e=ae.dataset.evf?b.querySelector('[data-evf="'+ae.dataset.evf+'"]'):b.querySelector('[data-evq="'+ae.dataset.evq+'"]');if(e&&e.tagName==='TEXTAREA'){e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(x){}}}}}
+   if(fk){const e=ae.dataset.evf?b.querySelector('[data-evf="'+ae.dataset.evf+'"]'):b.querySelector('[data-evq="'+ae.dataset.evq+'"]');if(e&&e.tagName==='TEXTAREA'){e.focus({preventScroll:true});try{e.setSelectionRange(e.value.length,e.value.length)}catch(x){}}}}}
  let timer=null;
  async function startRec(s){
   try{const st=await navigator.mediaDevices.getUserMedia({audio:true}),mt=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'',mr=new MediaRecorder(st,mt?{mimeType:mt,audioBitsPerSecond:24000}:{audioBitsPerSecond:24000}),ch=[];
