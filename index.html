@@ -2249,34 +2249,57 @@ init();
   setMsg('Sisa incoming PO '+po+' dihapus.')}
  // ---- Tracking koli: cari posisi koli tertentu (incoming, diterima, staging in, ready GR, counting, put away)
  let trk={q:'',busy:false,res:null,err:''};
+ const trkNum=v=>Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''))||0,trkRej=t=>/(^|[^a-z])(reject|riject|rejek|rijek|rizek|defect|bs)([^a-z]|$)/i.test(String(t||''));
+ // status satu koli dari data penerimaan dan GR (c = {by,gra,grc,pa,inc,ds,tot})
+ function trkStage(po,n,c){
+  const k=c.by.get(n),as=c.gra.find(x=>poKey(x.po)===po&&Number(x.no_koli)===n),cs=c.grc.filter(x=>poKey(x.po)===po&&Number(x.no_koli)===n),ps=c.pa.filter(x=>poKey(x.po)===po&&Number(x.no_koli)===n),inc=c.inc,ds=c.ds,tot=c.tot;
+  let stage,tone,det=[];
+  if(k){det.push('Diterima '+(k.tanggal||'')+(k.jam_wita?' '+k.jam_wita:'')+' · STTB '+(k.resi||'-')+' · '+(k.ekspedisi||'-')+' · oleh '+nameOf(k.pic_kode))}
+  if(ps.length){stage='Sudah put away';tone='green';det.push('Put away: '+ps.map(p=>p.bin+' ('+p.qty+' pcs, '+(p.tanggal||'')+' '+(p.jam_wita||'')+', '+nameOf(p.operator)+')').join('; '))}
+  else if(cs.length){stage='Counting selesai, menunggu put away';tone='amber';const sel=cs.filter(x=>x.status&&x.status!=='Sesuai').length;det.push('Counting '+(cs[0].tanggal||'')+' · '+cs.length+' item'+(sel?' · '+sel+' selisih':' · sesuai')+' · '+nameOf(cs[0].operator))}
+  else if(as){stage='Ditugaskan counting';tone='amber';det.push('Ditugaskan ke '+(as.operator_nama||nameOf(as.operator))+' ('+(as.status||'')+')')}
+  else if(k&&isFinal(k.status)){stage=ds.status==='Ready GR'?'Ready GR':'Staging In';tone=ds.status==='Ready GR'?'green':'amber';det.push('Staging In'+(k.status==='Bermasalah'?' · bermasalah: '+(k.keterangan||''):'')+' · dokumen: '+ds.status)}
+  else if(k){stage='Diterima, belum divalidasi';tone='amber'}
+  else if(inc&&(!tot||n<=tot||inc.unk)){stage='Incoming (belum datang)';tone='red';det.push(inc.unk?'STTB '+(inc.rem||[]).map(t=>t.resi+' sisa '+t.rem).join(', ')+' · nomor koli akan diketahui saat tiba':'PO masih punya '+inc.miss.length+' koli di perjalanan')}
+  else{stage='Belum tercatat';tone='red';det.push(tot&&n>tot?'Nomor di luar total koli PO ('+tot+')':'Belum ada data penerimaan untuk koli ini')}
+  return{stage,tone,det}}
+ const trkCtx=(po,gra,grc,pa)=>{const K=view('KOLI').filter(k=>poKey(k.po)===po&&k.status!=='Batal'),hpp=new Set(view('MASTER_HPP').map(h=>poKey(h.id))),inc=incomingRows().find(x=>x.po===po);return{by:new Map(K.map(k=>[Number(k.no_koli),k])),gra,grc,pa,inc,ds:docStatus(po,true,hpp),tot:totalOf(po)||(inc&&inc.total)||0,K}};
+ // pencarian: awalan kode PO (cukup beberapa huruf/angka) + nomor koli, atau nama item
  async function runTrack(q){
-  q=String(q||'').trim();trk.q=q;trk.err='';trk.res=null;if(!q){render();return}
-  const m=/^([A-Za-z0-9\-\/_.]+)\s*(?:koli|k\.?)?\s*(.*)$/i.exec(q);if(!m){trk.err='Format: kode PO lalu nomor koli, mis. BY40 4';render();return}
-  const po=poKey(m[1]),want=parseKoli(m[2]);trk.busy=true;render();
-  let gra=[],grc=[],pa=[];
-  try{const f=back(150),t=back(-14),r=await call({action:'multi',q:['GR_ASSIGN:'+f+':'+t,'GR_COUNT:'+f+':'+t,'PUTAWAY:'+f+':'+t].join(',')},true);
-   if(r.ok){gra=r.data['GR_ASSIGN|'+f+'|'+t]||[];grc=r.data['GR_COUNT|'+f+'|'+t]||[];pa=r.data['PUTAWAY|'+f+'|'+t]||[]}}catch(e){trk.err='Data Good Receipt belum terbaca ('+(e&&e.message||e)+'); status counting dan put away mungkin belum lengkap.'}
-  const K=view('KOLI').filter(k=>poKey(k.po)===po&&k.status!=='Batal'),by=new Map(K.map(k=>[Number(k.no_koli),k])),hpp=new Set(view('MASTER_HPP').map(h=>poKey(h.id))),ds=docStatus(po,true,hpp),inc=incomingRows().find(x=>x.po===po),tot=totalOf(po)||(inc&&inc.total)||0;
-  let nums=want.length?want:[...new Set(K.map(k=>Number(k.no_koli)).concat(grc.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli))).concat(pa.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli))).concat(gra.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli))))].filter(Boolean).sort((a,b)=>a-b);
-  const rows=nums.map(n=>{
-   const k=by.get(n),as=gra.find(x=>poKey(x.po)===po&&Number(x.no_koli)===n),cs=grc.filter(x=>poKey(x.po)===po&&Number(x.no_koli)===n),ps=pa.filter(x=>poKey(x.po)===po&&Number(x.no_koli)===n);
-   let stage,tone,det=[];
-   if(k){det.push('Diterima '+(k.tanggal||'')+(k.jam_wita?' '+k.jam_wita:'')+' · STTB '+(k.resi||'-')+' · '+(k.ekspedisi||'-')+' · oleh '+nameOf(k.pic_kode))}
-   if(ps.length){stage='Sudah put away';tone='green';det.push('Put away: '+ps.map(p=>p.bin+' ('+p.qty+' pcs, '+(p.tanggal||'')+' '+(p.jam_wita||'')+', '+nameOf(p.operator)+')').join('; '))}
-   else if(cs.length){stage='Counting selesai, menunggu put away';tone='amber';const sel=cs.filter(c=>c.status&&c.status!=='Sesuai').length;det.push('Counting '+(cs[0].tanggal||'')+' · '+cs.length+' item'+(sel?' · '+sel+' selisih':' · sesuai')+' · '+nameOf(cs[0].operator))}
-   else if(as){stage='Ditugaskan counting';tone='amber';det.push('Ditugaskan ke '+(as.operator_nama||nameOf(as.operator))+' ('+(as.status||'')+')')}
-   else if(k&&isFinal(k.status)){stage=ds.status==='Ready GR'?'Ready GR':'Staging In';tone=ds.status==='Ready GR'?'green':'amber';det.push('Staging In'+(k.status==='Bermasalah'?' · bermasalah: '+(k.keterangan||''):'')+' · dokumen: '+ds.status)}
-   else if(k){stage='Diterima, belum divalidasi';tone='amber'}
-   else if(inc&&(!tot||n<=tot||inc.unk)){stage='Incoming (belum datang)';tone='red';det.push(inc.unk?'STTB '+(inc.rem||[]).map(t=>t.resi+' sisa '+t.rem).join(', ')+' · nomor koli akan diketahui saat tiba':'PO masih punya '+inc.miss.length+' koli di perjalanan')}
-   else{stage='Belum tercatat';tone='red';det.push(tot&&n>tot?'Nomor di luar total koli PO ('+tot+')':'Belum ada data penerimaan untuk koli ini')}
-   return{n,stage,tone,det}});
-  trk.res={po,rows,tot,vendor:vendorOfPo(po),inc,ds,all:!want.length};trk.busy=false;render()}
+  q=String(q||'').trim();trk.q=q;trk.err='';trk.res=null;trk.items=null;if(!q){render();return}
+  trk.busy=true;render();
+  let sj=[],gra=[],grc=[],pa=[];
+  try{const f=back(150),t=back(-14),r=await call({action:'multi',q:['SJ_ITEM:'+f+':'+t,'GR_ASSIGN:'+f+':'+t,'GR_COUNT:'+f+':'+t,'PUTAWAY:'+f+':'+t].join(',')},true);
+   if(r.ok){const g=k=>r.data[k+'|'+f+'|'+t]||[];sj=g('SJ_ITEM');gra=g('GR_ASSIGN');grc=g('GR_COUNT');pa=g('PUTAWAY')}}catch(e){trk.err='Data Good Receipt belum terbaca ('+(e&&e.message||e)+'); status counting dan put away mungkin belum lengkap.'}
+  const known=new Set();view('PO_INFO').forEach(x=>{const p=poKey(x.id);if(p)known.add(p)});[view('KOLI'),view('UNLOADING_RESI'),sj,gra,grc,pa].forEach(L=>L.forEach(x=>{const p=poKey(x.po);if(p)known.add(p)}));
+  const tk=q.split(/\s+/).filter(Boolean);let poN=0,matches=[];
+  for(let i=tk.length;i>=1;i--){const cand=tk.slice(0,i).join(' ').toUpperCase();if(cand.length<3)continue;const mm=[...known].filter(p=>p.startsWith(cand)).sort();if(mm.length){poN=i;matches=mm;break}}
+  const rest=tk.slice(poN).join(' ').trim(),koliOnly=/^[\d\s,;\-–]*$/.test(rest);
+  if(poN&&koliOnly){
+   const want=rest?parseKoli(rest):[],list=matches.slice(0,8).map(po=>{
+    const c=trkCtx(po,gra,grc,pa);
+    const nums=want.length?want:[...new Set(c.K.map(k=>Number(k.no_koli)).concat(sj.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli)),grc.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli)),pa.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli)),gra.filter(x=>poKey(x.po)===po).map(x=>Number(x.no_koli))))].filter(Boolean).sort((a,b)=>a-b);
+    return{po,rows:nums.map(n=>Object.assign({n},trkStage(po,n,c))),tot:c.tot,vendor:vendorOfPo(po),inc:c.inc,ds:c.ds}});
+   trk.res={list,more:Math.max(0,matches.length-8)};trk.busy=false;render();return}
+  // mode item: semua kata harus ada di nama item (opsional dibatasi ke PO yang diketik di depan)
+  const words=(poN?rest:q).toUpperCase().split(/\s+/).filter(Boolean),poSet=poN?new Set(matches):null,hit=s=>{const tk=String(s||'').toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);return words.every(w=>w.length<=2?tk.includes(w):tk.some(t=>t.startsWith(w)))};
+  const M=new Map(),key=(p,k,s)=>p+'|'+k+'|'+s,okPo=p=>!poSet||poSet.has(p);
+  sj.forEach(r=>{const p=poKey(r.po);if(!okPo(p)||!hit(r.item))return;M.set(key(p,Number(r.no_koli),r.seq),{po:p,n:Number(r.no_koli),seq:String(r.seq),item:r.item,qsj:trkNum(r.qty),tipe:r.tipe||'',qa:null,puts:[]})});
+  grc.forEach(c0=>{const p=poKey(c0.po);if(!okPo(p)||!hit(c0.item))return;const kk=key(p,Number(c0.no_koli),c0.seq);let e=M.get(kk);if(!e){e={po:p,n:Number(c0.no_koli),seq:String(c0.seq),item:c0.item,qsj:0,tipe:'',qa:null,puts:[],extra:true};M.set(kk,e)}e.qa=trkNum(c0.qty_actual)});
+  pa.forEach(p0=>{const p=poKey(p0.po),e=M.get(key(p,Number(p0.no_koli),p0.seq));if(e)e.puts.push({bin:p0.bin,qty:trkNum(p0.qty)})});
+  const ctx={},rows=[...M.values()].sort((a,b)=>a.po.localeCompare(b.po)||a.n-b.n||String(a.seq).localeCompare(String(b.seq),'en',{numeric:true})).map(e=>{const c=ctx[e.po]||(ctx[e.po]=trkCtx(e.po,gra,grc,pa)),st=trkStage(e.po,e.n,c),rej=trkRej(e.tipe)||String(e.seq).charAt(0)==='R';
+   return Object.assign(e,{vendor:vendorOfPo(e.po),stage:e.puts.length?'Sudah put away':rej?'Reject → Defect Handling':st.stage,tone:rej&&!e.puts.length?'red':e.puts.length?'green':st.tone,det:st.det,rej})});
+  trk.items={words:words.join(' '),rows};trk.busy=false;render()}
  function htmlTracking(){
-  let h='<div class="card"><h3 style="margin:0">Tracking koli</h3><p class="sub">Cari posisi koli: ketik kode PO lalu nomor koli (boleh banyak), mis. <b>BY40 4</b> atau <b>BY40 4,7,10-12</b>. Hanya kode PO untuk melihat seluruh koli PO itu. Status: Incoming, Diterima, Staging In, Ready GR, Counting, Put away.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="iv2-trq" value="'+esc(trk.q)+'" placeholder="contoh: BY40 4" autocomplete="off" style="flex:1;min-width:220px"><button class="button" data-trk="1" type="button">'+(trk.busy?'Mencari…':'Cari')+'</button></div>'+(trk.err?'<p class="note" style="color:#b3261e;margin-top:8px">'+esc(trk.err)+'</p>':'')+'</div>';
+  let h='<div class="card"><h3 style="margin:0">Tracking koli dan item</h3><p class="sub">Cukup ketik awal kode PO (minimal 3 karakter, mis. <b>CC36</b> atau <b>BY40</b>) untuk melihat seluruh koli PO itu. Tambahkan nomor koli untuk satu koli, mis. <b>CC36 8</b> atau <b>BY40 4,7,10-12</b>. Ketik nama item (boleh sebagian), mis. <b>HITAM 24S PDK L</b>, untuk melihat item itu ada di PO dan koli mana saja, jumlahnya, status, dan lokasi put away. Bisa digabung: <b>CC36 HITAM 24S PDK L</b>.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="iv2-trq" value="'+esc(trk.q)+'" placeholder="contoh: CC36 8  atau  HITAM 24S PDK L" autocomplete="off" style="flex:1;min-width:220px"><button class="button" data-trk="1" type="button">'+(trk.busy?'Mencari…':'Cari')+'</button></div>'+(trk.err?'<p class="note" style="color:#b3261e;margin-top:8px">'+esc(trk.err)+'</p>':'')+'</div>';
   const R=trk.res;if(R){
-   const cnt={};R.rows.forEach(r=>{cnt[r.stage]=(cnt[r.stage]||0)+1});
-   h+='<div class="card" style="margin-top:12px"><h3 style="margin:0">PO '+esc(R.po)+(R.vendor?' · '+esc(R.vendor):'')+'</h3><p class="sub">'+(R.tot?'Total koli PO: '+R.tot+'. ':'')+Object.keys(cnt).map(k=>k+': <b>'+cnt[k]+'</b>').join(' · ')+'</p>'+
-    (R.rows.length?'<div style="overflow:auto"><table><thead><tr><th>Koli</th><th>Status</th><th>Rincian</th></tr></thead><tbody>'+R.rows.map(r=>'<tr><td><strong>'+r.n+'</strong></td><td><span class="tag '+r.tone+'">'+esc(r.stage)+'</span></td><td style="font-size:12px">'+r.det.map(esc).join('<br>')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada koli tercatat untuk PO ini.</p>')+'</div>'}
+   R.list.forEach(P=>{const cnt={};P.rows.forEach(r=>{cnt[r.stage]=(cnt[r.stage]||0)+1});
+    h+='<div class="card" style="margin-top:12px"><h3 style="margin:0">PO '+esc(P.po)+(P.vendor?' · '+esc(P.vendor):'')+'</h3><p class="sub">'+(P.tot?'Total koli PO: '+P.tot+'. ':'')+Object.keys(cnt).map(k=>k+': <b>'+cnt[k]+'</b>').join(' · ')+'</p>'+
+     (P.rows.length?'<div style="overflow:auto"><table><thead><tr><th>Koli</th><th>Status</th><th>Rincian</th></tr></thead><tbody>'+P.rows.map(r=>'<tr><td><strong>'+r.n+'</strong></td><td><span class="tag '+r.tone+'">'+esc(r.stage)+'</span></td><td style="font-size:12px">'+r.det.map(esc).join('<br>')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada koli tercatat untuk PO ini.</p>')+'</div>'});
+   if(R.more)h+='<p class="sub" style="margin-top:8px">+'+R.more+' PO lain cocok. Ketik kode PO lebih lengkap untuk mempersempit.</p>'}
+  const I=trk.items;if(I){
+   const pos=new Set(I.rows.map(r=>r.po)),qs=I.rows.reduce((a,r)=>a+r.qsj,0),qa=I.rows.reduce((a,r)=>a+(r.qa||0),0),qp=I.rows.reduce((a,r)=>a+r.puts.reduce((x,p)=>x+p.qty,0),0),cnt={};I.rows.forEach(r=>{cnt[r.stage]=(cnt[r.stage]||0)+1});
+   h+='<div class="card" style="margin-top:12px"><h3 style="margin:0">Item: '+esc(I.words)+'</h3>'+(I.rows.length?'<p class="sub"><b>'+I.rows.length+'</b> baris di <b>'+pos.size+'</b> PO · surat jalan <b>'+qs+'</b> pcs · hasil counting <b>'+qa+'</b> pcs · sudah put away <b>'+qp+'</b> pcs<br>'+Object.keys(cnt).map(k=>k+': <b>'+cnt[k]+'</b>').join(' · ')+'</p><div style="overflow:auto"><table><thead><tr><th>PO</th><th>Vendor</th><th>Koli</th><th>Item</th><th>Qty SJ</th><th>Counting</th><th>Status</th><th>Lokasi put away</th><th>Rincian koli</th></tr></thead><tbody>'+I.rows.map(r=>'<tr><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor||'')+'</td><td>'+r.n+'</td><td>'+esc(r.item)+(r.extra?' <span class="tag amber">temuan</span>':'')+(r.rej?' <span class="tag red">reject</span>':'')+'</td><td>'+r.qsj+'</td><td>'+(r.qa==null?'-':r.qa)+'</td><td><span class="tag '+r.tone+'">'+esc(r.stage)+'</span></td><td>'+(r.puts.length?r.puts.map(p=>esc(p.bin)+' ('+p.qty+')').join(', '):'-')+'</td><td style="font-size:12px">'+r.det.map(esc).join('<br>')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Tidak ada item yang cocok di surat jalan 150 hari terakhir.</p>')+'</div>'}
   return h}
  function incomingRows(){
   const A=incomingNumbered(),B=incomingCounted(),inB=new Set(B.map(o=>o.po));
