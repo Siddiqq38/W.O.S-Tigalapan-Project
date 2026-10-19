@@ -4058,7 +4058,7 @@ init();
  const sum=a=>a.reduce((x,y)=>x+y,0);
  // ---------- data ----------
  const AN={d:{},from:'',to:'',at:0,busy:false,err:'',att:[],stok:[]};
- const TABS=['KOLI','GR_COUNT','PUTAWAY','GR_ASSIGN','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT'];
+ const TABS=['KOLI','GR_COUNT','PUTAWAY','GR_ASSIGN','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT','DATA_ENTRY'];
  async function anLoad(force){
   const from=st.from,to=st.to;if(AN.busy)return;if(!force&&AN.from&&AN.from<=from&&AN.to>=to&&Date.now()-AN.at<120000)return;AN.busy=true;V3.redraw();
   try{const f=from<back(400)?back(400):from,q=TABS.map(t=>t+':'+f+':'+back(-14)).concat(['PO_INFO::','MASTER_VENDOR::']).join(',');
@@ -4083,10 +4083,10 @@ init();
  const tabsRow=()=>'<div class="filters" style="margin-bottom:10px">'+TABSUI.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-antab="'+t+'" type="button">'+t+'</button>').join('')+'</div>';
  function bar(){return tabsRow()+'<div class="an-bar"><div class="an-rng">'+Object.keys(quick).map(k=>'<button data-anq="'+k+'" type="button">'+k+'</button>').join('')+'</div><label class="sub" style="margin:0">Dari <input type="date" data-anf="from" value="'+st.from+'"></label><label class="sub" style="margin:0">Sampai <input type="date" data-anf="to" value="'+st.to+'"></label><label class="sub" style="margin:0">Kelompok <select data-anf="group">'+['hari','minggu','bulan','tahun'].map(x=>'<option'+(st.group===x?' selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'}
  function compute(){
-  const K=R('KOLI').filter(r=>within(r)),GC=R('GR_COUNT').filter(r=>within(r)),PA=R('PUTAWAY').filter(r=>within(r)),GA=R('GR_ASSIGN').filter(r=>within(r)),PD=R('PICK_DOK').filter(r=>within(r)),PK=R('PICK_KOLI').filter(r=>within(r)),PI=R('PICK_ITEM').filter(r=>within(r)),PG=R('PICK_GR').filter(r=>within(r)),LT=R('LC_TASK').filter(r=>within(r)),AD=R('ADJUSTMENT').filter(r=>within(r));
+  const K=R('KOLI').filter(r=>within(r)),GC=R('GR_COUNT').filter(r=>within(r)),PA=R('PUTAWAY').filter(r=>within(r)),GA=R('GR_ASSIGN').filter(r=>within(r)),PD=R('PICK_DOK').filter(r=>within(r)),PK=R('PICK_KOLI').filter(r=>within(r)),PI=R('PICK_ITEM').filter(r=>within(r)),PG=R('PICK_GR').filter(r=>within(r)),LT=R('LC_TASK').filter(r=>within(r)),AD=R('ADJUSTMENT').filter(r=>within(r)),DE=R('DATA_ENTRY').filter(r=>within(r));
   const kst=new Map();PK.forEach(k=>kst.set(k.dok+'|'+k.koli,k.status));
   const picked=PI.filter(r=>r.kategori!=='OTHER'&&r.status!=='Menunggu'&&r.status!=='Draft');
-  return{K,GC,PA,GA,PD,PK,PI,PG,LT,AD,picked}}
+  return{K,GC,PA,GA,PD,PK,PI,PG,LT,AD,DE,picked}}
  const dd=r=>r.tanggal;
  // ----- Inbound vs Outbound -----
  function tabIO(m,B){
@@ -4177,7 +4177,15 @@ init();
   m.PI.forEach(r=>{if(r.picker&&num(r.qty_actual)>0){const o=ot(r.picker);o.pickPcs+=num(r.qty_actual);o.pickRows++;o.est+=V3.est.pick(r.item,num(r.qty_actual));if(r.vp==='Salah'||r.vp==='Dikoreksi')o.pickSalah++}if(r.vp_oleh&&r.vp)ot(r.vp_oleh).vpRows++});
   m.LT.filter(t=>['OK','Selisih'].includes(t.status)).forEach(t=>{ot(t.operator).lc++});
   const t=Object.values(T).filter(x=>x.c).sort((a,b)=>b.est-a.est);
-  return card('Output per operator','',t.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>Operator</th><th>Koli GR selesai</th><th>Pcs counting</th><th>Pcs put away</th><th>Pcs picking</th><th>Verifikasi</th><th>Bin dihitung</th><th>Akurasi picking</th><th>Beban kerja (norm)</th></tr></thead><tbody>'+t.map(x=>'<tr><td>'+esc(sname(x.c))+'</td><td>'+x.grKoli+'</td><td>'+fmt(x.grPcs)+'</td><td>'+fmt(x.putPcs)+'</td><td>'+fmt(x.pickPcs)+'</td><td>'+x.vpRows+'</td><td>'+x.lc+'</td><td>'+(x.pickRows?pf(pct(x.pickRows-x.pickSalah,x.pickRows)):'-')+'</td><td><b>'+esc(V3.fm(x.est))+'</b></td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada data.</p>')+
+  const AD={},ad=c=>AD[c]||(AD[c]={c,dePo:new Set(),deSku:new Set(),dePcs:0,sqDok:0,sqSku:new Set(),sqPcs:0,tfK:0,tfSku:new Set(),tfPcs:0});
+  (m.DE||[]).forEach(r=>{if(!r.oleh)return;const o=ad(r.oleh);o.dePo.add(r.po);o.deSku.add(U(r.item));o.dePcs+=num(r.qty)});
+  const docBy={};m.PD.forEach(d=>{if(!d.diunggah_oleh)return;docBy[d.id]=d.diunggah_oleh;const o=ad(d.diunggah_oleh);o.sqDok++;o.sqPcs+=num(d.total_qty)});
+  m.PI.forEach(r=>{const c=docBy[r.dok];if(c&&(r.sku||r.item))ad(c).sqSku.add(U(r.sku||r.item))});
+  const tfBy={};m.PK.forEach(k=>{if(!k.tfs_oleh)return;tfBy[k.dok+'|'+k.koli]=k.tfs_oleh;ad(k.tfs_oleh).tfK++});
+  m.PI.forEach(r=>{const c=tfBy[r.dok+'|'+r.koli];if(c&&num(r.qty_actual)>0){const o=ad(c);o.tfSku.add(U(r.sku||r.item));o.tfPcs+=num(r.qty_actual)}});
+  const ta=Object.values(AD).sort((a,b)=>(b.dePcs+b.sqPcs+b.tfPcs)-(a.dePcs+a.sqPcs+a.tfPcs));
+  const adminCard=card('Rekap admin','Inbound: data entry PO ke MOKA. Outbound: SOQ yang diunggah dan transfer stok (TFS) ke MOKA.',ta.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>Admin</th><th>Data entry: PO</th><th>SKU</th><th>Pcs</th><th>SOQ diunggah: dokumen</th><th>SKU</th><th>Pcs</th><th>TFS: koli</th><th>SKU</th><th>Pcs</th></tr></thead><tbody>'+ta.map(x=>'<tr><td>'+esc(sname(x.c))+'</td><td>'+x.dePo.size+'</td><td>'+x.deSku.size+'</td><td>'+fmt(x.dePcs)+'</td><td>'+x.sqDok+'</td><td>'+x.sqSku.size+'</td><td>'+fmt(x.sqPcs)+'</td><td>'+x.tfK+'</td><td>'+x.tfSku.size+'</td><td>'+fmt(x.tfPcs)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada data admin pada periode ini.</p>');
+  return adminCard+card('Output per operator','',t.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>Operator</th><th>Koli GR selesai</th><th>Pcs counting</th><th>Pcs put away</th><th>Pcs picking</th><th>Verifikasi</th><th>Bin dihitung</th><th>Akurasi picking</th><th>Beban kerja (norm)</th></tr></thead><tbody>'+t.map(x=>'<tr><td>'+esc(sname(x.c))+'</td><td>'+x.grKoli+'</td><td>'+fmt(x.grPcs)+'</td><td>'+fmt(x.putPcs)+'</td><td>'+fmt(x.pickPcs)+'</td><td>'+x.vpRows+'</td><td>'+x.lc+'</td><td>'+(x.pickRows?pf(pct(x.pickRows-x.pickSalah,x.pickRows)):'-')+'</td><td><b>'+esc(V3.fm(x.est))+'</b></td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada data.</p>')+
    '<div class="an-split">'+card('Beban kerja per operator','',CH.hbar(t.slice(0,12).map((x,i)=>({l:sname(x.c),v:Math.round(x.est),t:V3.fm(x.est),c:PAL[i%PAL.length]}))))+card('Akurasi picking','Baris tanpa koreksi verifikasi.',CH.hbar(t.filter(x=>x.pickRows).map(x=>({l:sname(x.c),v:pct(x.pickRows-x.pickSalah,x.pickRows),t:pf(pct(x.pickRows-x.pickSalah,x.pickRows)),c:'#1f9d6b'})),{max:100}))+'</div>'}
  // ----- Ekspedisi -----
  function tabEks(m,B){
