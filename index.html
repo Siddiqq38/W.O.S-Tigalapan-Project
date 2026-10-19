@@ -2866,7 +2866,7 @@ init();
   const old=view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k));old.forEach(p=>{enqDel('PUTAWAY',p.id);enqDel('STOK_BIN','SB|'+p.id)});
   out.forEach(o=>{const id=po+'|'+k+'|'+o.c.seq+'|'+o.bin;enq('PUTAWAY',{id,tanggal:today(),po,no_koli:String(k),seq:String(o.c.seq),item:o.c.item,bin:o.bin,qty:String(o.qty),operator:code(),jam_wita:nowHM()});
    enq('STOK_BIN',{id:'SB|'+id,tanggal:today(),jenis:'PUTAWAY',bin:o.bin,sku:U(o.c.item),item:o.c.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:po+' koli '+k,pic_kode:code(),catatan:''})});
-  if(a){enq('GR_ASSIGN',Object.assign({},a,{status:'Selesai',selesai:stIso()}));taskMaybeDone(a)}
+  if(a){enq('GR_ASSIGN',Object.assign({},a,{status:'Selesai',selesai:stIso()}));taskMaybeDone(a);deTask(po,a)}
   pu={};cur=null;tabName='Put Away';say('Put away koli '+k+' PO '+po+' tersimpan ('+out.length+' lokasi).')}
 
  // ---- daftar tugas (counting dan put away)
@@ -2904,12 +2904,20 @@ init();
    view('MASTER_MOKA').forEach(r=>enqDel('MASTER_MOKA',r.id));
    parts.forEach((p,i)=>enq('MASTER_MOKA',{id:'C'+String(i+1).padStart(3,'0'),data:p,catatan:today()+' '+(clean.length-1)+' item'}));
    moka={rows:clean,when:today()+' '+(clean.length-1)+' item'};say('Template MOKA disimpan ('+(clean.length-1)+' item).')}catch(e){say('Gagal membaca template: '+(e&&e.message||e),true)}}
- function deMark(x,on){const id=entryPo+'|'+norm(x.item);if(on)enq('DATA_ENTRY',{id,tanggal:today(),po:entryPo,item:x.item,qty:String(x.qty),oleh:code(),jam:stIso()});else enqDel('DATA_ENTRY',id)}
+ function deTask(po,a){
+  try{const left=view('GR_ASSIGN').filter(z=>poKey(z.po)===po&&z.status!=='Batal'&&z.id!==a.id&&z.status!=='Selesai');if(left.length)return;
+   const sm=(()=>{try{return staffMaster}catch(e){return{}}})(),to=new Set(Object.entries(sm).filter(([c,p])=>p.role==='Admin'&&!p.out).map(([c])=>c));if(a.ditugaskan_oleh&&sm[a.ditugaskan_oleh])to.add(a.ditugaskan_oleh);
+   const n=new Set(view('PUTAWAY').filter(p=>poKey(p.po)===po).map(p=>U(p.item))).size,now=stIso();
+   taskEdit(arr=>{to.forEach(c=>{const id='DE-'+po+'-'+c;if(!arr.some(t=>t.id===id))arr.push({id,day:today(),at:now,title:'Data Entry MOKA PO '+po,qty:(n||'')+' item',by:'SISTEM',to:c,status:'baru',kind:'de'})})})}catch(e){}}
+ function deDoneCheck(po){
+  try{const d=entryData(po),done=new Set(view('DATA_ENTRY').filter(r=>poKey(r.po)===po).map(r=>norm(r.item)));if(!d.length||!d.every(x=>done.has(norm(x.item))))return;
+   taskEdit(arr=>{arr.forEach(t=>{if(String(t.id).indexOf('DE-'+po+'-')===0&&t.status!=='selesai'){t.status='selesai';t.doneAt=stIso()}})})}catch(e){}}
+ function deMark(x,on){const id=entryPo+'|'+norm(x.item);if(on)enq('DATA_ENTRY',{id,tanggal:today(),po:entryPo,item:x.item,qty:String(x.qty),oleh:code(),jam:stIso()});else enqDel('DATA_ENTRY',id);if(on)deDoneCheck(entryPo)}
  function drawEntry(){
 
   if(!canAdmin())return '<p class="note">Data Entry ke MOKA hanya untuk Admin atau SPV.</p>';
   if(!moka){loadMoka().then(draw).catch(e=>{moka={rows:[],when:''};loadErr=String(e.message||e);draw()});return '<p class="sub">Memuat template MOKA…</p>'}
-  const pos=[...new Set(view('PUTAWAY').map(c=>poKey(c.po)))].sort();if(!entryPo&&pos.length)entryPo=pos[0];
+  const pos=[...new Set(view('PUTAWAY').map(c=>poKey(c.po)))].sort();if(!entryPo&&pos.length)entryPo=pos[0];pos.forEach(p=>{deTask(p,{id:''});deDoneCheck(p)});
   let h='<details class="card"><summary><strong>Template MOKA</strong> <span class="sub">('+(moka.rows.length?'terpasang: '+esc(moka.when):'belum terpasang')+')</span></summary><p class="sub">Daftar item MOKA sudah disiapkan sistem, admin tidak perlu mengunggah apa pun untuk membuat file import. Unggah ulang hanya bila ada item baru di MOKA (file Import - Items Purchase Order dari MOKA, header tidak diubah).</p><input id="gr-moka" type="file" accept=".xlsx,.xls,.csv"></details>';
   h+='<div class="card" style="margin-top:12px"><h3>Buat file import PO ke MOKA</h3><p class="sub">Hanya item yang sudah selesai put away yang masuk ke file. Qty diambil dari hasil put away dan Unit Cost dari HPP (COGS). Kolom lain mengikuti template MOKA dan email supplier terisi otomatis.</p>'+(entryPo?wipeBtn(entryPo):'')+'<div class="field" style="max-width:320px"><label for="gr-epo">PO</label><select id="gr-epo">'+pos.map(p=>'<option'+(p===entryPo?' selected':'')+'>'+esc(p)+'</option>').join('')+'</select></div>';
   if(entryPo){const deDone=new Set(view('DATA_ENTRY').filter(r=>poKey(r.po)===entryPo).map(r=>norm(r.item))),d=entryData(entryPo),ok=d.filter(x=>x.moka&&x.cogs&&x.qty>0),miss=d.filter(x=>!x.moka||!x.cogs);
@@ -2980,7 +2988,7 @@ init();
   if(t.dataset.gextra){if(cur&&cur.mode==='count')extraModal(cur.po,cur.k);return}
   if(t.dataset.gxdel){if(!isSpv()){say('Hapus hanya untuk SPV.',true);return}if(confirm('Hapus item temuan ini?'))enqDel('GR_COUNT',t.dataset.gxdel);return}
   if(t.dataset.gdefxls){const L=defRows();if(window.wosXlsx)window.wosXlsx([['Tanggal','PO','Vendor','Koli','Item','Qty','Sumber','Keterangan','Operator']].concat(L.map(c=>[c.tanggal,c.po,vendorOfPo(c.po)||'',c.no_koli,c.item,num(c.qty_actual),String(c.seq).charAt(0)==='R'?'Temuan':'Surat jalan',c.keterangan||'',c.operator||''])),'Defect-Handling-'+today()+'.xlsx','Defect Handling');return}
-  if(t.dataset.gdeall){entryData(entryPo).filter(x=>x.qty>0).forEach(x=>deMark(x,true));return}
+  if(t.dataset.gdeall){const L=entryData(entryPo).filter(x=>x.qty>0);L.forEach(x=>deMark(x,true));say(L.length?L.length+' item ditandai selesai di-entry (PO '+entryPo+').':'Tidak ada item untuk ditandai.',!L.length);return}
  });
  document.addEventListener('change',e=>{const t=e.target;
   if(t.dataset&&t.dataset.gde){if(!t.checked&&!isSpv()){alert('Membatalkan tanda data entry hanya untuk SPV.');t.checked=true;return}const x=entryData(entryPo).find(y=>norm(y.item)===t.dataset.gde);if(x)deMark(x,t.checked);return}
