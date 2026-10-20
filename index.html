@@ -2883,15 +2883,13 @@ init();
  const cntOf=(po,k)=>view('GR_COUNT').filter(c=>poKey(c.po)===po&&Number(c.no_koli)===Number(k));
  const sjKoli=(po,k)=>sjOf(po).filter(r=>Number(r.no_koli)===Number(k)).sort((a,b)=>Number(a.seq)-Number(b.seq));
  const isRejCnt=c=>String(c.seq).charAt(0)==='R'||isRejTipe(((sjKoli(poKey(c.po),c.no_koli).find(r=>String(r.seq)===String(c.seq)))||{}).tipe);
- // temuan ketidaksesuaian per koli: dari receiving (koli bermasalah) dan dari counting (selisih, temuan, reject)
+ // tanda peringatan koli: hanya dari hasil counting (qty tidak sesuai surat jalan, item di luar surat jalan, atau ada reject)
  function issuesOf(po,k){
-  const out=[],kk=kmap().get(po+'|'+k);
-  if(kk&&kk.status==='Bermasalah')out.push('Receiving: koli bermasalah'+(kk.keterangan?' ('+kk.keterangan+')':''));
+  const out=[];
   const cs=cntOf(po,k),sel=cs.filter(c=>c.status==='Selisih'),tem=cs.filter(c=>c.status==='Temuan'&&String(c.seq).charAt(0)!=='R'),rj=cs.filter(c=>isRejCnt(c)&&num(c.qty_actual)>0);
   if(sel.length)out.push('Counting: '+sel.length+' item selisih ('+sel.map(c=>c.item+' '+(num(c.selisih)>0?'+':'')+c.selisih).slice(0,3).join(', ')+(sel.length>3?' …':'')+')');
   if(tem.length)out.push('Counting: '+tem.length+' item di luar surat jalan');
   if(rj.length)out.push('Reject: '+rj.length+' item ke Defect Handling');
-  sjKoli(po,k).forEach(r=>{if(isRejTipe(r.tipe)&&!cs.some(c=>String(c.seq)===String(r.seq)))out.push('Surat jalan: item reject '+r.item)});
   return out}
  const warn=(po,k)=>{const l=issuesOf(po,k);return l.length?'<span class="wn" title="'+esc('Ketidaksesuaian: '+l.join(' · '))+'">⚠</span>':''};
  function updAsg(po,k,patch){const a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k);if(a){enq('GR_ASSIGN',Object.assign({},a,patch));draw()}}
