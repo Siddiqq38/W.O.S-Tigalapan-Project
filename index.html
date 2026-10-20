@@ -49,6 +49,9 @@ body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba
   const done=function(){n=Math.max(0,n-1);if(n===0)hide()};
   return of.apply(this,arguments).then(function(r){done();return r},function(e){done();throw e})};
  }catch(e){}
+ try{let et0=null;const chk=function(){fetch(location.pathname,{method:'HEAD',cache:'no-store'}).then(function(r){const e=r.headers.get('etag')||r.headers.get('last-modified')||'';if(!e)return;if(et0===null){et0=e;return}
+  if(e!==et0&&!document.getElementById('wos-upd')){const b=document.createElement('div');b.id='wos-upd';b.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100000;background:#18334b;color:#fff;border-radius:12px;padding:10px 16px;font:600 13px Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;gap:12px;align-items:center';b.innerHTML='<span>Versi baru W.O.S tersedia.</span><button type="button" style="border:0;border-radius:8px;padding:6px 12px;background:#ffb36b;color:#18334b;font-weight:700;cursor:pointer">Muat ulang</button>';b.querySelector('button').onclick=function(){location.reload()};document.body.appendChild(b)}}).catch(function(){})};
+  setTimeout(chk,4000);setInterval(chk,240000)}catch(e){}
  try{const d=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');if(!d||!d.set)return;
  const watch=el=>el.id==='iv2-b'||(el.classList&&el.classList.contains('v3-b'))||(el.dataset&&el.dataset.phbody!==undefined);
  Object.defineProperty(Element.prototype,'innerHTML',{configurable:true,get:d.get,set:function(v){
@@ -1044,7 +1047,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');if(!o.includes('wms-inbound'))o.unshift('wms-inbound');return o};
+ const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN'){if(!o.length)return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(!o.includes('wms-location'))o.push('wms-location')}if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');return o};
  const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
@@ -2090,7 +2093,7 @@ init();
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
  async function call(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
- const JR=[];function replayJ(){const lim=Date.now()-180000;while(JR.length&&JR[0].t<lim)JR.shift();JR.forEach(j=>{if(j.x.a==='delete')dropLocal(j.x.tab,j.x.id);else applyLocal(j.x.tab,j.x.row)})}
+ const JR=[];function replayJ(tab){const lim=Date.now()-180000;while(JR.length&&JR[0].t<lim)JR.shift();JR.forEach(j=>{if(tab&&j.x.tab!==tab)return;if(j.x.a==='delete')dropLocal(j.x.tab,j.x.id);else applyLocal(j.x.tab,j.x.row)})}
  let sbC={at:0,hadir:new Set(),roles:new Map()};
  async function sbLoad(){if(Date.now()-sbC.at<45000)return;
   try{if(window.WOSStore){const c=window.WOSStore.config(),t=today(),q=tab=>fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab,from:t,to:t})).then(r=>r.json()).catch(()=>({rows:[]}));
@@ -2148,7 +2151,7 @@ init();
  function build(){
   if(built)return;built=true;
   sec.innerHTML='<div class="toolbar"><div><h2>Inbound</h2><span class="sub">Receiving (penerimaan fisik barang) dan Good Receipt</span></div><span id="iv2-state" class="tag amber">Memeriksa…</span></div>'+
-  '<style>.kl{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;margin:10px 0}.kb{padding:14px 0;border-radius:10px;border:2px solid #cfc3bb;background:#fff;font-size:17px;font-weight:700;cursor:pointer;color:#3b2a20;touch-action:manipulation}.kb.ok{background:#d6efdd;border-color:#2e9b5a;color:#14663a}.kb.bad{background:#fbdcd9;border-color:#d1362b;color:#9b1c13}.kb.alt{border-style:dashed}.kb.dt{background:#e6f5ec;border-color:#8fd0a8;color:#1d6a3d}.kb.dtm{background:#fff0ee;border-color:#e08a82;color:#9b1c13}.kb.lk{opacity:.55}.kb small{display:block;font-size:10px;font-weight:600}.rc{display:inline-block;margin:0 6px 6px 0;padding:8px 12px;border-radius:999px;border:2px solid #cfc3bb;background:#fff;cursor:pointer;font-size:13px}.rc.on{border-color:#b5532a;background:#fbe5d6;font-weight:700}.iv2-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9996;display:flex;align-items:center;justify-content:center;padding:14px}.iv2-modal .box{background:#fff;color:#222;border-radius:14px;padding:18px;width:100%;max-width:420px;max-height:90vh;overflow:auto}</style>'+
+  '<style>.kl{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;margin:10px 0}.kb{padding:14px 0;border-radius:10px;border:2px solid #cfc3bb;background:#fff;font-size:17px;font-weight:700;cursor:pointer;color:#3b2a20;touch-action:manipulation}.kb.ok{background:#d6efdd;border-color:#2e9b5a;color:#14663a}.kb.tos{background:#d2f3ef;border-color:#12a594;color:#0a5f55;box-shadow:inset 0 0 0 1px #12a594}.kb.bad{background:#fbdcd9;border-color:#d1362b;color:#9b1c13}.kb.alt{border-style:dashed}.kb.dt{background:#e6f5ec;border-color:#8fd0a8;color:#1d6a3d}.kb.dtm{background:#fff0ee;border-color:#e08a82;color:#9b1c13}.kb.lk{opacity:.55}.kb small{display:block;font-size:10px;font-weight:600}.rc{display:inline-block;margin:0 6px 6px 0;padding:8px 12px;border-radius:999px;border:2px solid #cfc3bb;background:#fff;cursor:pointer;font-size:13px}.rc.on{border-color:#b5532a;background:#fbe5d6;font-weight:700}.iv2-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9996;display:flex;align-items:center;justify-content:center;padding:14px}.iv2-modal .box{background:#fff;color:#222;border-radius:14px;padding:18px;width:100%;max-width:420px;max-height:90vh;overflow:auto}</style>'+
   '<div class="filters" style="margin-bottom:12px"><button class="filter active" data-f="recv" type="button">Receiving</button><button class="filter" data-f="gr" type="button">Good Receipt</button></div>'+
   '<div id="iv2-recv"><div class="filters" style="margin-bottom:12px"><button class="filter active" data-t="recv" type="button">Unloading</button><button class="filter" data-t="inc" type="button">Incoming</button><button class="filter" data-t="stg" type="button">Staging In</button><button class="filter" data-t="trk" type="button">Tracking koli</button></div><p class="note" id="iv2-msg" hidden></p><div id="iv2-b"></div></div>'+
   '<div id="iv2-gr" hidden>'+phBlock('gr')+'</div>';phFill('gr','Counting');
@@ -2706,7 +2709,7 @@ init();
  setInterval(()=>{flush();if(sec.classList.contains('active'))pull()},15000);setInterval(()=>{try{if(queue().length)flush()}catch(e){}},8000);
  window.addEventListener('online',flush);
  try{mountMaster()}catch(e){}
- window.WOSGudang={api:{allowTab,storeCode,queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;dv++}},rankStaff:o=>rankStaff(o)},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
+ window.WOSGudang={api:{allowTab,storeCode,queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;replayJ(t);dv++}},rankStaff:o=>rankStaff(o)},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
 })();
 </script>
 <script>
@@ -3218,10 +3221,21 @@ init();
    aux.roles=new Map();(r.rows||[]).forEach(x=>{if(!aux.roles.has(x.kode_staf))aux.roles.set(x.kode_staf,[]);aux.roles.get(x.kode_staf).push(x)})}}catch(e){}
   const pi=view('PICK_ITEM'),load={};view('PICK_KOLI').filter(k=>['Ditugaskan','Picking','Perbaikan'].includes(k.status)&&k.dok!==dok).forEach(k=>{const pcs=pi.filter(r=>r.dok===k.dok&&num(r.koli)===num(k.koli)).reduce((a,r)=>a+num(r.qty),0);load[k.picker]=(load[k.picker]||0)+pcs});
   aux.load=load;aux.ok=true;aux.at=Date.now();fin()}
+ // bin palet (LP): kelipatan 100 pcs (lengan pendek) atau 75 pcs (lengan panjang); sisa yang bukan kelipatan diambil dari rak, utamakan PO yang sama atau put away terdekat
+ const palletOf=item=>isPjg(item)?75:100,isLP=b=>/^LP/i.test(String(b||''));
+ const dayN=a=>{const t=Date.parse(String(a||'').slice(0,10)+'T00:00:00');return isNaN(t)?9e12:t/864e5};
+ const poOfBin=(r,item)=>{try{const L=(LY.map.get(r.bin+'|'+U(r.sku||item))||[]).find(l=>l.qty>0);return L?L.po:''}catch(e){return ''}};
+ function allocBins(c,need,item){
+  const m=palletOf(item),out=[],take=(r,t)=>{if(!(t>0))return;const o=out.find(x=>x.c===r);if(o)o.t+=t;else out.push({c:r,t});need-=t},had=r=>r.free-(out.find(x=>x.c===r)||{t:0}).t;
+  c.filter(r=>isLP(r.bin)&&r.free>0).forEach(r=>{if(need<m)return;take(r,Math.floor(Math.min(need,r.free)/m)*m)});
+  if(need>0){const lp=out[0]&&out[0].c,refAwal=dayN(lp?lp.awal:(c[0]&&c[0].awal)),refPo=lp?poOfBin(lp,item):'';
+   c.filter(r=>!isLP(r.bin)&&had(r)>0).sort((a,b)=>((refPo&&poOfBin(a,item)===refPo)?0:1)-((refPo&&poOfBin(b,item)===refPo)?0:1)||Math.abs(dayN(a.awal)-refAwal)-Math.abs(dayN(b.awal)-refAwal)||String(a.awal||'zzzz').localeCompare(String(b.awal||'zzzz'))||nat(a.bin,b.bin)).forEach(r=>{if(need>0)take(r,Math.min(need,had(r)))})}
+  if(need>0)c.forEach(r=>{if(need>0&&had(r)>0)take(r,Math.min(need,had(r)))});
+  return{out,short:need}}
  function prevBins(l){
   const key=norm(l.item),reserved={};view('PICK_ITEM').filter(r=>edit&&r.dok!==edit.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
   const c=aux.stok.filter(r=>norm(r.sku||r.item)===key).map(r=>({bin:r.bin,free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||nat(a.bin,b.bin));
-  let need=l.qty;const out=[];c.forEach(r=>{if(need<=0)return;const t=Math.min(need,r.free);need-=t;out.push({bin:r.bin,qty:t})});return{bins:out,short:need}}
+  const parts=(l.parts&&l.parts.length?l.parts.map(p=>num(p.qty)):[l.qty]),agg=new Map();let short=0;parts.forEach(q=>{const a=allocBins(c,q,l.item);a.out.forEach(x=>{x.c.free-=x.t;agg.set(x.c.bin,(agg.get(x.c.bin)||0)+x.t)});short+=a.short});return{bins:[...agg].map(([bin,qty])=>({bin,qty})),short}}
  const binTxt=l=>{if(!aux.ok)return '<span class="sub">memuat…</span>';if(l.manual&&!l.pv.bins.length)return '<span class="sub">tanpa stok bin</span>';return l.pv.bins.map(b=>'<b>'+esc(b.bin)+'</b> '+b.qty).join('<br>')+(l.pv.short>0?'<br><span style="color:#b3261e">stok kurang '+l.pv.short+'</span>':'')};
  function openEdit(dok){
   const items=itemsOf(dok),by=new Map();
@@ -3293,7 +3307,7 @@ init();
    dropTasks(e.dok);old.forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(e.dok).forEach(r=>enqDel('PICK_KOLI',r.id));
    e.lines.forEach(l=>{const key=norm(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
     [...l.parts].sort((a,b)=>num(a.koli)-num(b.koli)).forEach((p,pi)=>{let need=num(p.qty),n=0;const pid=l.id+'|P'+(pi+1),base={tanggal:d.tanggal,dok:e.dok,outlet:d.outlet,item:l.item,kategori:l.manual?'MANUAL':l.kat,soq:String(l.qty),ket:l.ket,koli:String(p.koli),status:'Menunggu'};
-     c.forEach(r=>{if(need<=0||r.free<=0)return;const t=Math.min(need,r.free);r.free-=t;need-=t;rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:r.sku,bin:r.bin,qty:String(t)}));n++});
+     allocBins(c,need,l.item).out.forEach(a=>{a.c.free-=a.t;need-=a.t;rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:a.c.sku,bin:a.c.bin,qty:String(a.t)}));n++});
      if(need>0){rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:'',bin:'',qty:String(need),ket_pick:l.manual&&!c.length?'Item manual (tanpa stok bin)':'Stok tidak cukup di bin manapun'}));if(!(l.manual&&!c.length))short.push(l.item+' kurang '+need)}})});
    rows.forEach(r=>enq('PICK_ITEM',r));
    ks.forEach(k=>{const p=e.pk[k],tid='TP-'+Math.random().toString(36).slice(2,8);
@@ -3365,7 +3379,7 @@ init();
   const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),ro=['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status),mine=k.picker===code()||canAdmin(),done=rows.length&&rows.every(r=>r.status!=='Menunggu');
   const pcs=rows.reduce((a,r)=>a+num(r.qty),0),act=rows.reduce((a,r)=>a+num(r.qty_actual),0);
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
-  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong>'+ohTag(r)+'</td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+poTag(r)+'</td><td><strong>'+(/\|X\d+$/.test(r.id)?'+':esc(r.qty))+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag green">✓ '+(/\|X\d+$/.test(r.id)?esc(r.bin_actual)+' · '+esc(r.qty_actual)+' pcs':'Sesuai')+'</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':''):r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(mine&&!PASTTFS.includes(k.status)&&num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0)>0?'<div><button class="button secondary" data-obadd="'+esc(r.id)+'" type="button">+ Ditemukan di bin lain (kurang '+(num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0))+')</button></div>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin||r.kategori==='MANUAL'?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act<pcs?' · <strong style="color:#b3261e">SOO '+(pcs-act)+' pcs (stok tidak terpenuhi)</strong>':done&&act>pcs?' · lebih '+(act-pcs)+' pcs':'')+'</p>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong>'+ohTag(r)+'</td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+poTag(r)+lpTag(r)+'</td><td><strong>'+(/\|X\d+$/.test(r.id)?'+':esc(r.qty))+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag green">✓ '+(/\|X\d+$/.test(r.id)?esc(r.bin_actual)+' · '+esc(r.qty_actual)+' pcs':'Sesuai')+'</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':''):r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(mine&&!PASTTFS.includes(k.status)&&num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0)>0?'<div><button class="button secondary" data-obadd="'+esc(r.id)+'" type="button">+ Ditemukan di bin lain (kurang '+(num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0))+')</button></div>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin||r.kategori==='MANUAL'?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act<pcs?' · <strong style="color:#b3261e">SOO '+(pcs-act)+' pcs (stok tidak terpenuhi)</strong>':done&&act>pcs?' · lebih '+(act-pcs)+' pcs':'')+'</p>';
   if(!ro&&mine)h+='<div class="ob-actions"><button class="button" data-obdone="1" type="button"'+(done?'':' disabled')+'>Selesai picking koli ini</button></div>';
   if(ro)h+='<p class="note">Picking selesai. Lanjut di tab <strong>Verification Pick</strong>. Bila masih ada barang kurang yang ditemukan di bin lain, tombol Ditemukan di bin lain tetap bisa dipakai sebelum TFS.</p>';
   return h+'</div>'}
@@ -3402,7 +3416,7 @@ init();
  const SETS={vp:['Siap verifikasi','Perbaikan','Siap TFS','Siap packing'],tfs:['Siap TFS','Siap packing','Selesai TFS'],pack:['Selesai TFS','Staging'],load:['Staging','Dimuat'],rcv:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],ship:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],gr:['Diterima','Diterima-Masalah','GR Selesai']};
  const RECEIVED=['Diterima','Diterima-Masalah','GR Selesai'];
  const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
- const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'ok','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm','GR Selesai':'ok'});
+ const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'tos','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm','GR Selesai':'ok'});
  const dokOf=id=>view('PICK_DOK').find(d=>d.id===id)||{id,kode:id,outlet:'',tanggal:''};
  function dokGroups(set,all){const by={},sc=level()==='store'?storeCode():'';view('PICK_KOLI').filter(k=>set.includes(k.status)&&(!sc||String(k.dok).split('|')[0]===sc)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
  const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
@@ -3506,6 +3520,21 @@ init();
    grSave(k,l,'Salah',num(q),j==='Item salah'?it:l.item,j+(m.querySelector('#gr2-k').value.trim()?': '+m.querySelector('#gr2-k').value.trim():''),R.get());R.close();m.remove()}}
 
  // ---- Miss-Picking (selisih dari GR outlet, diselesaikan DC 38)
+ function resModal(g){
+  const m=document.createElement('div');m.className='iv2-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  const bins=view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif').map(b=>b.id),defItem=g.item_gr&&g.item_gr!==g.item?g.item_gr:g.item,defQty=Math.abs(num(g.soq)-num(g.qty_gr))||'';
+  m.innerHTML='<div style="background:#fff;border-radius:14px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow:auto"><h3 style="margin:0 0 4px">Tindak lanjut miss-picking</h3><p class="sub">'+esc(g.outlet)+' · koli '+esc(g.koli)+' · '+esc(g.item)+'<br>SOQ '+esc(g.soq)+' / DC '+esc(g.qty_dc)+' / GR '+esc(g.qty_gr)+'</p>'+
+   '<label style="font-weight:600">Jenis tindak lanjut</label><select id="rs-t" style="width:100%"><option value="susul">Kirim susulan ke outlet (barang diberikan kemudian)</option><option value="retur">Barang dikembalikan ke DC (retur, transaksi stok masuk)</option><option value="adm">Koreksi administrasi / lainnya</option></select>'+
+   '<div id="rs-r" hidden><label style="font-weight:600;margin-top:8px;display:block">Item yang kembali ke DC</label><input id="rs-i" value="'+esc(defItem)+'" style="width:100%"><label style="font-weight:600;margin-top:8px;display:block">Qty kembali (pcs)</label><input id="rs-q" type="number" min="1" value="'+esc(defQty)+'" style="width:100%"><label style="font-weight:600;margin-top:8px;display:block">Bin tujuan di DC</label><input id="rs-b" list="rs-bl" placeholder="mis. B6.6" style="width:100%"><datalist id="rs-bl">'+bins.slice(0,3000).map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist></div>'+
+   '<label style="font-weight:600;margin-top:8px;display:block">Catatan</label><input id="rs-n" style="width:100%" placeholder="mis. nomor transfer / keterangan"><p class="note" id="rs-m" style="color:#b3261e" hidden></p><div class="ob-actions" style="margin-top:12px"><button class="button" id="rs-ok" type="button">Simpan tindak lanjut</button><button class="button secondary" id="rs-x" type="button">Batal</button></div></div>';
+  document.body.appendChild(m);const q=s=>m.querySelector(s),sync=()=>{q('#rs-r').hidden=q('#rs-t').value!=='retur'};q('#rs-t').onchange=sync;q('#rs-x').onclick=()=>m.remove();
+  q('#rs-ok').onclick=()=>{const t=q('#rs-t').value,note=q('#rs-n').value.trim(),err=x=>{q('#rs-m').textContent=x;q('#rs-m').hidden=false};let ket='';
+   if(t==='susul')ket='Kirim susulan ke outlet';else if(t==='adm')ket='Koreksi administrasi';
+   else{const item=q('#rs-i').value.trim(),qty=num(q('#rs-q').value),bin=U(q('#rs-b').value);if(!item||!(qty>0)||!bin)return err('Isi item, qty, dan bin tujuan.');if(bins.length&&!bins.includes(bin))return err('Bin "'+bin+'" tidak ada di master bin.');
+    enq('STOK_BIN',{id:'SB|RTR|'+g.id,tanggal:today(),jenis:'RETUR OUTLET',bin,sku:U(item),item,qty_masuk:String(qty),qty_keluar:'0',referensi:'Retur '+(g.outlet||'')+' koli '+g.koli+' ('+g.dok+')',pic_kode:code(),catatan:note||'retur miss-picking'});
+    ket='Retur ke DC: '+item+' '+qty+' pcs ke bin '+bin}
+   enq('PICK_GR',Object.assign({},g,{resolusi:'Selesai',resolusi_ket:ket+(note?' · '+note:''),resolusi_oleh:code(),resolusi_jam:stIso()}));m.remove()};
+  sync()}
  function drawMasalah(){
   const sc=level()==='store'?storeCode():'';const list=view('PICK_GR').filter(g=>g.status==='Salah'&&(!sc||String(g.dok).split('|')[0]===sc)).sort((a,b)=>(a.resolusi?1:0)-(b.resolusi?1:0)||String(b.jam).localeCompare(String(a.jam)));
   if(!list.length)return none('Belum ada miss-picking dari GR outlet.');
@@ -3528,6 +3557,7 @@ init();
   LY.busy=false;draw()}
  // asal PO barang yang sudah diambil (untuk verifikasi): dari lapisan stok saat picking dicatat
  const pkTag=r=>{const a=LY.pk&&LY.pk.get(r.id);if(!a||!a.length)return '';return '<div class="sub" style="font-size:11px;margin-top:2px">PO: '+a.map(x=>'<b>'+esc(x.po)+'</b>'+(a.length>1?' ×'+x.qty:'')).join(' · ')+'</div>'};
+ const lpTag=r=>r.status==='Menunggu'&&isLP(r.bin)?'<div class="sub" style="font-size:11px;margin-top:2px">Bin palet · kelipatan '+palletOf(r.item)+' pcs'+(num(r.qty)%palletOf(r.item)?' (jumlah ini bukan kelipatan, ambil sesuai kebutuhan)':'')+'</div>':'';
  const poTag=r=>{
   if(r.status!=='Menunggu'||!r.bin||!LY.at)return '';
   const key=r.bin+'|'+U(r.item),L=(LY.map.get(key)||[]).filter(l=>l.qty>0).map(l=>({po:l.po,qty:l.qty}));if(!L.length)return '';
@@ -3573,7 +3603,7 @@ init();
   if(t.dataset.obgok){const k=koliById(cur.id),l=grLines(k).find(x=>x.id===t.dataset.obgok);if(l)grSave(k,l,'Sesuai',l.dc,l.item,'',null);return}
   if(t.dataset.obgno){const k=koliById(cur.id),l=grLines(k).find(x=>x.id===t.dataset.obgno);if(l)grSalahModal(k,l);return}
   if(t.dataset.obgdone){const k=koliById(cur.id);updKoli(k,{status:'GR Selesai'});const rest=koliOf(k.dok).filter(x=>x.id!==k.id&&x.status!=='GR Selesai').length;if(!rest)enq('PICK_DOK',Object.assign({},dokOf(k.dok),{status:'GR Selesai'}));cur=null;say('GR koli '+k.koli+' selesai.');return}
-  if(t.dataset.obres){const g=view('PICK_GR').find(x=>x.id===t.dataset.obres);if(g){const kt=prompt('Catatan penyelesaian (mis. kirim ulang, retur, koreksi stok)','');if(kt===null)return;enq('PICK_GR',Object.assign({},g,{resolusi:'Selesai',resolusi_ket:kt,resolusi_oleh:code(),resolusi_jam:stIso()}))}return}
+  if(t.dataset.obres){const g=view('PICK_GR').find(x=>x.id===t.dataset.obres);if(g)resModal(g);return}
   if(t.dataset.obmake){makePicking();return}
   if(t.dataset.obopen){openKoli(t.dataset.obopen);return}
   if(t.dataset.obok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obok);if(r)pickRow(r,'Sesuai',r.bin,num(r.qty),'',null);return}
