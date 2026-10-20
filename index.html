@@ -2059,7 +2059,7 @@ init();
  const storeCode=()=>/^ST\./.test(code())?code().slice(3):'';
  // hak akses tab WMS per level akun (operator tetap mengikuti perannya)
  const allowTab=(page,name)=>{const lv=level();if(lv==='supervisor'||lv==='admin'||lv==='operator')return true;
-  if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In','Tracking'].includes(name);if(lv==='prdm')return ['Incoming','Staging In','Counting','Tracking'].includes(name);if(lv==='prod'||lv==='fat')return name==='Staging In';return false}
+  if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In','Tracking'].includes(name);if(lv==='prdm')return ['Incoming','Staging In','Counting','Tracking'].includes(name);if(lv==='prod')return ['Staging In','Counting'].includes(name);if(lv==='fat')return name==='Staging In';return false}
   if(page==='wms-outbound'){if(lv==='ppic')return name==='Picking List';if(lv==='prdm')return ['Picking List','Shipping'].includes(name);if(lv==='store')return ['Shipping','Receiving Outlet','GR Outlet','Miss-Picking'].includes(name);return false}
   return false};
  const canSJ=()=>canAdmin()||level()==='prod'||level()==='prdm',canHPP=()=>canAdmin()||level()==='fat';
@@ -2068,7 +2068,7 @@ init();
  const FEAT={
   'wms-location':[['Layout'],['Stok Opname'],['Cycle Count'],['Internal Move'],['Adjustment'],['Saldo Awal']],
   'wms-outbound':[['Picking List'],['Picking'],['Verification Pick'],['Transfer Stok (TFS ke MOKA)'],['Packing & Staging'],['Loading'],['Shipping'],['Receiving Outlet'],['GR Outlet'],['Miss-Picking']],
-  'gr':[['Counting'],['Put Away'],['Data Entry (PO ke MOKA)'],['Defect Handling']]
+  'gr':[['Counting'],['Put Away'],['Data Entry (PO ke MOKA)'],['Defect Handling'],['Laporan Kesesuaian']]
  };
  function phBlock(key){const f=FEAT[key].filter(x=>key!=='wms-outbound'||allowTab(key,x[0]));return '<div class="filters" data-ph="'+key+'" style="margin-bottom:12px">'+f.map((x,i)=>'<button type="button" class="filter'+(i?'':' active')+'" data-p="'+esc(x[0])+'">'+esc(x[0])+'</button>').join('')+'</div><div class="card" data-phbody="'+key+'"></div>'}
  function phFill(key,name){const b=document.querySelector('[data-phbody="'+key+'"]');if(!b)return;if(key==='gr'&&window.WOSGR){window.WOSGR.render(b,name);document.querySelectorAll('[data-ph="gr"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}if(key==='wms-location'&&window.WOSLC&&window.WOSLC.has(name)){window.WOSLC.render(b,name);document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}if(key==='wms-outbound'&&window.WOSOB&&window.WOSOB.has(name)){window.WOSOB.render(b,name);document.querySelectorAll('[data-ph="wms-outbound"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}b.innerHTML='<h3>'+esc(name)+'</h3><p class="sub">Fitur ini sedang disiapkan. Alur, dokumen, input, proses, dan outputnya akan ditambahkan setelah detail alur diterima. Pola datanya sama dengan Receiving: angka dan status tersimpan di Google Sheets (WOS Data Gudang), foto dan video di Google Drive.</p>';document.querySelectorAll('[data-ph="'+key+'"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name))}
@@ -2191,7 +2191,7 @@ init();
  const isFinal=st=>st==='Diterima'||st==='Bermasalah',isTent=st=>st==='Datang'||st==='Datang-Masalah';
  const totalOf=po=>{const i=view('PO_INFO').find(x=>x.id===poKey(po));return i&&Number(i.total_koli)||0};
  let fsort='masuk';
- {if(!document.getElementById('kx-style')){const st=document.createElement('style');st.id='kx-style';st.textContent='.kb{position:relative}.kb .kx{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#b3261e;color:#fff;font-size:12px;line-height:18px;text-align:center;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.35)}';document.head.appendChild(st)}}
+ {if(!document.getElementById('wn-style')){const st=document.createElement('style');st.id='wn-style';st.textContent='.kb .wn{position:absolute;top:-9px;left:-7px;font-size:20px;line-height:1;color:#d98a00;text-shadow:0 0 3px #fff,0 0 3px #fff;pointer-events:auto;cursor:help}';document.head.appendChild(st)}if(!document.getElementById('kx-style')){const st=document.createElement('style');st.id='kx-style';st.textContent='.kb{position:relative}.kb .kx{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#b3261e;color:#fff;font-size:12px;line-height:18px;text-align:center;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.35)}';document.head.appendChild(st)}}
  const isFree=r=>String((r&&r.koli_list)||'').charAt(0)==='*',freeExp=r=>Number(String((r&&r.koli_list)||'').slice(1))||0;
  function universe(r){if(isFree(r)){const po=poKey(r.po);const rows=view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===r.sesi_id&&k.resi===r.resi&&k.status!=='Batal');
   if(fsort==='kecil')rows.sort((a,b)=>Number(a.no_koli)-Number(b.no_koli));else if(fsort==='besar')rows.sort((a,b)=>Number(b.no_koli)-Number(a.no_koli));
@@ -2783,6 +2783,7 @@ init();
  const U=s=>String(s==null?'':s).trim().toUpperCase();
  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const isSpv=()=>level()==='supervisor';
+  const isViewer=()=>['prdm','prod'].includes(level());
   const isRejTipe=t=>/(^|[^a-z])(reject|riject|rejek|rijek|rizek|defect|bs)([^a-z]|$)/i.test(String(t||''));
  let body=null,tabName='Counting',cur=null,pu={},msg='',msgBad=false,loadedAt=0,loading=false,loadErr='',filterOp='',moka=null,entryPo='';
  const say=(t,bad)=>{msg=t;msgBad=!!bad;draw()};
@@ -2882,10 +2883,21 @@ init();
  const cntOf=(po,k)=>view('GR_COUNT').filter(c=>poKey(c.po)===po&&Number(c.no_koli)===Number(k));
  const sjKoli=(po,k)=>sjOf(po).filter(r=>Number(r.no_koli)===Number(k)).sort((a,b)=>Number(a.seq)-Number(b.seq));
  const isRejCnt=c=>String(c.seq).charAt(0)==='R'||isRejTipe(((sjKoli(poKey(c.po),c.no_koli).find(r=>String(r.seq)===String(c.seq)))||{}).tipe);
+ // temuan ketidaksesuaian per koli: dari receiving (koli bermasalah) dan dari counting (selisih, temuan, reject)
+ function issuesOf(po,k){
+  const out=[],kk=kmap().get(po+'|'+k);
+  if(kk&&kk.status==='Bermasalah')out.push('Receiving: koli bermasalah'+(kk.keterangan?' ('+kk.keterangan+')':''));
+  const cs=cntOf(po,k),sel=cs.filter(c=>c.status==='Selisih'),tem=cs.filter(c=>c.status==='Temuan'&&String(c.seq).charAt(0)!=='R'),rj=cs.filter(c=>isRejCnt(c)&&num(c.qty_actual)>0);
+  if(sel.length)out.push('Counting: '+sel.length+' item selisih ('+sel.map(c=>c.item+' '+(num(c.selisih)>0?'+':'')+c.selisih).slice(0,3).join(', ')+(sel.length>3?' …':'')+')');
+  if(tem.length)out.push('Counting: '+tem.length+' item di luar surat jalan');
+  if(rj.length)out.push('Reject: '+rj.length+' item ke Defect Handling');
+  sjKoli(po,k).forEach(r=>{if(isRejTipe(r.tipe)&&!cs.some(c=>String(c.seq)===String(r.seq)))out.push('Surat jalan: item reject '+r.item)});
+  return out}
+ const warn=(po,k)=>{const l=issuesOf(po,k);return l.length?'<span class="wn" title="'+esc('Ketidaksesuaian: '+l.join(' · '))+'">⚠</span>':''};
  function updAsg(po,k,patch){const a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k);if(a){enq('GR_ASSIGN',Object.assign({},a,patch));draw()}}
  function taskAccept(a){if(!a.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===a.task_id);if(t&&t.status==='baru'){t.status='diterima';t.by2=a.operator;t.ackAt=stIso()}})}
  function taskMaybeDone(a){if(!a.task_id)return;const all=view('GR_ASSIGN').filter(x=>x.task_id===a.task_id&&x.status!=='Batal');if(all.every(x=>x.status==='Selesai'||x.id===a.id)){taskEdit(arr=>{const t=arr.find(x=>x.id===a.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}}
- function openCount(po,k){const a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k);if(a&&a.status==='Ditugaskan'){updAsg(po,k,{status:'Counting',mulai:stIso()});taskAccept(a)}cur={mode:'count',po,k};pullGR(true);draw()}
+ function openCount(po,k){const a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k);if(a&&a.status==='Ditugaskan'&&!isViewer()){updAsg(po,k,{status:'Counting',mulai:stIso()});taskAccept(a)}cur={mode:'count',po,k};pullGR(true);draw()}
  function countRow(po,k,r,status,actual,ket,videoBlob){
   const id=po+'|'+k+'|'+r.seq,qs=num(r.qty),qa=status==='Sesuai'?qs:num(actual),row={id,tanggal:today(),po,no_koli:String(k),seq:String(r.seq),item:r.item,qty_sj:String(qs),qty_actual:String(qa),selisih:String(qa-qs),status,keterangan:ket||'',foto_id:'',operator:code(),jam_wita:nowHM()};
   const fin=()=>{enq('GR_COUNT',row);draw()};
@@ -2905,7 +2917,7 @@ init();
    countRow(po,k,{seq:kind+n,item,qty:0},'Temuan',String(qa),(kind==='R'?'REJECT: ':'TEMUAN: ')+ket,R.get());R.close();m.remove()}}
  function estLine(rows){try{const E=window.WOSV3&&window.WOSV3.est;if(!E||!rows.length)return '';let c=0,p=0,q=0;rows.forEach(r=>{const n=num(r.qty);q+=n;c+=E.count(r.item,n);p+=E.put(r.item,n)});return '<p class="sub">Estimasi dari Master Norm untuk koli ini ('+q+' pcs): counting <strong>'+window.WOSV3.fm(c)+'</strong>, put away <strong>'+window.WOSV3.fm(p)+'</strong>.</p>'}catch(e){return ''}}
  function drawCountScreen(){
-  const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k)||{},sj=sjKoli(po,k),cnt=new Map(cntOf(po,k).map(c=>[c.seq,c])),done=sj.length&&sj.every(r=>cnt.has(String(r.seq))),ro=a.status==='Siap put away'||a.status==='Selesai';
+  const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k)||{},sj=sjKoli(po,k),cnt=new Map(cntOf(po,k).map(c=>[c.seq,c])),done=sj.length&&sj.every(r=>cnt.has(String(r.seq))),ro=a.status==='Siap put away'||a.status==='Selesai'||isViewer();
   const tot=[...cnt.values()].filter(c=>sj.some(r=>String(r.seq)===String(c.seq))).reduce((x,c)=>{x.s+=num(c.qty_sj);x.a+=num(c.qty_actual);return x},{s:0,a:0});
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-gback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">PO '+esc(po)+' · Koli '+k+'</h3><p class="sub">'+esc(vendorOfPo(po)||'')+' · operator '+esc(a.operator_nama||a.operator||'-')+' · status <strong>'+esc(a.status||'-')+'</strong></p>'+estLine(sj);
   if(!sj.length)h+='<p class="note">Surat jalan untuk koli ini belum ada. Minta admin mengimpor surat jalan PO '+esc(po)+'.</p>';
@@ -2920,7 +2932,11 @@ init();
 
  // ---- put away
  const binList=()=>view('MASTER_BIN').filter(b=>b.status!=='Tidak aktif');
+ function putView(){
+  const {po,k}=cur,rows=view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k)).sort((a,b)=>String(a.seq).localeCompare(String(b.seq),'en',{numeric:true})),iss=issuesOf(po,k);
+  return '<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-gback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Hasil put away · PO '+esc(po)+' · Koli '+k+'</h3>'+(iss.length?'<p class="note">⚠ '+iss.map(esc).join('<br>⚠ ')+'</p>':'')+(rows.length?'<div style="overflow:auto"><table><thead><tr><th>Item</th><th>Qty</th><th>Bin</th><th>Operator</th><th>Jam</th></tr></thead><tbody>'+rows.map(p=>'<tr><td>'+esc(p.item)+'</td><td><strong>'+esc(p.qty)+'</strong></td><td>'+esc(p.bin)+'</td><td>'+esc(nameOf(p.operator))+'</td><td>'+esc(p.tanggal||'')+' '+esc(p.jam_wita||'')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada put away untuk koli ini.</p>')+'</div>'}
  function putScreen(){
+  if(isViewer())return putView();
   const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k)||{},items=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&!isRejCnt(c)).sort((x,y)=>String(x.seq).localeCompare(String(y.seq),'en',{numeric:true})),bins=binList();
   items.forEach(c=>{if(!pu[c.seq])pu[c.seq]=[{bin:'',qty:num(c.qty_actual)}]});
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-gback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Put away · PO '+esc(po)+' · Koli '+k+'</h3><p class="sub">Isi bin tempat barang disimpan. Satu item boleh dipecah ke beberapa bin; jumlahnya harus sama dengan qty actual.'+(bins.length?'':' <strong>Master bin belum diimpor, bin diketik bebas.</strong>')+'</p><datalist id="gr-bins">'+bins.slice(0,3000).map(b=>'<option value="'+esc(b.id)+'">').join('')+'</datalist>';
@@ -2942,13 +2958,13 @@ init();
  // ---- daftar tugas (counting dan put away)
  const STC={'Ditugaskan':'','Counting':'dt','Siap put away':'dtm','Selesai':'ok'};
  function listTugas(mode){
-  const me=code(),admin=canAdmin(),list=view('GR_ASSIGN').filter(a=>a.status!=='Batal'&&(admin?(!filterOp||a.operator===filterOp):a.operator===me)&&(mode==='count'?['Ditugaskan','Counting','Siap put away','Selesai'].includes(a.status):a.status==='Siap put away'||a.status==='Selesai'));
+  const me=code(),admin=canAdmin(),all=admin||isViewer(),list=view('GR_ASSIGN').filter(a=>a.status!=='Batal'&&(all?(!filterOp||a.operator===filterOp):a.operator===me)&&(mode==='count'?['Ditugaskan','Counting','Siap put away','Selesai'].includes(a.status):a.status==='Siap put away'||a.status==='Selesai'));
   const by={};list.forEach(a=>{(by[poKey(a.po)]=by[poKey(a.po)]||[]).push(a)});
   let h='';
-  if(admin)h+='<div class="field" style="max-width:320px"><label for="gr-fop">Operator</label><select id="gr-fop"><option value="">Semua operator</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
+  if(all)h+='<div class="field" style="max-width:320px"><label for="gr-fop">Operator</label><select id="gr-fop"><option value="">Semua operator</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
   const pos=Object.keys(by).sort();
   if(!pos.length)return h+'<p class="sub">'+(mode==='count'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap put away.')+'</p>';
-  return h+pos.map(po=>'<div class="card" style="margin-top:10px">'+wipeBtn(po)+'<h3 style="margin:0">PO '+esc(po)+' <span class="sub">'+esc(vendorOfPo(po)||'')+'</span></h3><div class="kl">'+by[po].sort((x,y)=>Number(x.no_koli)-Number(y.no_koli)).map(a=>'<button type="button" class="kb '+(STC[a.status]||'')+'" data-gopen="'+esc(po)+'|'+esc(a.no_koli)+'" title="'+esc(a.status+' - '+(a.operator_nama||a.operator))+'">'+(a.status==='Selesai'?'✓ ':'')+esc(a.no_koli)+'<small>'+esc(admin?(a.operator_nama||a.operator).split(' ')[0]:a.status)+'</small>'+(isSpv()&&a.status==='Ditugaskan'?'<span class="kx" data-grdel="'+esc(po)+'|'+esc(a.no_koli)+'" title="Hapus penugasan koli ini">×</span>':'')+'</button>').join('')+'</div></div>').join('')+wipeAllCard()}
+  return h+pos.map(po=>'<div class="card" style="margin-top:10px">'+wipeBtn(po)+'<h3 style="margin:0">PO '+esc(po)+' <span class="sub">'+esc(vendorOfPo(po)||'')+'</span></h3><div class="kl">'+by[po].sort((x,y)=>Number(x.no_koli)-Number(y.no_koli)).map(a=>'<button type="button" class="kb '+(STC[a.status]||'')+'" data-gopen="'+esc(po)+'|'+esc(a.no_koli)+'" title="'+esc(a.status+' - '+(a.operator_nama||a.operator))+'">'+(a.status==='Selesai'?'✓ ':'')+esc(a.no_koli)+'<small>'+esc(all?(a.operator_nama||a.operator).split(' ')[0]:a.status)+'</small>'+warn(po,a.no_koli)+(isSpv()&&a.status==='Ditugaskan'?'<span class="kx" data-grdel="'+esc(po)+'|'+esc(a.no_koli)+'" title="Hapus penugasan koli ini">×</span>':'')+'</button>').join('')+'</div></div>').join('')+wipeAllCard()}
 
  // ---- data entry ke MOKA
  async function loadMoka(){if(moka)return;const r=await call({action:'list',tab:'MASTER_MOKA'},true);if(!r.ok)throw new Error(r.error);const ch=r.rows.sort((a,b)=>String(a.id).localeCompare(String(b.id)));if(!ch.length){moka={rows:[],when:''};return}try{moka={rows:JSON.parse(ch.map(c=>c.data).join('')),when:(ch[0].catatan||'')}}catch(e){moka={rows:[],when:''}}}
@@ -3023,6 +3039,24 @@ init();
  const wipeBtn=po=>isSpv()?'<button class="button secondary" data-gwipepo="'+esc(po)+'" type="button" style="color:#b3261e;float:right;padding:3px 10px" title="Hapus semua data GR PO ini (simulasi)">Hapus data PO ini</button>':'';
  const wipeAllCard=()=>isSpv()&&wipePos().length?'<div class="note" style="margin-top:12px">Khusus SPV: bersihkan data simulasi GR. <button class="button secondary" data-gwipeall="1" type="button" style="color:#b3261e">Hapus semua data GR simulasi</button></div>':'';
  const defRows=()=>view('GR_COUNT').filter(c=>isRejCnt(c)&&num(c.qty_actual)>0).sort((a,b)=>String(b.tanggal+b.jam_wita).localeCompare(String(a.tanggal+a.jam_wita)));
+ let repPo='';
+ function drawReport(){
+  const C=view('GR_COUNT'),pos=[...new Set(C.map(c=>poKey(c.po)))].sort(),sel=pos.includes(repPo)?repPo:'';
+  const cr=C.filter(c=>!sel||poKey(c.po)===sel),ex=r=>!sjKoli(poKey(r.po),r.no_koli).some(x=>String(x.seq)===String(r.seq));
+  const sjRows=cr.filter(c=>!ex(c)),ok=sjRows.filter(c=>c.status==='Sesuai').length,bad=sjRows.filter(c=>c.status!=='Sesuai'),extra=cr.filter(ex),rej=cr.filter(c=>isRejCnt(c)&&num(c.qty_actual)>0);
+  const qs=sjRows.reduce((a,c)=>a+num(c.qty_sj),0),qa=sjRows.reduce((a,c)=>a+num(c.qty_actual),0),koli=new Set(cr.map(c=>poKey(c.po)+'|'+c.no_koli)).size;
+  const pa=view('PUTAWAY').filter(p=>!sel||poKey(p.po)===sel),qp=pa.reduce((a,p)=>a+num(p.qty),0);
+  const kpi=(t,v,s,c)=>'<div class="card"><span class="metric-label">'+t+'</span><div class="metric '+(c||'')+'">'+v+'</div><span class="sub">'+s+'</span></div>';
+  let h='<h3 style="margin:0 0 4px">Laporan kesesuaian barang</h3><p class="sub">Hasil counting dibanding surat jalan, temuan di luar surat jalan, reject, dan hasil put away.</p><div class="field" style="max-width:340px"><label for="gr-rpo">PO</label><select id="gr-rpo"><option value="">Semua PO</option>'+pos.map(p=>'<option'+(p===sel?' selected':'')+'>'+esc(p)+'</option>').join('')+'</select></div>';
+  h+='<div class="grid three" style="margin-top:8px">'+kpi('Koli dihitung',koli,sjRows.length+' baris item dicek')+kpi('Sesuai',ok,sjRows.length?Math.round(100*ok/sjRows.length)+'% dari baris dicek':'-','good')+kpi('Tidak sesuai',bad.length,'selisih qty pada baris surat jalan',bad.length?'warn':'')+kpi('Qty surat jalan / actual',fmtN(qs)+' / '+fmtN(qa),(qa-qs>0?'+':'')+(qa-qs)+' pcs selisih bersih',qa===qs?'good':'warn')+kpi('Temuan di luar SJ',extra.filter(c=>!isRejCnt(c)).length,fmtN(extra.filter(c=>!isRejCnt(c)).reduce((a,c)=>a+num(c.qty_actual),0))+' pcs')+kpi('Reject',rej.length,fmtN(rej.reduce((a,c)=>a+num(c.qty_actual),0))+' pcs ke Defect Handling',rej.length?'warn':'')+'</div>';
+  const per={};cr.forEach(c=>{const p=poKey(c.po),o=per[p]||(per[p]={po:p,koli:new Set(),rows:0,ok:0,bad:0,qs:0,qa:0});o.koli.add(c.no_koli);if(!ex(c)){o.rows++;if(c.status==='Sesuai')o.ok++;else o.bad++;o.qs+=num(c.qty_sj);o.qa+=num(c.qty_actual)}});
+  const PL=Object.values(per).sort((a,b)=>a.po.localeCompare(b.po));
+  h+='<h4 style="margin:14px 0 4px">Per PO</h4>'+(PL.length?'<div style="overflow:auto"><table><thead><tr><th>PO</th><th>Vendor</th><th>Koli dihitung</th><th>Baris sesuai</th><th>Baris tidak sesuai</th><th>Qty SJ</th><th>Qty actual</th><th>Selisih</th><th>Put away (pcs)</th></tr></thead><tbody>'+PL.map(o=>{const pp=view('PUTAWAY').filter(p=>poKey(p.po)===o.po).reduce((a,p)=>a+num(p.qty),0);return '<tr><td><strong>'+esc(o.po)+'</strong></td><td>'+esc(vendorOfPo(o.po)||'')+'</td><td>'+o.koli.size+'</td><td>'+o.ok+'</td><td>'+(o.bad?'<span class="tag red">'+o.bad+'</span>':'0')+'</td><td>'+fmtN(o.qs)+'</td><td>'+fmtN(o.qa)+'</td><td>'+(o.qa-o.qs>0?'+':'')+(o.qa-o.qs)+'</td><td>'+fmtN(pp)+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="sub">Belum ada hasil counting.</p>');
+  const det=[];bad.forEach(c=>det.push({c,t:num(c.selisih)<0?'Kurang':'Lebih',cls:'red'}));extra.forEach(c=>det.push({c,t:isRejCnt(c)?'Reject (di luar SJ)':'Temuan di luar SJ',cls:isRejCnt(c)?'red':'amber'}));sjRows.forEach(c=>{if(c.status==='Sesuai'&&isRejCnt(c))det.push({c,t:'Reject (sesuai SJ)',cls:'red'})});
+  det.sort((a,b)=>poKey(a.c.po).localeCompare(poKey(b.c.po))||Number(a.c.no_koli)-Number(b.c.no_koli));
+  h+='<h4 style="margin:14px 0 4px">Rincian ketidaksesuaian</h4>'+(det.length?'<div style="overflow:auto"><table><thead><tr><th>PO</th><th>Koli</th><th>Item</th><th>Qty SJ</th><th>Qty actual</th><th>Selisih</th><th>Jenis</th><th>Keterangan</th><th>Operator</th><th>Bukti</th></tr></thead><tbody>'+det.map(x=>{const c=x.c;return '<tr><td>'+esc(c.po)+'</td><td>'+esc(c.no_koli)+'</td><td>'+esc(c.item)+'</td><td>'+esc(c.qty_sj)+'</td><td>'+esc(c.qty_actual)+'</td><td>'+(num(c.selisih)>0?'+':'')+esc(c.selisih)+'</td><td><span class="tag '+x.cls+'">'+esc(x.t)+'</span></td><td>'+esc(c.keterangan||'')+'</td><td>'+esc(nameOf(c.operator))+'</td><td>'+(c.foto_id?'<a href="https://drive.google.com/file/d/'+esc(c.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'-')+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="sub">Tidak ada ketidaksesuaian pada data yang dipilih.</p>');
+  return h}
+ const fmtN=n=>Math.round(n).toLocaleString('id-ID');
  function drawDefect(){
   const L=defRows(),tot=L.reduce((x,c)=>x+num(c.qty_actual),0);
   return '<h3 style="margin:0 0 4px">Defect Handling</h3><p class="sub">Item reject dari surat jalan (Type Reject, Riject, Rizek, Defect, BS) dan temuan reject saat counting. Item ini tidak di-put away dan tidak di-data entry ke MOKA.</p><p><strong>'+L.length+'</strong> item · <strong>'+tot+'</strong> pcs</p>'+(L.length?'<div style="overflow:auto"><table><thead><tr><th>Tanggal</th><th>PO</th><th>Vendor</th><th>Koli</th><th>Item</th><th>Qty</th><th>Sumber</th><th>Keterangan</th><th>Operator</th></tr></thead><tbody>'+L.map(c=>'<tr><td>'+esc(c.tanggal)+'</td><td>'+esc(c.po)+'</td><td>'+esc(vendorOfPo(c.po)||'')+'</td><td>'+esc(c.no_koli)+'</td><td>'+esc(c.item)+'</td><td><strong>'+esc(c.qty_actual)+'</strong></td><td>'+(String(c.seq).charAt(0)==='R'?'Temuan':'Surat jalan')+'</td><td>'+esc(c.keterangan)+(c.foto_id?' <a href="https://drive.google.com/file/d/'+esc(c.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+'</td><td>'+esc(c.operator)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada item reject.</p>')+wipeAllCard()}
@@ -3032,6 +3066,7 @@ init();
   if(tabName==='Counting')h+=(cur&&cur.mode==='count')?drawCountScreen():listTugas('count');
   else if(tabName==='Put Away')h+=(cur&&cur.mode==='put')?putScreen():listTugas('put');
   else if(tabName==='Defect Handling')h+=drawDefect();
+  else if(tabName==='Laporan Kesesuaian')h+=drawReport();
   else h+=drawEntry();
   const sig=h;if(body.dataset.sig!==sig){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,key=ae&&ae.dataset&&ae.dataset.pb;body.dataset.sig=sig;body.innerHTML=h;
    if(key){const el=body.querySelector('[data-pb="'+key+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(st,st)}catch(e){}}}else if(id&&$(id)){$(id).focus({preventScroll:true})}}}
@@ -3063,6 +3098,7 @@ init();
  document.addEventListener('change',e=>{const t=e.target;
   if(t.dataset&&t.dataset.gde){if(!t.checked&&!isSpv()){alert('Membatalkan tanda data entry hanya untuk SPV.');t.checked=true;return}const x=entryData(entryPo).find(y=>norm(y.item)===t.dataset.gde);if(x)deMark(x,t.checked);return}
   if(t.id==='gr-fop'){filterOp=t.value;draw();return}
+  if(t.id==='gr-rpo'){repPo=t.value;draw();return}
   if(t.id==='gr-epo'){entryPo=t.value;draw();return}
   if(t.id==='gr-moka'&&t.files[0]){if(!isSpv()){alert('Mengganti template MOKA hanya untuk SPV.');t.value='';return}uploadMoka(t.files[0]);return}
   if(t.id==='gr-binfile'&&t.files[0]){importBin(t.files[0]);return}});
