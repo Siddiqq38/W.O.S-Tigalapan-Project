@@ -3347,7 +3347,7 @@ init();
   updKoli(k,{picker:np,picker_nama:nameOf(np),task_id:tid})}
  function taskAccept(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t&&t.status==='baru'){t.status='diterima';t.by2=k.picker;t.ackAt=stIso()}})}
  function taskMaybeDone(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}
- function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();pull(true);draw()}
+ function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();else if(cur.mode==='vp'){LY.at=0;loadLayers()}pull(true);draw()}
  function stokOut(r,bin,sku,qty){if(!(qty>0)||!bin)return;enq('STOK_BIN',{id:'SB|PK|'+r.id,tanggal:today(),jenis:'PICKING',bin,sku:sku||U(r.item),item:r.item,qty_masuk:'0',qty_keluar:String(qty),referensi:r.dok+' koli '+r.koli,pic_kode:code(),catatan:''})}
  function pickRow(r,status,binA,qtyA,ket,video,cb){
   const row=Object.assign({},r,{status,bin_actual:binA,qty_actual:String(qtyA),ket_pick:ket||'',picker:code(),jam_pick:nowHM()});
@@ -3381,7 +3381,7 @@ init();
   const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),d=view('PICK_DOK').find(x=>x.id===k.dok)||{},self=k.picker===code()&&!canAdmin();
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">Verifikasi · '+esc(d.kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
   if(self)h+='<p class="note" style="color:#b3261e">Verifikasi harus dilakukan orang lain, bukan picker koli ini.</p>';
-  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty diambil</th><th>Verifikasi</th><th>Cek</th></tr></thead><tbody>'+rows.filter(r=>num(r.qty_actual)>0).map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+'</td><td><strong>'+esc(r.qty_actual)+'</strong></td><td>'+(r.vp==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':r.vp==='Dikoreksi'?'<span class="tag green">✓ Dikoreksi</span>':r.vp==='Salah'?'<span class="tag red">✗ '+esc(r.vp_ket)+'</span>':'<span class="sub">belum dicek</span>')+'</td><td>'+(r.vp==='Salah'?'<button class="button" data-obfix="'+esc(r.id)+'" type="button">Sudah dikoreksi</button>':(self?'':'<button class="button" data-obvok="'+esc(r.id)+'" type="button">✓</button> <button class="button secondary" data-obvno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button>'))+'</td></tr>').join('')+'</tbody></table></div>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty diambil</th><th>Verifikasi</th><th>Cek</th></tr></thead><tbody>'+rows.filter(r=>num(r.qty_actual)>0).map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+pkTag(r)+'</td><td><strong>'+esc(r.qty_actual)+'</strong></td><td>'+(r.vp==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':r.vp==='Dikoreksi'?'<span class="tag green">✓ Dikoreksi</span>':r.vp==='Salah'?'<span class="tag red">✗ '+esc(r.vp_ket)+'</span>':'<span class="sub">belum dicek</span>')+'</td><td>'+(r.vp==='Salah'?'<button class="button" data-obfix="'+esc(r.id)+'" type="button">Sudah dikoreksi</button>':(self?'':'<button class="button" data-obvok="'+esc(r.id)+'" type="button">✓</button> <button class="button secondary" data-obvno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button>'))+'</td></tr>').join('')+'</tbody></table></div>';
   if(k.status==='Siap TFS')h+='<p class="note">Semua item lolos verifikasi. Koli siap masuk tahap <strong>Transfer Stok (TFS ke MOKA)</strong>.</p>';
   else if(k.status==='Perbaikan')h+='<p class="note" style="color:#b3261e">Ada item yang salah. Picker mengambil barang yang seharusnya, lalu tekan Sudah dikoreksi.</p>';
   return h+'</div>'}
@@ -3515,16 +3515,19 @@ init();
  let stokMap={};
  async function refreshStok(){try{const r=await call({action:'stok'},true);if(r.ok){const m={};r.rows.forEach(x=>{m[x.bin+'|'+x.sku]=num(x.saldo)});stokMap=m;draw()}}catch(e){}loadLayers()}
  // asal PO per bin (FIFO): lapisan stok tiap bin dan item dari riwayat STOK_BIN (masuk put away dengan referensi PO, keluar mengurangi dari yang tertua)
- let LY={at:0,busy:false,map:new Map()};
+ let LY={at:0,busy:false,map:new Map(),pk:new Map()};
  async function loadLayers(){
   if(LY.busy||Date.now()-LY.at<60000)return;LY.busy=true;
   try{const r=await call({action:'list',tab:'STOK_BIN',from:back(400),to:back(-1)},true);
-   if(r.ok){const by=new Map();r.rows.slice().sort((a,b)=>String(a.waktu_server||a.tanggal).localeCompare(String(b.waktu_server||b.tanggal))).forEach(x=>{
+   if(r.ok){const by=new Map(),PK=new Map();r.rows.slice().sort((a,b)=>String(a.waktu_server||a.tanggal).localeCompare(String(b.waktu_server||b.tanggal))).forEach(x=>{
      const k=x.bin+'|'+U(x.sku||x.item);let L=by.get(k);if(!L)by.set(k,L=[]);const qi=num(x.qty_masuk),qo=num(x.qty_keluar);
      if(qi>0){const m=/^(.*?)\s+koli\s+\d+/i.exec(x.referensi||'');L.push({po:m?m[1]:String(x.referensi||x.jenis||'saldo awal'),qty:qi})}
-     if(qo>0){let need=qo;for(const l of L){if(need<=0)break;const t=Math.min(l.qty,need);l.qty-=t;need-=t}}});
-    LY.map=by;LY.at=Date.now()}}catch(e){}
+     if(qo>0){let need=qo;const used=new Map();for(const l of L){if(need<=0)break;const t=Math.min(l.qty,need);l.qty-=t;need-=t;if(t>0)used.set(l.po,(used.get(l.po)||0)+t)}
+      if(/^SB\|PK\|/.test(String(x.id)))PK.set(String(x.id).slice(6),[...used].map(([po,qty])=>({po,qty})))}});
+    LY.map=by;LY.pk=PK;LY.at=Date.now()}}catch(e){}
   LY.busy=false;draw()}
+ // asal PO barang yang sudah diambil (untuk verifikasi): dari lapisan stok saat picking dicatat
+ const pkTag=r=>{const a=LY.pk&&LY.pk.get(r.id);if(!a||!a.length)return '';return '<div class="sub" style="font-size:11px;margin-top:2px">PO: '+a.map(x=>'<b>'+esc(x.po)+'</b>'+(a.length>1?' ×'+x.qty:'')).join(' · ')+'</div>'};
  const poTag=r=>{
   if(r.status!=='Menunggu'||!r.bin||!LY.at)return '';
   const key=r.bin+'|'+U(r.item),L=(LY.map.get(key)||[]).filter(l=>l.qty>0).map(l=>({po:l.po,qty:l.qty}));if(!L.length)return '';
