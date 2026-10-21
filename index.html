@@ -3013,14 +3013,35 @@ init();
   return h+'</div>'+wipeAllCard()}
 
  // ---- master bin
- function binCard(){if(!canAdmin())return '';const n=view('MASTER_BIN').length;return '<div class="card" style="margin-top:12px"><h3>Master bin (lokasi gudang)</h3><p class="sub">'+(n?n+' lokasi terdaftar. ':'Belum ada master bin. ')+'Impor file Excel master lokasi (kolom Location, Zone, Rack Type, No Rak, Level, Bin). Format kode bin: Blok-Rak.Bin, misalnya A1.1 = blok A, rak 1, bin 1.  Semua lokasi (termasuk yang berakhiran .L dan .R) bisa dipakai untuk put away.</p><input id="gr-binfile" type="file" accept=".xlsx,.xls,.csv"><p class="sub" id="gr-bininfo"></p></div>'}
+ function binCard(){if(!canAdmin())return '';const n=view('MASTER_BIN').length;return '<div class="card" style="margin-top:12px"><h3>Master bin (lokasi gudang)</h3><p class="sub">'+(n?n+' lokasi terdaftar. ':'Belum ada master bin. ')+'Impor file Excel master lokasi (kolom Location, Zone, Rack Type; kolom Atas, Samping, Belakang, Bal, Pcs Pjg, Pcs Pdk, Maks Capacity, Status ikut dibaca bila ada). Hanya data yang berubah yang dikirim, bin yang tidak lagi ada di file dinonaktifkan bila kosong. Format kode bin: Blok-Rak.Bin, misalnya A1.1 = blok A, rak 1, bin 1.  Semua lokasi (termasuk yang berakhiran .L dan .R) bisa dipakai untuk put away.</p><input id="gr-binfile" type="file" accept=".xlsx,.xls,.csv"><p class="sub" id="gr-bininfo"></p></div>'}
  async function importBin(file){
   const info=t=>{const e=$('gr-bininfo');if(e)e.textContent=t};
   try{info('Membaca…');const rows=await readRows(file),hi=rows.findIndex(r=>r.some(c=>/^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Location tidak ditemukan.');
-   const h=rows[hi],iL=colIdx(h,'LOCATION'),iZ=colIdx(h,'ZONE'),iT=colIdx(h,'RACK TYPE'),iR=colIdx(h,'NO RAK'),iV=colIdx(h,'LEVEL'),iB=colIdx(h,'BIN'),seen=new Set(),list=[];
-   rows.slice(hi+1).forEach(r=>{const id=U(r[iL]);if(!id||seen.has(id))return;seen.add(id);list.push({id,zona:String(r[iZ]||'').trim(),tipe_rak:String(r[iT]||'').trim(),no_rak:String(r[iR]||'').trim(),level:String(r[iV]||'').trim(),bin:String(r[iB]||'').trim(),status:'Aktif',catatan:''})});
-   if(!list.length)throw new Error('Tidak ada lokasi terbaca.');if(!confirm(list.length+' lokasi akan disimpan. Lanjutkan?')){info('');return}
-   list.forEach(x=>enq('MASTER_BIN',x));info(list.length+' lokasi dikirim ke spreadsheet (butuh beberapa menit di latar belakang).')}catch(e){info('Gagal: '+(e&&e.message||e))}}
+   const h=rows[hi],ix=n=>colIdx(h,n),iL=ix('LOCATION'),iZ=ix('ZONE'),iT=ix('RACK TYPE'),iR=ix('NO RAK'),iV=ix('LEVEL'),iB=ix('BIN'),iA=ix('ATAS'),iS=ix('SAMPING'),iBl=ix('BELAKANG'),iBal=ix('BAL'),iPj=ix('PCS PJG'),iPd=ix('PCS PDK'),iMx=ix('MAKS CAPACITY'),iSt=ix('STATUS'),iBc=ix('BARCODE'),iKt=ix('KET');
+   const cell=(r,i)=>i>=0?String(r[i]==null?'':r[i]).trim():'',seen=new Set(),list=[];
+   rows.slice(hi+1).forEach(r=>{const id=U(r[iL]);if(!id||seen.has(id))return;seen.add(id);const m=/^([A-Z]+)(\d+)\.(.+)$/.exec(id)||[],ext={},put=(k,v)=>{if(v)ext[k]=v};
+    if(iA>=0){put('atas',num(r[iA]));put('samping',num(r[iS]));put('belakang',num(r[iBl]));put('bal',num(r[iBal]));put('pjg',num(r[iPj]));put('pdk',num(r[iPd]));put('max',num(r[iMx]))}
+    if(cell(r,iBc))ext.barcode=cell(r,iBc);if(cell(r,iKt))ext.ket=cell(r,iKt);
+    let z=cell(r,iZ);if(z&&!/zone/i.test(z))z+=' Zone';const st=iSt>=0?cell(r,iSt):'Active';
+    list.push({id,zona:z,tipe_rak:cell(r,iT),no_rak:iR>=0?cell(r,iR):(m[2]||''),level:iV>=0?cell(r,iV):'',bin:iB>=0?cell(r,iB):(m[3]||''),status:(!st||/^(active|aktif)$/i.test(st))?'Aktif':'Tidak aktif',catatan:Object.keys(ext).length?JSON.stringify(ext):'',_blk:m[1]||'',_rack:m[1]&&m[2]?m[1]+m[2]:''})});
+   if(!list.length)throw new Error('Tidak ada lokasi terbaca.');
+   // level: dua bin per level, L dan R di level paling atas (hanya bila file tidak memuat kolom Level)
+   if(iV<0){const ord=v=>v==='L'?-2:v==='R'?-1:Number(v),by=new Map();list.forEach(x=>{if(x._blk&&x._blk!=='LP'&&x._rack)(by.get(x._rack)||by.set(x._rack,[]).get(x._rack)).push(x)});
+    by.forEach(L=>{L.sort((p,q)=>ord(p.bin)-ord(q.bin));const n=Math.ceil(L.length/2);L.forEach((x,i)=>{x.level=String(n-Math.floor(i/2))})})}
+   let curRows=view('MASTER_BIN');try{const mr=await call({action:'list',tab:'MASTER_BIN'},true);if(mr.ok)curRows=mr.rows}catch(e){}
+   const cur=new Map(curRows.map(b=>[b.id,b])),keys=['zona','tipe_rak','no_rak','level','bin','status','catatan'];
+   const same=(a,o)=>keys.every(k=>String(a[k]||'')===String(o[k]||''));
+   const toWrite=list.filter(x=>{const o=cur.get(x.id);return !o||!same(x,o)}),added=list.filter(x=>!cur.has(x.id));
+   const rackRe=/^(A|B|C|D|E|F|G|H|LP|Q)\d+\.\w+$/,missing=[...cur.values()].filter(b=>rackRe.test(b.id)&&!seen.has(b.id)&&b.status!=='Tidak aktif');
+   let withStock=[];try{const sk=await call({action:'stok'},true);if(sk.ok){const q=new Map();sk.rows.forEach(x=>q.set(x.bin,(q.get(x.bin)||0)+num(x.saldo)));withStock=missing.filter(b=>(q.get(b.id)||0)!==0)}}catch(e){}
+   const rackCount=[...cur.values()].filter(b=>rackRe.test(b.id)&&b.status!=='Tidak aktif').length,incomplete=missing.length>Math.max(30,Math.round(rackCount*0.1));
+   const off=incomplete?[]:missing.filter(b=>!withStock.some(w=>w.id===b.id)),lst=(a,n)=>a.slice(0,n).map(b=>b.id).join(', ')+(a.length>n?' … (+'+(a.length-n)+' lainnya)':'');
+   const msgT=list.length+' lokasi terbaca.\n'+added.length+' lokasi baru'+(added.length?': '+added.slice(0,12).map(x=>x.id).join(', ')+(added.length>12?' …':''):'')+'.\n'+(toWrite.length-added.length)+' lokasi yang datanya berubah (kapasitas, tipe, zona, status).\n'+(incomplete?'PERINGATAN: '+missing.length+' bin yang ada di sistem tidak ada di file ini (file tampak tidak lengkap), jadi tidak ada bin yang dinonaktifkan. Contoh: '+lst(missing,10)+'.\n':off.length+' bin ada di sistem tetapi tidak ada di file dan kosong, akan dinonaktifkan'+(off.length?': '+lst(off,15):'')+'.\n')+(!incomplete&&withStock.length?withStock.length+' bin tidak ada di file tetapi masih berisi stok, dibiarkan aktif: '+lst(withStock,15)+'.\n':'')+'Lokasi khusus di luar rak (mis. CDC, QDJ) tidak disentuh.\n\nLanjutkan?';
+   if(!toWrite.length&&!off.length){info('Master bin sudah sama dengan file, tidak ada yang perlu disimpan.');return}
+   if(!confirm(msgT)){info('');return}
+   toWrite.forEach(x=>{const row=Object.assign({},x);delete row._blk;delete row._rack;enq('MASTER_BIN',row)});
+   off.forEach(b=>enq('MASTER_BIN',Object.assign({},b,{status:'Tidak aktif'})));
+   info(toWrite.length+' lokasi diperbarui dan '+off.length+' bin dinonaktifkan. Dikirim ke spreadsheet di latar belakang (beberapa menit).')}catch(e){info('Gagal: '+(e&&e.message||e))}}
 
  // ---- tampilan
  const WIPE_T=[['SJ_ITEM','surat jalan'],['GR_ASSIGN','penugasan'],['GR_COUNT','hasil counting'],['PUTAWAY','put away'],['DATA_ENTRY','data entry'],['HPP_ITEM','HPP'],['MASTER_HPP','status HPP'],['PO_DOK','dokumen PO']];
@@ -3701,7 +3722,8 @@ init();
 
  // ---- layout gudang
  // Denah dijiplak dari gambar lampiran (957 x 631 px = 30 m x 20 m). Penomoran mengikuti skema blok (diputar 90 derajat berlawanan arah jarum jam).
- const PLAN=(()=>{
+ const mkPlan=cells=>{const box={};cells.forEach(c=>{if(!c.g)return;const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:0,y2:0});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});return{W:957,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}};
+ const defaultCells=()=>{
   const cells=[],seq=(p,a,b)=>{const o=[];for(let i=a;i<=b;i++)o.push(p+i);return o},rev=a=>a.slice().reverse();
   const run=(ids,x,y,w,h,g)=>{let cx=x;ids.forEach((id,i)=>{cells.push({id,x:cx,y,w:w[i],h,g});cx+=w[i]})};
   const col=(ids,x,w,ys,h,g)=>ids.forEach((id,i)=>cells.push({id,x,y:ys[i],w,h:h,g})),dk=(ids,x,y,w,h,g)=>ids.forEach((id,i)=>cells.push({id,x:x+i*w,y,w,h,dark:true,g}));
@@ -3710,17 +3732,19 @@ init();
   col(rev(seq('H',1,16)),914,26,[17,54,91,129,166,203,240,278,315,352,389,427,464,501,538,576],36,'H');
   run(seq('G',1,23),45,592,[45,35,35,36,36,35,35,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36],26,'G');
   const w7=[30,29,30,29,30,29,30],w11=[30,29,30,29,30,29,29,30,29,29,30];
-  run(seq('LP1.',12,18),240,81,w7,23,'LP1');run(seq('LP1.',5,11),240,111,w7,22,'LP1');dk(seq('LP1.',1,4),85,96,38,39,'LP1');
-  run(seq('LP2.',12,22),509,81,w11,23,'LP2');run(seq('LP2.',1,11),509,111,w11,22,'LP2');
+  run(seq('LP1.',12,17),240,81,w7.slice(0,6),23,'LP1');run(seq('LP1.',5,11),240,111,w7,22,'LP1');dk(seq('LP1.',1,4),85,96,38,39,'LP1');
+  run(seq('LP2.',12,20),509,81,w11.slice(0,9),23,'LP2');run(seq('LP2.',1,11),509,111,w11,22,'LP2');
   const wC=[46,46,46,46,45,45,45,45],wD=[45,45,46,45,45,45,45,45];
   run(seq('C',1,8),86,182,wC,26,'C');run(seq('C',9,16),86,210,wC,26,'C');run(seq('D',1,8),509,182,wD,26,'D');run(seq('D',9,16),509,210,wD,26,'D');
-  const m1=[30,30,29,30,29,30,30,29,30,30,30],m2=[30,29,30,29,30,29,29,30,29,30,30];
-  run(seq('LP3.',12,22),85,287,m1,23,'LP3');run(seq('LP3.',1,11),85,316,m1,23,'LP3');run(seq('LP4.',12,22),508,287,m2,23,'LP4');run(seq('LP4.',1,11),508,316,m2,23,'LP4');
+  const m1=[30,30,29,30,29,30,30,29,30,30,30],m1b=[30,30,29,30,29,30,30,29,30,30,30,29],m2=[30,29,30,29,30,29,29,30,29,30,30];
+  run(seq('LP3.',13,23),85,287,m1,23,'LP3');run(seq('LP3.',1,12),85,316,m1b,23,'LP3');run(seq('LP4.',12,22),508,287,m2,23,'LP4');run(seq('LP4.',1,11),508,316,m2,23,'LP4');
   const e1=[36,36,36,36,35,36,35,36,36,35],f1=[36,35,36,35,36,35,36,35,35,36];
   run(seq('E',1,10),85,393,e1,27,'E');run(seq('E',11,20),85,423,e1,26,'E');run(seq('F',1,10),508,393,f1,27,'F');run(seq('F',11,20),508,423,f1,26,'F');
   dk(seq('LP5.',1,10),84,502,38,38,'LP5a');dk(seq('LP5.',11,20),506,501,38,38,'LP5b');
-  const box={};cells.forEach(c=>{const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:0,y2:0});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});
-  return{W:957,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}})(); let rackIdx={m:null,n:-1};
+  cells.push({id:'Q1',x:850,y:108,w:52,h:40,g:'Q'});
+  return cells};
+ let PLAN=mkPlan(defaultCells());
+  let rackIdx={m:null,n:-1};
  function rackIndex(){const mb=masterBins();if(rackIdx.m&&rackIdx.n===mb.length)return rackIdx.m;const m=new Map();mb.forEach(b=>{let r=/^([A-Z]+\d+)\./.exec(b.id);const k=r&&!/^LP/.test(b.id)?r[1]:b.id;(m.get(k)||m.set(k,{id:k,zona:b.zona||'',bins:[]}).get(k)).bins.push(b)});m.forEach(r=>r.bins.sort((a,b)=>cmpBin(a.id,b.id)));rackIdx={m,n:mb.length};return m}
  function rackKey(id){return /^LP\d+\.\d+$/.test(id)?null:id}
  function rackStat(r){let occ=0,qty=0,old=0,never=0;const lm=lastMap();r.bins.forEach(b=>{const q=binTotal(b.id);if(q>0){occ++;qty+=q;const d=daysAgo(lm.get(b.id));if(d>180)old++;if(d===9999)never++}});return{occ,qty,old,never,total:r.bins.length}}
@@ -3728,23 +3752,100 @@ init();
   if(mapMode==='hitung'){if(!s.occ)return 'background:#f4f4f4';return s.never?'background:#f7b9b0':s.old?'background:#fbd89c':'background:#bfe6cb'}
   return ''}
  function cellClass(r){const z=U(r.zona);return z.indexOf('GOLDEN')>=0?'lc-z-g':z.indexOf('SILVER')>=0?'lc-z-s':z.indexOf('BRONZE')>=0?'lc-z-b':'lc-z-lp'}
+ // ---- editor layout (SPV / admin): pindah rak dan palet, ubah ukuran, tambah, hapus, balik nomor; bin baru; tersimpan bersama bila tab LAYOUT ada
+ let lay={edit:false,draft:null,sel:new Set(),loaded:false,busy:false,srv:null,src:'bawaan',msg:''};
+ const LAYK='wos-layout-v1',cloneCells=a=>a.map(c=>Object.assign({},c));
+ function applyCfg(cfg){if(cfg&&Array.isArray(cfg.cells)&&cfg.cells.length){PLAN=mkPlan(cloneCells(cfg.cells));return true}return false}
+ try{const l0=JSON.parse(localStorage.getItem(LAYK)||'null');if(l0&&applyCfg(l0))lay.src='perangkat ini'}catch(e){}
+ async function loadLayout(){
+  if(lay.loaded||lay.busy)return;lay.busy=true;
+  try{const r=await call({action:'list',tab:'LAYOUT'},true);
+   if(r.ok){const row=(r.rows||[]).find(x=>x.id==='MAIN');if(row){try{const cfg=JSON.parse(row.data);if(applyCfg(cfg)){lay.src='server';try{localStorage.setItem(LAYK,JSON.stringify(cfg))}catch(e){}}}catch(e){}}lay.srv=true}else lay.srv=false}catch(e){lay.srv=false}
+  lay.loaded=true;lay.busy=false;draw()}
+ const lmsg=t=>{lay.msg=t;draw()};
+ function editBar(){return '<div class="note" style="margin-bottom:8px"><strong>Mode edit layout.</strong> Seret kotak untuk memindahkan. Klik untuk memilih, Shift+klik untuk memilih beberapa kotak. Perubahan baru berlaku setelah <b>Simpan layout</b>. Sumber layout saat ini: '+esc(lay.src)+'.'+(lay.srv===false?' <span style="color:#b3261e">Tab LAYOUT belum ada di skrip Google gudang, layout hanya akan tersimpan di perangkat ini.</span>':'')+'<div class="ob-actions" style="margin-top:8px"><button class="button" data-lcesave="1" type="button">Simpan layout</button><button class="button secondary" data-lccancel="1" type="button">Batal</button><button class="button secondary" data-lceadd="1" type="button">+ Rak / palet baru</button><button class="button secondary" data-lcreset="1" type="button" style="color:#b3261e">Kembalikan ke bawaan</button></div>'+(lay.msg?'<p class="sub" style="margin:6px 0 0">'+esc(lay.msg)+'</p>':'')+'</div>'}
+ const rOrd=v=>v==='L'?-2:v==='R'?-1:Number(v);
+ function levelsFor(ids){const o=ids.slice().sort((a,b)=>rOrd(a.split('.').pop())-rOrd(b.split('.').pop())),n=o.length,L=Math.ceil(n/2),m=new Map();o.forEach((id,i)=>m.set(id,L-Math.floor(i/2)));return m}
+ function parseBinList(t){const out=[];String(t||'').split(/[,;\s]+/).forEach(p=>{if(!p)return;const m=/^(\d+)\s*[-–]\s*(\d+)$/.exec(p);if(m){let a=+m[1],b=+m[2];if(a>b)[a,b]=[b,a];for(let i=Math.max(a,1);i<=Math.min(b,60);i++)out.push(String(i))}else if(/^[LR]$/i.test(p))out.push(p.toUpperCase());else if(/^\d+$/.test(p)&&+p>=1)out.push(String(+p))});return [...new Set(out)]}
+ function binEditor(id){
+  if(/^LP\d+\.\d+$/.test(id)){const b=masterBins().find(x=>x.id===id);return '<h4 style="margin:12px 0 4px">Bin palet '+esc(id)+'</h4>'+(b?'<p class="sub">Terdaftar di master bin ('+esc(b.tipe_rak||'')+'). '+(binTotal(id)>0?'Berisi '+binTotal(id)+' pcs.':'Kosong.')+' <button class="button secondary" data-lcbinoff="'+esc(id)+'" type="button">Nonaktifkan bin ini</button></p>':'<p class="note">Palet ini belum ada di master bin. <button class="button" data-lcbinmk="'+esc(id)+'" data-lcpal="1" type="button">Daftarkan sebagai bin palet</button></p>')}
+  const R=rackIndex().get(id),bins=R?R.bins:[];
+  let h='<h4 style="margin:12px 0 4px">Bin pada rak '+esc(id)+' <span class="sub">('+bins.length+' bin aktif)</span></h4>';
+  h+=bins.length?'<div class="kl" style="grid-template-columns:repeat(auto-fill,minmax(64px,1fr))">'+bins.map(b=>{const q=binTotal(b.id);return '<button type="button" class="kb" data-lcbinoff="'+esc(b.id)+'" title="'+(q>0?'Masih berisi '+q+' pcs, tidak bisa dinonaktifkan':'Klik untuk menonaktifkan bin ini')+'">'+esc(b.id.split('.').pop())+'<small>'+(q>0?q+' pcs':'kosong')+'</small></button>'}).join('')+'</div>':'<p class="note">Belum ada bin untuk rak ini.</p>';
+  return h+'<div class="form-grid" style="margin-top:8px"><div class="field"><label>Tambah bin (mis. L,R,1-12)</label><input data-lcbl="1" value="'+esc(lay.bl||'L,R,1-10')+'"></div><div class="field"><label>Zona</label><select data-lcbz="1">'+['Golden Zone','Silver Zone','Bronze Zone'].map(z=>'<option'+((lay.bz||(R&&R.zona)||'Golden Zone')===z?' selected':'')+'>'+z+'</option>').join('')+'</select></div></div><div class="ob-actions"><button class="button" data-lcbinmk="'+esc(id)+'" type="button">Tambah bin ke rak '+esc(id)+'</button></div><p class="sub">Klik kotak bin di atas untuk menonaktifkan bin yang sudah tidak dipakai (hanya bila kosong). Level bin dihitung ulang otomatis, dua bin per level, L dan R di level paling atas.</p>'}
+ function editPanel(){
+  const idxs=[...lay.sel].filter(i=>lay.draft[i]),S=idxs.map(i=>lay.draft[i]);
+  if(!S.length)return '<p class="sub" style="margin-top:8px">Pilih kotak rak atau palet di denah untuk mengubah posisi, ukuran, nomor, atau bin-nya.</p>';
+  const one=S.length===1?S[0]:null;
+  let h='<div class="card" style="margin-top:10px"><h3 style="margin:0">'+(one?'Kotak '+esc(one.id||'(tanpa kode)'):S.length+' kotak dipilih')+'</h3><div class="ob-actions" style="margin:8px 0;align-items:center"><span class="sub">Geser:</span>'+[[-5,0,'←5'],[-1,0,'←1'],[1,0,'→1'],[5,0,'→5'],[0,-5,'↑5'],[0,-1,'↑1'],[0,1,'↓1'],[0,5,'↓5']].map(a=>'<button class="button secondary" data-lcnudge="'+a[0]+','+a[1]+'" type="button" style="padding:4px 9px">'+a[2]+'</button>').join('')+'</div>';
+  if(one)h+='<div class="form-grid">'+[['id','Kode rak / palet',one.id],['x','Posisi X',one.x],['y','Posisi Y',one.y],['w','Lebar',one.w],['h','Tinggi',one.h],['g','Kelompok (garis kuning)',one.g||'']].map(([k,l,v])=>'<div class="field"><label>'+l+'</label><input data-lcf="'+k+'" value="'+esc(v)+'"></div>').join('')+'<div class="field"><label>Warna</label><select data-lcf="dark"><option value="">Mengikuti zona</option><option value="1"'+(one.dark?' selected':'')+'>Gelap (palet plastik)</option></select></div></div>';
+  h+='<div class="ob-actions"><button class="button secondary" data-lcflip="1" type="button">⇄ Balik urutan nomor ('+S.length+' kotak)</button><button class="button secondary" data-lcdel="1" type="button" style="color:#b3261e">Hapus kotak</button></div><p class="sub">Balik urutan nomor: urutan nomor pada kotak yang dipilih dibalik menurut posisinya (kiri ke kanan atau atas ke bawah). Contoh: pilih H1 sampai H16, nomor yang tadinya naik dari atas ke bawah menjadi turun. Pilih beberapa kotak dengan Shift+klik.</p>';
+  if(one&&one.id)h+=binEditor(one.id);
+  return h+'</div>'}
+ let lDrag=null;
+ document.addEventListener('pointerdown',e=>{if(!lay.edit)return;const g=e.target.closest&&e.target.closest('[data-lced]');if(!g||!body||!body.contains(g))return;
+  const ci=Number(g.dataset.lced),svg=g.ownerSVGElement,r=svg.getBoundingClientRect();
+  if(e.shiftKey){lay.sel.has(ci)?lay.sel.delete(ci):lay.sel.add(ci)}else if(!lay.sel.has(ci)){lay.sel=new Set([ci])}
+  lDrag={x0:e.clientX,y0:e.clientY,k:957/r.width,moved:false,dx:0,dy:0,els:[...lay.sel].map(i=>body.querySelector('[data-lced="'+i+'"]')).filter(Boolean)};e.preventDefault()});
+ document.addEventListener('pointermove',e=>{if(!lDrag)return;const dx=(e.clientX-lDrag.x0)*lDrag.k,dy=(e.clientY-lDrag.y0)*lDrag.k;if(Math.abs(dx)+Math.abs(dy)>2)lDrag.moved=true;lDrag.dx=dx;lDrag.dy=dy;if(lDrag.moved)lDrag.els.forEach(el=>el.setAttribute('transform','translate('+dx.toFixed(1)+' '+dy.toFixed(1)+')'))});
+ document.addEventListener('pointerup',()=>{if(!lDrag)return;const d=lDrag;lDrag=null;if(d.moved)[...lay.sel].forEach(i=>{const c=lay.draft[i];if(c){c.x=Math.round(c.x+d.dx);c.y=Math.round(c.y+d.dy)}});draw()});
+ document.addEventListener('change',e=>{const t=e.target;if(!lay.edit||!t.dataset)return;
+  if(t.dataset.lcf){const i=[...lay.sel][0],c=lay.draft[i];if(!c)return;const k=t.dataset.lcf;
+   if(k==='id'){const v=U(t.value);if(v&&lay.draft.some((x,j)=>j!==i&&U(x.id)===v)){lmsg('Kode '+v+' sudah dipakai kotak lain.');return}c.id=v}
+   else if(k==='g')c.g=t.value.trim();else if(k==='dark')c.dark=t.value==='1';else{const n=Number(t.value);if(isFinite(n))c[k]=Math.round(n)}draw();return}
+  if(t.dataset.lcbl){lay.bl=t.value;return}if(t.dataset.lcbz){lay.bz=t.value;return}});
+ function levelRows(rackId,extraIds){const have=(rackIndex().get(rackId)||{bins:[]}).bins.map(b=>b.id),all=[...new Set(have.concat(extraIds))];return levelsFor(all)}
+ function saveBinRow(id,zona,tipe,lvl,status){const old=masterBins().find(b=>b.id===id)||view('MASTER_BIN').find(b=>b.id===id)||{};const m=/^([A-Z]+)(\d+)\.(.+)$/.exec(id)||[];enq('MASTER_BIN',Object.assign({id,zona:zona||old.zona||'',tipe_rak:tipe||old.tipe_rak||'Rack',no_rak:old.no_rak||m[2]||'',level:lvl==null?(old.level||''):String(lvl),bin:old.bin||m[3]||'',status:status||old.status||'Aktif',catatan:old.catatan||''}))}
+ async function saveLayout(){
+  const cells=lay.draft.filter(c=>c&&(c.id||c.g)),ids=cells.map(c=>c.id).filter(Boolean);
+  if(new Set(ids).size!==ids.length){lmsg('Ada kode rak / palet ganda. Perbaiki dulu sebelum menyimpan.');return}
+  const cfg={v:1,cells:cloneCells(cells),by:code(),at:today()+' '+new Date(Date.now()+288e5).toISOString().slice(11,16)};
+  applyCfg(cfg);try{localStorage.setItem(LAYK,JSON.stringify(cfg))}catch(e){}
+  let srv=false;try{const t=await call({action:'list',tab:'LAYOUT'},true);srv=!!t.ok}catch(e){}
+  if(srv){enq('LAYOUT',{id:'MAIN',data:JSON.stringify(cfg),catatan:nameOf(code())+' · '+cfg.at});lay.src='server';lay.srv=true;msg='Layout tersimpan dan dibagikan ke semua perangkat.';msgBad=false}
+  else{lay.src='perangkat ini';lay.srv=false;msg='Layout tersimpan di perangkat ini saja. Agar dibagikan ke semua perangkat, pasang skrip Google gudang terbaru (tab LAYOUT), lalu buka Edit layout dan Simpan ulang.';msgBad=true}
+  lay.edit=false;lay.draft=null;lay.sel=new Set();draw()}
+ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!t.dataset||!body||!body.contains(t))return;const d=t.dataset;
+  if(d.lcedit!==undefined){if(!canAdmin())return;lay.edit=!lay.edit;if(lay.edit){lay.draft=cloneCells(PLAN.cells);lay.sel=new Set();lay.msg=''}else{lay.draft=null}draw();return}
+  if(!lay.edit)return;
+  if(d.lccancel!==undefined){lay.edit=false;lay.draft=null;lay.sel=new Set();draw();return}
+  if(d.lcesave!==undefined){saveLayout();return}
+  if(d.lcreset!==undefined){if(confirm('Kembalikan layout ke susunan bawaan? Perubahan yang belum disimpan hilang.')){lay.draft=cloneCells(defaultCells());lay.sel=new Set();draw()}return}
+  if(d.lceadd!==undefined){const id=U(prompt('Kode rak / palet baru (mis. A24 atau LP6.1):','')||'');if(!id)return;if(lay.draft.some(c=>U(c.id)===id)){lmsg('Kode '+id+' sudah ada di denah.');return}lay.draft.push({id,x:430,y:250,w:40,h:26,g:''});lay.sel=new Set([lay.draft.length-1]);lay.msg='Kotak '+id+' ditambahkan di tengah denah. Seret ke posisi yang diinginkan.';draw();return}
+  if(d.lcnudge){const [dx,dy]=d.lcnudge.split(',').map(Number);[...lay.sel].forEach(i=>{const c=lay.draft[i];if(c){c.x+=dx;c.y+=dy}});draw();return}
+  if(d.lcdel!==undefined){const L=[...lay.sel].filter(i=>lay.draft[i]);if(!L.length)return;if(!confirm('Hapus '+L.length+' kotak dari denah? (bin di master bin tidak ikut terhapus)'))return;const rm=new Set(L);lay.draft=lay.draft.filter((c,i)=>!rm.has(i));lay.sel=new Set();draw();return}
+  if(d.lcflip!==undefined){const L=[...lay.sel].map(i=>lay.draft[i]).filter(c=>c&&c.id);if(L.length<2){lmsg('Pilih minimal dua kotak (Shift+klik).');return}
+   const xs=L.map(c=>c.x),ys=L.map(c=>c.y),byY=(Math.max(...ys)-Math.min(...ys))>(Math.max(...xs)-Math.min(...xs)),pos=L.slice().sort((a,b)=>byY?a.y-b.y||a.x-b.x:a.x-b.x||a.y-b.y),rv=pos.map(c=>c.id).reverse();pos.forEach((c,i)=>{c.id=rv[i]});lay.msg='Nomor dibalik untuk '+L.length+' kotak: '+pos.map(c=>c.id).join(', ');draw();return}
+  if(d.lcbinoff){const id=d.lcbinoff;if(binTotal(id)>0){lmsg('Bin '+id+' masih berisi '+binTotal(id)+' pcs. Pindahkan stoknya dulu.');return}if(!confirm('Nonaktifkan bin '+id+'?'))return;saveBinRow(id,null,null,null,'Tidak aktif');lay.msg='Bin '+id+' dinonaktifkan.';rackIdx={m:null,n:-1};draw();return}
+  if(d.lcbinmk){const id=d.lcbinmk;
+   if(d.lcpal){saveBinRow(id,'Palet','Palet Kayu','','Aktif');lay.msg='Bin palet '+id+' didaftarkan.';rackIdx={m:null,n:-1};draw();return}
+   const toks=parseBinList(lay.bl||'L,R,1-10');if(!toks.length){lmsg('Isi daftar bin, mis. L,R,1-12.');return}
+   const ids=toks.map(x=>id+'.'+x),have=new Set((rackIndex().get(id)||{bins:[]}).bins.map(b=>b.id)),fresh=ids.filter(x=>!have.has(x));if(!fresh.length){lmsg('Semua bin itu sudah ada.');return}
+   if(!confirm('Tambah '+fresh.length+' bin ke rak '+id+': '+fresh.map(x=>x.split('.').pop()).join(', ')+'?'))return;
+   const lv=levelRows(id,fresh),zona=lay.bz||((rackIndex().get(id)||{}).zona)||'Golden Zone';
+   fresh.forEach(x=>saveBinRow(x,zona,'Rack',lv.get(x),'Aktif'));
+   (rackIndex().get(id)||{bins:[]}).bins.forEach(b=>{const nl=lv.get(b.id);if(nl!=null&&String(b.level)!==String(nl))saveBinRow(b.id,null,null,nl,null)});
+   lay.msg=fresh.length+' bin ditambahkan ke rak '+id+'.';rackIdx={m:null,n:-1};draw();return}
+ });
+ const nat0=(a,b)=>String(a).localeCompare(String(b),'id',{numeric:true});
  function drawMap(){
   const R=rackIndex();let g='';
-  PLAN.cells.forEach(c=>{const r=R.get(c.id),fs=/^LP/.test(c.id)&&c.w<=31?7:c.w<32?8:9;
+  const edAttr=ci=>lay.edit?'data-lced="'+ci+'" style="cursor:move"':'';
+  (lay.edit?lay.draft:PLAN.cells).forEach((c,ci)=>{const r=R.get(c.id),fs=/^LP/.test(c.id)&&c.w<=31?7:c.w<32?8:9;
    if(!c.id){g+='<rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#fafafa" stroke="#c4ccd6"/>';return}
-   if(!r){g+='<g opacity=".4"><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#f4f4f4" stroke="#8a97a6"/><text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" text-anchor="middle" fill="#789">'+esc(c.id)+'</text></g>';return}
-   const s=rackStat(r),pct=s.total?s.occ/s.total:0,z=U(r.zona),on=selRacks.includes(c.id);
+   if(!r){g+='<g opacity="'+(lay.edit?'.75':'.4')+'" '+edAttr(ci)+'><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#f4f4f4" stroke="#8a97a6"/><text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" text-anchor="middle" fill="#789">'+esc(c.id)+'</text></g>';return}
+   const s=rackStat(r),pct=s.total?s.occ/s.total:0,z=U(r.zona),on=lay.edit?lay.sel.has(ci):selRacks.includes(c.id);
    let fill=c.dark?'#9aa0a8':z.indexOf('GOLDEN')>=0?'#cfe0f5':z.indexOf('SILVER')>=0?'#e3e9f0':z.indexOf('BRONZE')>=0?'#f9e7a8':'#ffffff';
    if(mapMode==='hitung')fill=!s.occ?'#f4f4f4':s.never?'#f7b9b0':s.old?'#fbd89c':'#bfe6cb';
    if(mapMode==='cari'&&searchQ.trim()){const hh=searchHits().racks.get(c.id);fill=hh?'#ffb347':'#f1f1f1'}
-   g+='<g data-lcrack="'+esc(c.id)+'" style="cursor:pointer"><title>'+esc(c.id+' · '+s.occ+'/'+s.total+' bin terisi · '+s.qty+' pcs')+'</title><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="'+fill+'" stroke="'+(on?'#b5532a':'#5f6f80')+'" stroke-width="'+(on?2.5:1)+'"/>'+(mapMode==='stok'&&pct?'<rect x="'+(c.x+1)+'" y="'+(c.y+c.h-4)+'" width="'+((c.w-2)*pct)+'" height="3" fill="#2e9b5a"/>':'')+'<text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" font-weight="700" text-anchor="middle" fill="'+(c.dark?'#fff':'#223')+'" pointer-events="none">'+esc(c.id)+'</text></g>'});
-  const yellow='<g fill="none" stroke="#f2c200" stroke-width="3" pointer-events="none">'+PLAN.box.map(b=>'<rect x="'+(b.x1-3)+'" y="'+(b.y1-3)+'" width="'+(b.x2-b.x1+6)+'" height="'+(b.y2-b.y1+6)+'" rx="2"/>').join('')+'</g>';
+   g+='<g '+(lay.edit?edAttr(ci):'data-lcrack="'+esc(c.id)+'" style="cursor:pointer"')+'><title>'+esc(c.id+' · '+s.occ+'/'+s.total+' bin terisi · '+s.qty+' pcs')+'</title><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="'+fill+'" stroke="'+(on?'#b5532a':'#5f6f80')+'" stroke-width="'+(on?2.5:1)+'"/>'+(mapMode==='stok'&&pct?'<rect x="'+(c.x+1)+'" y="'+(c.y+c.h-4)+'" width="'+((c.w-2)*pct)+'" height="3" fill="#2e9b5a"/>':'')+'<text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" font-weight="700" text-anchor="middle" fill="'+(c.dark?'#fff':'#223')+'" pointer-events="none">'+esc(c.id)+'</text></g>'});
+  const yellow='<g fill="none" stroke="#f2c200" stroke-width="3" pointer-events="none">'+(lay.edit?mkPlan(lay.draft).box:PLAN.box).map(b=>'<rect x="'+(b.x1-3)+'" y="'+(b.y1-3)+'" width="'+(b.x2-b.x1+6)+'" height="'+(b.y2-b.y1+6)+'" rx="2"/>').join('')+'</g>';
   const dash='<g stroke="#9aa5b1" stroke-dasharray="4 4" stroke-width="1"><line x1="270" y1="44" x2="270" y2="586"/><line x1="534" y1="44" x2="534" y2="586"/><line x1="797" y1="44" x2="797" y2="586"/><line x1="40" y1="309" x2="912" y2="309"/></g>';
   const lt=(x,y,t,rot)=>'<text x="'+x+'" y="'+y+'" font-size="9" font-weight="700" fill="#8b6b00" text-anchor="middle" letter-spacing="1"'+(rot?' transform="rotate(-90 '+x+' '+y+')"':'')+'>'+t+'</text>';
   const aisles=[[62,1],[158,2],[262,3],[366,4],[476,5],[566,6]].map(a=>lt(150,a[0]+3,'LORONG '+a[1])+lt(700,a[0]+3,'LORONG '+a[1])).join('')+lt(62,330,'LORONG 1.A',1)+lt(490,330,'LORONG 1.B',1)+lt(903,330,'LORONG 1.C',1);
   const doors='<rect x="5" y="49" width="16" height="62" fill="#4aa896" stroke="#2a6b5e"/><text transform="translate(16 80) rotate(-90)" font-size="8" text-anchor="middle" fill="#fff" font-weight="700">INBOUND</text><rect x="5" y="523" width="16" height="63" fill="#e8636a" stroke="#9b2c33"/><text transform="translate(16 554) rotate(-90)" font-size="8" text-anchor="middle" fill="#fff" font-weight="700">OUTBOUND</text>';
   const scale='<g font-size="9" fill="#456"><line x1="600" y1="620" x2="919" y2="620" stroke="#456" stroke-width="2"/><text x="760" y="617" text-anchor="middle">10 m</text></g>';
-  return '<div style="overflow:auto;max-height:78vh"><svg viewBox="0 0 957 631" style="width:'+(mapZoom*100)+'%;min-width:'+Math.round(780*mapZoom)+'px;'+(mapZoom>1?'':'max-width:1150px;')+'background:#f7f7f7;border:2px solid #7d8794;border-radius:6px"><rect x="4" y="8" width="948" height="618" fill="none" stroke="#9aa5b1"/>'+dash+aisles+yellow+g+doors+scale+'</svg></div><p class="sub">Denah skala 30 m × 20 m. Pintu hijau = inbound, merah = outbound, garis kuning = batas blok rak. Klik beberapa rak sekaligus untuk membandingkan.</p>'} const legend=()=>mapMode==='stok'?'<span class="lc-lg" style="background:#cfe0f5"></span>Golden<span class="lc-lg" style="background:#e3e9f0"></span>Silver<span class="lc-lg" style="background:#f9e7a8"></span>Bronze<span class="lc-lg" style="background:#9aa0a8"></span>Palet plastik · garis hijau = persen bin terisi':'<span class="lc-lg" style="background:#bfe6cb"></span>dihitung &lt;180 hari<span class="lc-lg" style="background:#fbd89c"></span>&gt;180 hari<span class="lc-lg" style="background:#f7b9b0"></span>belum pernah dihitung<span class="lc-lg" style="background:#f4f4f4"></span>kosong';
+  return '<div style="overflow:auto;max-height:78vh"><svg viewBox="0 0 957 631" '+(lay.edit?'data-lcsvg="1" ':'')+'style="'+(lay.edit?'touch-action:none;user-select:none;':'')+'width:'+(mapZoom*100)+'%;min-width:'+Math.round(780*mapZoom)+'px;'+(mapZoom>1?'':'max-width:1150px;')+'background:#f7f7f7;border:2px solid #7d8794;border-radius:6px"><rect x="4" y="8" width="948" height="618" fill="none" stroke="#9aa5b1"/>'+dash+aisles+yellow+g+doors+scale+'</svg></div><p class="sub">Denah skala 30 m × 20 m. Pintu hijau = inbound, merah = outbound, garis kuning = batas blok rak. Klik beberapa rak sekaligus untuk membandingkan.</p>'} const legend=()=>mapMode==='stok'?'<span class="lc-lg" style="background:#cfe0f5"></span>Golden<span class="lc-lg" style="background:#e3e9f0"></span>Silver<span class="lc-lg" style="background:#f9e7a8"></span>Bronze<span class="lc-lg" style="background:#9aa0a8"></span>Palet plastik · garis hijau = persen bin terisi':'<span class="lc-lg" style="background:#bfe6cb"></span>dihitung &lt;180 hari<span class="lc-lg" style="background:#fbd89c"></span>&gt;180 hari<span class="lc-lg" style="background:#f7b9b0"></span>belum pernah dihitung<span class="lc-lg" style="background:#f4f4f4"></span>kosong';
 
  // ---- rak 3D
  function cube(w,h,d,color,inner,attrs,extra){
@@ -3784,12 +3885,13 @@ init();
  function searchHits(){const its=findItems(searchQ),bins=new Map(),racks=new Map();its.forEach(x=>x.bins.forEach(b=>{(bins.get(b.bin)||bins.set(b.bin,[]).get(b.bin)).push({item:x.item,sku:x.sku,qty:b.qty,awal:b.awal});const rk=rackOfBin(b.bin);const a=racks.get(rk)||racks.set(rk,[]).get(rk);if(!a.includes(b.bin))a.push(b.bin)}));return{items:its,bins,racks}}
  const itemDatalist=()=>'<datalist id="lc-itemlist">'+[...new Set([...itemIdx().values()].map(x=>x.item))].slice(0,3000).map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>';
  function drawLayout(){
+  loadLayout();
   const SH=(mapMode==='cari'&&searchQ.trim())?searchHits():null;
-  let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><div class="filters" style="margin:0"><button class="filter'+(mapMode==='stok'?' active':'')+'" data-lcmode="stok" type="button">Isi stok</button><button class="filter'+(mapMode==='hitung'?' active':'')+'" data-lcmode="hitung" type="button">Status hitung</button><button class="filter'+(mapMode==='cari'?' active':'')+'" data-lcmode="cari" type="button">Cari item</button></div>'+
+  let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><div class="filters" style="margin:0"><button class="filter'+(mapMode==='stok'?' active':'')+'" data-lcmode="stok" type="button">Isi stok</button><button class="filter'+(mapMode==='hitung'?' active':'')+'" data-lcmode="hitung" type="button">Status hitung</button><button class="filter'+(mapMode==='cari'?' active':'')+'" data-lcmode="cari" type="button">Cari item</button>'+(canAdmin()?'<button class="filter'+(lay.edit?' active':'')+'" data-lcedit="1" type="button">✎ Edit layout</button>':'')+'</div>'+
    (mapMode==='cari'?itemDatalist()+'<input data-lcs="q" list="lc-itemlist" value="'+esc(searchQ)+'" placeholder="Cari item, mis. PUTIH 24S PDK L" autocomplete="off" style="min-width:260px;flex:1;max-width:440px">':'')+
    '<label class="sub">Zoom <select data-lczoom="1">'+[1,1.3,1.6,2].map(z=>'<option value="'+z+'"'+(mapZoom===z?' selected':'')+'>'+Math.round(z*100)+'%</option>').join('')+'</select></label><span class="sub">'+(mapMode==='cari'?'<span class="lc-lg" style="background:#ffb347"></span>rak berisi item yang dicari':legend())+'</span></div>';
   if(mapMode==='cari'&&!SH)h+='<p class="sub">Ketik nama item (boleh sebagian). Rak yang berisi item itu berwarna oranye, bin-nya menyala di tampilan rak.</p>';
-  h+=drawMap();
+  h+=(lay.edit?editBar():'')+drawMap()+(lay.edit?editPanel():'');
   if(SH){
    const rows=[];SH.items.forEach(x=>x.bins.slice().sort((a,b)=>cmpBin(a.bin,b.bin)).forEach(b=>rows.push({x,b}))),tot=SH.items.reduce((a,x)=>a+x.qty,0);
    h+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">Hasil pencarian: '+SH.items.length+' item · '+SH.bins.size+' bin · '+SH.racks.size+' rak · '+tot+' pcs</h3><div class="ob-actions" style="margin:0"><button class="button" data-lcselall="1" type="button">Pilih semua rak hasil</button><button class="button secondary" data-lcclr="1" type="button">Kosongkan pilihan</button></div></div><p class="sub">Klik rak di denah untuk memilih beberapa rak sekaligus, atau pilih semua. Bin yang berisi item menyala oranye pada rak 3D di bawah.</p>'+
@@ -4365,7 +4467,8 @@ init();
  function tabUtil(m,B){
   const mb=view('MASTER_BIN'),onh={},binUse=new Set(),zone={};AN.stok.forEach(r=>{if(num(r.saldo)>0){const b=/^([A-Z]+)/.exec(r.bin);const k=/^LP/.test(r.bin)?'LP':b?b[1]:'?';onh[k]=(onh[k]||0)+num(r.saldo);binUse.add(r.bin)}});
   const binTot={};mb.forEach(b=>{const k=/^LP/.test(b.id)?'LP':(/^([A-Z]+)/.exec(b.id)||[])[1];if(!k)return;const o=binTot[k]||(binTot[k]={n:0,u:0});o.n++;if(binUse.has(b.id))o.u++});
-  const bl=Object.keys(CAPBLOK).filter(k=>binTot[k]).map(k=>({k,on:onh[k]||0,cap:CAPBLOK[k],n:binTot[k].n,u:binTot[k].u}));
+  const capM={};mb.forEach(b=>{if(b.status==='Tidak aktif')return;let x=null;try{x=JSON.parse(b.catatan)}catch(e){}if(x&&x.max){const k=/^LP/.test(b.id)?'LP':(/^([A-Z]+)/.exec(b.id)||[])[1];capM[k]=(capM[k]||0)+Number(x.max)}});
+  const bl=[...new Set(Object.keys(CAPBLOK).concat(Object.keys(capM)))].filter(k=>binTot[k]&&(capM[k]||CAPBLOK[k])).map(k=>({k,on:onh[k]||0,cap:capM[k]||CAPBLOK[k],n:binTot[k].n,u:binTot[k].u}));
   const tOn=sum(bl.map(x=>x.on)),tCap=sum(bl.map(x=>x.cap)),tN=mb.length,tU=binUse.size;
   mb.forEach(b=>{const z=b.zona||'-';const o=zone[z]||(zone[z]={n:0,u:0});o.n++;if(binUse.has(b.id))o.u++});
   // utilisasi tenaga kerja: beban estimasi dari norm dibanding jam kerja yang hadir (7 jam per orang per hari)
