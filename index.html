@@ -3905,18 +3905,18 @@ init();
   const cb=(w,hh,d,col,x,y,z,inner)=>cube(w,hh,d,col,inner||'',at,'left:'+x+'px;top:'+y+'px;transform:translateZ('+z+'px)');
   const topY=CH;
   if(wood){const wc=lk?'#d98c80':'#dcb878',bc=lk?'#c5675c':'#c79a55';
-   for(let i=0;i<7;i++)h+=cb(W,7,14,wc,x0,topY,-53+i*17.67);
-   [x0,x0+W/2-9,x0+W-18].forEach(x=>[-50,0,50].forEach(z=>{h+=cb(18,20,18,bc,x,topY+7,z)}));
+   const lbl='<b style="font:800 10px Arial;letter-spacing:1px;color:'+(lk?'#5a1d17':'#5b3d12')+'">'+esc(id)+'</b>';
+   for(let i=0;i<7;i++)h+=cb(W,10,14,wc,x0,topY,-53+i*17.67,i===6?lbl:'');
+   [x0,x0+W/2-9,x0+W-18].forEach(x=>[-50,0,50].forEach(z=>{h+=cb(18,17,18,bc,x,topY+10,z)}));
    [-50,0,50].forEach(z=>{h+=cb(W,7,16,wc,x0,topY+27,z)})}
   else{const dc=lk?'#6b2a2a':'#2a2d32',rc=lk?'#8a3a3a':'#3b3f46';
-   h+=cb(W,8,D,dc,x0,topY+3,0);
+   h+=cb(W,13,D,dc,x0,topY+3,0,'<b style="font:800 10px Arial;letter-spacing:1px;color:#d7dbe2">'+esc(id)+'</b>');
    for(let i=0;i<9;i++)h+=cb(W,4,3,rc,x0,topY-1,-56+i*14);
    for(let i=0;i<11;i++)h+=cb(3,4,D,rc,x0+3+i*14.1,topY-1,0);
    [x0,x0+W/2-13,x0+W-26].forEach(x=>{h+=cb(26,18,D,lk?'#5a2323':'#202226',x,topY+11,0)})}
   if(its.length){const nm=its[0].item.length>26?its[0].item.slice(0,25)+'…':its[0].item;
    h+=cb(W-24,CH-4,D-24,lk?'#e07a70':sel?'#e0782b':'#f4c25b',x0+12,0,0,'<span style="text-align:center;font:600 10px/1.2 Arial;padding:2px">'+(lk?'🔒 TERKUNCI<br>':'')+esc(nm)+(its.length>1?' <i>+'+(its.length-1)+' item</i>':'')+'<br><b style="font-size:12px">'+tot+'</b></span>')}
   else if(lk)h+=cb(W-24,26,D-24,'rgba(226,60,50,.45)',x0+12,Math.max(0,topY-26),0,'<b style="font-size:11px;color:#9b1c13">🔒 TERKUNCI</b>');
-  h+=cb(W,14,4,lk?'#c2554a':'#c9a46a',x0,topY+PT+2,D/2+8,'<b style="font-size:10px;color:#3b2a10">'+esc(id)+'</b>');
   return '<div class="lc-persp" style="flex:1;min-width:'+(sw+80)+'px"><div style="height:'+(sh+70)+'px;padding-top:10px"><div class="lc-scene" style="width:'+sw+'px;height:'+sh+'px;transform:rotateX(-14deg) rotateY('+ry+'deg)">'+h+'</div></div></div>'}
  function rack3D(id){
   const r=rackIndex().get(id);if(!r)return '';
@@ -3932,8 +3932,8 @@ init();
   levels.forEach((l,li)=>{lv.get(l).forEach((b,bi)=>{
    const its=(oh().byBin.get(b.id)||[]).slice().sort((x,y)=>y.qty-x.qty),tot=its.reduce((a,o)=>a+o.qty,0),short=b.id.split('.').pop(),x=bi*(W+GX),y=li*RH,sel=selBin===b.id,hit=!!(SHq&&SHq.bins.has(b.id)),at='data-lcbin="'+esc(b.id)+'"';
    const lkd=b.status==='Terkunci';
-   h+=cube(W,H,D,sel?'rgba(224,120,43,.35)':hit?'rgba(255,152,0,.45)':lkd?'rgba(226,60,50,.45)':'rgba(223,233,245,.30)',lkd?'<b style="font-size:10px;color:#9b1c13">🔒 TERKUNCI</b>':'',at,'left:'+x+'px;top:'+y+'px');
-   if(its.length){const nm=its[0].item.length>26?its[0].item.slice(0,25)+'…':its[0].item;h+=cube(W-14,H-20,D-18,sel?'#e0782b':hit?'#ff7a00':'#f4c25b','<span style="text-align:center;font:600 9px/1.15 Arial;padding:2px"> '+esc(nm)+(its.length>1?' <i>+'+(its.length-1)+' item</i>':'')+'<br><b style="font-size:11px">'+tot+'</b></span>',at,'left:'+(x+7)+'px;top:'+(y+H-(H-20))+'px')}
+   h+=cube(W,H,D,lkd?'rgba(226,60,50,.55)':sel?'rgba(224,120,43,.35)':hit?'rgba(255,152,0,.45)':'rgba(223,233,245,.30)',lkd?'<b style="font-size:10px;color:#9b1c13">🔒 TERKUNCI</b>':'',at,'left:'+x+'px;top:'+y+'px');
+   if(its.length){const nm=its[0].item.length>26?its[0].item.slice(0,25)+'…':its[0].item;h+=cube(W-14,H-20,D-18,lkd?'#e0746a':sel?'#e0782b':hit?'#ff7a00':'#f4c25b','<span style="text-align:center;font:600 9px/1.15 Arial;padding:2px">'+(lkd?'🔒 ':'')+esc(nm)+(its.length>1?' <i>+'+(its.length-1)+' item</i>':'')+'<br><b style="font-size:11px">'+tot+'</b></span>',at,'left:'+(x+7)+'px;top:'+(y+H-(H-20))+'px')}
    h+=cube(W+GX,PH,D+10,lkd?'#c2554a':'#c9a46a','<b style="font-size:10px;color:#3b2a10;letter-spacing:.5px">'+esc(short)+'</b>',at,'left:'+(x-GX/2)+'px;top:'+(y+H)+'px')})});
   return '<div class="lc-persp" style="flex:1;min-width:'+(sw+80)+'px"><div style="height:'+(sh+60)+'px;padding-top:10px"><div class="lc-scene" style="width:'+sw+'px;height:'+sh+'px;transform:rotateX(-12deg) rotateY('+ry+'deg)">'+h+'</div></div></div>'}
  function rackTable(id){
