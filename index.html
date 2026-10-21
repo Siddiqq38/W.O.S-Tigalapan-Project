@@ -4628,10 +4628,21 @@ init();
  const running=()=>{try{return !!attendanceStream}catch(e){return false}};
  const hasPhoto=()=>{try{return !!attendancePhoto}catch(e){return false}};
  function setUi(){const live=running()&&video.style.display==='block',shot=hasPhoto();shutter.style.display=live?'block':'none';flip.style.display=live?'block':'none';retake.style.display=shot?'block':'none';video.classList.toggle('back',window.__attFacing!=='user');
-  if(live||shot)msg.textContent='';else if(denied)msg.innerHTML='Kamera tidak dapat dibuka.<br>Izinkan kamera untuk situs ini lalu <u id="att-retry" style="cursor:pointer">coba lagi</u>.';else msg.textContent='Membuka kamera…';
+  if(live||shot)msg.textContent='';else if(!canShoot()){const w=shootInfo().why;msg.textContent=w+(/Kamera/.test(w)?'':' Kamera tertutup.')}else if(denied)msg.innerHTML='Kamera tidak dapat dibuka.<br>Izinkan kamera untuk situs ini lalu <u id="att-retry" style="cursor:pointer">coba lagi</u>.';else msg.textContent='Membuka kamera…';
   const r=$('att-retry');if(r)r.onclick=()=>{denied=false;lastTry=0;start()}}
+ // kamera hanya dibuka bila foto memang dibutuhkan: Attendance in belum tercatat, atau Attendance out sudah boleh dilakukan
+ function shootInfo(){
+  try{const code=(($('attendance-code')||{}).value||'').trim(),act=($('attendance-action')||{}).value||'';if(!code)return{ok:true};
+   const day=new Date(nowSrv()+WITA).toISOString().slice(0,10),rows=(JSON.parse(localStorage.getItem('wos-attendance-kpi-v1')||'[]')||[]).filter(r=>r&&r.code===code&&r.day===day),has=a=>rows.some(r=>r.action===a);
+   if(act==='Attendance in')return has('Attendance in')?{ok:false,why:'Attendance in sudah tercatat hari ini.'}:{ok:true};
+   if(act==='Attendance out'){if(has('Attendance out'))return{ok:false,why:'Attendance out sudah tercatat hari ini.'};const inRow=rows.filter(r=>r.action==='Attendance in').sort((a,b)=>String(a.at).localeCompare(String(b.at)))[0];
+    if(!inRow)return{ok:true};const i=window.__wosEarliestOut&&window.__wosEarliestOut(code,Date.parse(inRow.at));
+    if(i&&!i.released&&nowSrv()<i.out){const d=new Date(i.out+WITA);return{ok:false,why:'Attendance out dibuka '+String(d.getUTCHours()).padStart(2,'0')+'.'+String(d.getUTCMinutes()).padStart(2,'0')+' WITA. Kamera terbuka otomatis saat sudah waktunya.'}}}
+  }catch(e){}
+  return{ok:true}}
+ const canShoot=()=>shootInfo().ok;
  let lastTry=0;
- async function start(){if(starting||running()||hasPhoto())return;if(Date.now()-lastTry<5000)return;lastTry=Date.now();starting=true;prev.style.display='none';
+ async function start(){if(!canShoot()){if(running())stop();setUi();return}if(starting||running()||hasPhoto())return;if(Date.now()-lastTry<5000)return;lastTry=Date.now();starting=true;prev.style.display='none';
   try{document.getElementById('camera-start').click();await new Promise(r=>setTimeout(r,1500));if(!running()){await new Promise(r=>setTimeout(r,2500));if(!running()){const t=(document.getElementById('camera-status')||{}).textContent||'';if(/tidak dapat diakses/i.test(t))denied=true}}}catch(e){denied=true}
   starting=false;setUi()}
  const kick=()=>{lastTry=0;denied=false;start()};
