@@ -3722,7 +3722,7 @@ init();
 
  // ---- layout gudang
  // Denah dijiplak dari gambar lampiran (957 x 631 px = 30 m x 20 m). Penomoran mengikuti skema blok (diputar 90 derajat berlawanan arah jarum jam).
- const mkPlan=cells=>{const box={};cells.forEach(c=>{if(!c.g)return;const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:0,y2:0});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});return{vx:-400,W:1357,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}};
+ const mkPlan=cells=>{const box={};cells.forEach(c=>{if(!c.g)return;const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:-1e9,y2:-1e9});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});return{vx:-400,W:1357,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}};
  const defaultCells=()=>{
   const cells=[],seq=(p,a,b)=>{const o=[];for(let i=a;i<=b;i++)o.push(p+i);return o},rev=a=>a.slice().reverse();
   const run=(ids,x,y,w,h,g)=>{let cx=x;ids.forEach((id,i)=>{cells.push({id,x:cx,y,w:w[i],h,g});cx+=w[i]})};
@@ -3870,6 +3870,15 @@ init();
    f('width:'+w+'px;height:'+h+'px','translateZ('+d/2+'px)')+f('width:'+w+'px;height:'+h+'px','rotateY(180deg) translateZ('+d/2+'px)')+
    f('width:'+d+'px;height:'+h+'px;left:'+(w-d)/2+'px','rotateY(90deg) translateZ('+w/2+'px)')+f('width:'+d+'px;height:'+h+'px;left:'+(w-d)/2+'px','rotateY(-90deg) translateZ('+w/2+'px)')+
    f('width:'+w+'px;height:'+d+'px;top:'+(h-d)/2+'px','rotateX(90deg) translateZ('+h/2+'px)')+f('width:'+w+'px;height:'+d+'px;top:'+(h-d)/2+'px','rotateX(-90deg) translateZ('+h/2+'px)')+'</div>'}
+ // sisi rak: dua tiang tegak, balok tiap level, dan besi silang (bukan blok hitam penuh)
+ function trussUrl(d,h,n,RH){
+  let p='<rect x="0" y="0" width="6" height="'+h+'" fill="#30343b"/><rect x="'+(d-6)+'" y="0" width="6" height="'+h+'" fill="#30343b"/>';
+  for(let i=0;i<=n;i++){const y=Math.min(i*RH+2,h-3);p+='<rect x="0" y="'+(y-2)+'" width="'+d+'" height="5" fill="#30343b"/>'}
+  for(let i=0;i<n;i++){const y0=i*RH+5,y1=(i+1)*RH-1;p+='<line x1="6" y1="'+y0+'" x2="'+(d-6)+'" y2="'+y1+'" stroke="#30343b" stroke-width="2.4"/><line x1="'+(d-6)+'" y1="'+y0+'" x2="6" y2="'+y1+'" stroke="#30343b" stroke-width="2.4"/>'}
+  return "url('data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+d+' '+h+'" preserveAspectRatio="none">'+p+'</svg>')+"')"}
+ function frameBox(w,h,d,extra,bg){
+  const post=t=>'<div class="f" style="width:'+w+'px;height:'+h+'px;transform:'+t+';background:#30343b;border:0"></div>',side=t=>'<div class="f" style="width:'+d+'px;height:'+h+'px;left:'+(w-d)/2+'px;transform:'+t+';background:'+bg+' center/100% 100% no-repeat;border:0"></div>';
+  return '<div class="lc-cube" style="width:'+w+'px;height:'+h+'px;'+extra+'">'+post('translateZ('+d/2+'px)')+post('rotateY(180deg) translateZ('+d/2+'px)')+side('rotateY(90deg) translateZ('+w/2+'px)')+side('rotateY(-90deg) translateZ('+w/2+'px)')+'</div>'}
  function rack3D(id){
   const r=rackIndex().get(id);if(!r)return '';
   const SHq=(mapMode==='cari'&&searchQ.trim())?searchHits():null;
@@ -3878,7 +3887,8 @@ init();
   levels.forEach(l=>lv.get(l).sort(ord));
   const W=100,H=62,D=64,PH=13,GX=6,RH=H+PH+8,cols=Math.max(...levels.map(l=>lv.get(l).length)),sw=cols*(W+GX),sh=levels.length*RH;
   let h='';
-  [0,cols].forEach(i=>{h+=cube(6,sh+4,D+14,'#3a3f47','',null,'left:'+(i*(W+GX)-GX/2-3)+'px;top:-2px')});
+  const tz=trussUrl(D+14,sh+4,levels.length,RH);
+  [0,cols].forEach(i=>{h+=frameBox(6,sh+4,D+14,'left:'+(i*(W+GX)-GX/2-3)+'px;top:-2px',tz)});
   levels.forEach((l,li)=>{lv.get(l).forEach((b,bi)=>{
    const its=(oh().byBin.get(b.id)||[]).slice().sort((x,y)=>y.qty-x.qty),tot=its.reduce((a,o)=>a+o.qty,0),short=b.id.split('.').pop(),x=bi*(W+GX),y=li*RH,sel=selBin===b.id,hit=!!(SHq&&SHq.bins.has(b.id)),at='data-lcbin="'+esc(b.id)+'"';
    h+=cube(W,H,D,sel?'rgba(224,120,43,.35)':hit?'rgba(255,152,0,.45)':'rgba(223,233,245,.30)','',at,'left:'+x+'px;top:'+y+'px');
