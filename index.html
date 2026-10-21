@@ -3722,7 +3722,7 @@ init();
 
  // ---- layout gudang
  // Denah dijiplak dari gambar lampiran (957 x 631 px = 30 m x 20 m). Penomoran mengikuti skema blok (diputar 90 derajat berlawanan arah jarum jam).
- const mkPlan=cells=>{const box={};cells.forEach(c=>{if(!c.g)return;const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:0,y2:0});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});return{W:957,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}};
+ const mkPlan=cells=>{const box={};cells.forEach(c=>{if(!c.g)return;const b=box[c.g]||(box[c.g]={x1:1e9,y1:1e9,x2:0,y2:0});b.x1=Math.min(b.x1,c.x);b.y1=Math.min(b.y1,c.y);b.x2=Math.max(b.x2,c.x+c.w);b.y2=Math.max(b.y2,c.y+c.h)});return{vx:-400,W:1357,H:631,cells,box:Object.values(box),ids:new Set(cells.map(c=>c.id).filter(Boolean))}};
  const defaultCells=()=>{
   const cells=[],seq=(p,a,b)=>{const o=[];for(let i=a;i<=b;i++)o.push(p+i);return o},rev=a=>a.slice().reverse();
   const run=(ids,x,y,w,h,g)=>{let cx=x;ids.forEach((id,i)=>{cells.push({id,x:cx,y,w:w[i],h,g});cx+=w[i]})};
@@ -3732,16 +3732,24 @@ init();
   col(rev(seq('H',1,16)),914,26,[17,54,91,129,166,203,240,278,315,352,389,427,464,501,538,576],36,'H');
   run(seq('G',1,23),45,592,[45,35,35,36,36,35,35,36,35,35,36,36,35,35,36,36,35,35,36,36,35,35,36],26,'G');
   const w7=[30,29,30,29,30,29,30],w11=[30,29,30,29,30,29,29,30,29,29,30];
-  run(seq('LP1.',12,17),240,81,w7.slice(0,6),23,'LP1');run(seq('LP1.',5,11),240,111,w7,22,'LP1');dk(seq('LP1.',1,4),85,96,38,39,'LP1');
-  run(seq('LP2.',12,20),509,81,w11.slice(0,9),23,'LP2');run(seq('LP2.',1,11),509,111,w11,22,'LP2');
+  run(seq('LP1.',12,18),240,81,w7,23,'LP1');run(seq('LP1.',5,11),240,111,w7,22,'LP1');dk(seq('LP1.',1,4),85,96,38,39,'LP1');
+  run(seq('LP2.',12,22),509,81,w11,23,'LP2');run(seq('LP2.',1,11),509,111,w11,22,'LP2');
   const wC=[46,46,46,46,45,45,45,45],wD=[45,45,46,45,45,45,45,45];
   run(seq('C',1,8),86,182,wC,26,'C');run(seq('C',9,16),86,210,wC,26,'C');run(seq('D',1,8),509,182,wD,26,'D');run(seq('D',9,16),509,210,wD,26,'D');
   const m1=[30,30,29,30,29,30,30,29,30,30,30],m1b=[30,30,29,30,29,30,30,29,30,30,30,29],m2=[30,29,30,29,30,29,29,30,29,30,30];
-  run(seq('LP3.',13,23),85,287,m1,23,'LP3');run(seq('LP3.',1,12),85,316,m1b,23,'LP3');run(seq('LP4.',12,22),508,287,m2,23,'LP4');run(seq('LP4.',1,11),508,316,m2,23,'LP4');
+  for(let i=0;i<11;i++)cells.push({id:'LP3.'+(13+i),x:85+Math.round(i*32.4),y:287,w:28,h:23,g:'LP3'});run(seq('LP3.',1,12),85,316,m1b,23,'LP3');run(seq('LP4.',12,22),508,287,m2,23,'LP4');run(seq('LP4.',1,11),508,316,m2,23,'LP4');
   const e1=[36,36,36,36,35,36,35,36,36,35],f1=[36,35,36,35,36,35,36,35,35,36];
   run(seq('E',1,10),85,393,e1,27,'E');run(seq('E',11,20),85,423,e1,26,'E');run(seq('F',1,10),508,393,f1,27,'F');run(seq('F',11,20),508,423,f1,26,'F');
   dk(seq('LP5.',1,10),84,502,38,38,'LP5a');dk(seq('LP5.',11,20),506,501,38,38,'LP5b');
-  cells.push({id:'Q1',x:850,y:108,w:52,h:40,g:'Q'});
+  // ---- area depan (operasional): area berwarna hanya tampil saat kursor diarahkan, palet staging hanya bernomor
+  const fx=x=>x-392,Z=(label,x,y,w,h,color)=>cells.push({id:'',t:'z',label,x:fx(x),y,w,h,color}),K=(label,x,y,w,h,color)=>cells.push({id:'',t:'k',label,x:fx(x),y,w,h,color});
+  Z('Area Good Receipt',158,8,227,100,'#9fdcae');Z('Staging 1',198,143,187,67,'#9fdcae');Z('Staging 2',198,252,187,68,'#9fdcae');Z('Staging 3',198,353,187,67,'#9fdcae');
+  Z('Area Loading & Unloading',13,350,119,132,'#9fdcae');Z('Area Outbound',303,430,87,185,'#f2b3a8');Z('Staging Out-City',143,470,72,145,'#ecd3a5');Z('Staging In-City',228,476,70,139,'#ecd3a5');
+  K('WC',8,8,47,50,'#fff2cc');K('OFFICE',8,58,124,277,'#e6e6e6');K('R.MEETING',8,490,119,125,'#e6e6e6');
+  const P=(pre,n,x0,y0,pw,ph,cols,dx,dy)=>{for(let i=0;i<n;i++)cells.push({id:pre+(i+1),t:'p',x:fx(x0+(i%cols)*dx),y:y0+Math.floor(i/cols)*dy,w:pw,h:ph})};
+  P('STG1.',10,210,148,30,25,5,33,30);P('STG2.',10,210,257,30,25,5,33,30);P('STG3.',10,211,364,30,25,5,33,28);
+  P('SOC.',8,155,484,24,30,2,27,33);P('SIC.',8,240,484,24,30,2,27,33);
+  cells.push({id:'Q1',x:fx(158),y:10,w:38,h:28});
   return cells};
  let PLAN=mkPlan(defaultCells());
   let rackIdx={m:null,n:-1};
@@ -3755,7 +3763,7 @@ init();
  // ---- editor layout (SPV / admin): pindah rak dan palet, ubah ukuran, tambah, hapus, balik nomor; bin baru; tersimpan bersama bila tab LAYOUT ada
  let lay={edit:false,draft:null,sel:new Set(),loaded:false,busy:false,srv:null,src:'bawaan',msg:''};
  const LAYK='wos-layout-v1',cloneCells=a=>a.map(c=>Object.assign({},c));
- function applyCfg(cfg){if(cfg&&Array.isArray(cfg.cells)&&cfg.cells.length){PLAN=mkPlan(cloneCells(cfg.cells));return true}return false}
+ function applyCfg(cfg){if(cfg&&Array.isArray(cfg.cells)&&cfg.cells.length){let cl=cloneCells(cfg.cells);if(!cl.some(c=>c.t)){cl=cl.filter(c=>c.id!=='Q1').concat(defaultCells().filter(c=>c.t||c.id==='Q1'))}PLAN=mkPlan(cl);return true}return false}
  try{const l0=JSON.parse(localStorage.getItem(LAYK)||'null');if(l0&&applyCfg(l0))lay.src='perangkat ini'}catch(e){}
  async function loadLayout(){
   if(lay.loaded||lay.busy)return;lay.busy=true;
@@ -3778,26 +3786,26 @@ init();
   if(!S.length)return '<p class="sub" style="margin-top:8px">Pilih kotak rak atau palet di denah untuk mengubah posisi, ukuran, nomor, atau bin-nya.</p>';
   const one=S.length===1?S[0]:null;
   let h='<div class="card" style="margin-top:10px"><h3 style="margin:0">'+(one?'Kotak '+esc(one.id||'(tanpa kode)'):S.length+' kotak dipilih')+'</h3><div class="ob-actions" style="margin:8px 0;align-items:center"><span class="sub">Geser:</span>'+[[-5,0,'←5'],[-1,0,'←1'],[1,0,'→1'],[5,0,'→5'],[0,-5,'↑5'],[0,-1,'↑1'],[0,1,'↓1'],[0,5,'↓5']].map(a=>'<button class="button secondary" data-lcnudge="'+a[0]+','+a[1]+'" type="button" style="padding:4px 9px">'+a[2]+'</button>').join('')+'</div>';
-  if(one)h+='<div class="form-grid">'+[['id','Kode rak / palet',one.id],['x','Posisi X',one.x],['y','Posisi Y',one.y],['w','Lebar',one.w],['h','Tinggi',one.h],['g','Kelompok (garis kuning)',one.g||'']].map(([k,l,v])=>'<div class="field"><label>'+l+'</label><input data-lcf="'+k+'" value="'+esc(v)+'"></div>').join('')+'<div class="field"><label>Warna</label><select data-lcf="dark"><option value="">Mengikuti zona</option><option value="1"'+(one.dark?' selected':'')+'>Gelap (palet plastik)</option></select></div></div>';
+  if(one)h+='<div class="form-grid">'+[['id','Kode rak / palet',one.id],['x','Posisi X',one.x],['y','Posisi Y',one.y],['w','Lebar',one.w],['h','Tinggi',one.h],['g','Kelompok (garis kuning)',one.g||'']].map(([k,l,v])=>'<div class="field"><label>'+l+'</label><input data-lcf="'+k+'" value="'+esc(v)+'"></div>').join('')+'<div class="field"><label>Warna palet</label><select data-lcf="dark"><option value="">Mengikuti zona</option><option value="1"'+(one.dark?' selected':'')+'>Gelap (palet plastik)</option></select></div><div class="field"><label>Jenis kotak</label><select data-lcf="t"><option value=""'+(!one.t?' selected':'')+'>Rak / palet gudang</option><option value="p"'+(one.t==='p'?' selected':'')+'>Palet staging (bernomor)</option><option value="z"'+(one.t==='z'?' selected':'')+'>Area (berwarna saat kursor diarahkan)</option><option value="k"'+(one.t==='k'?' selected':'')+'>Blok keterangan (office, WC)</option></select></div>'+((one.t==='z'||one.t==='k')?'<div class="field"><label>Nama area</label><input data-lcf="label" value="'+esc(one.label||'')+'"></div><div class="field"><label>Warna (kode hex)</label><input data-lcf="color" value="'+esc(one.color||'')+'" placeholder="#9fdcae"></div>':'')+'</div>';
   h+='<div class="ob-actions"><button class="button secondary" data-lcflip="1" type="button">⇄ Balik urutan nomor ('+S.length+' kotak)</button><button class="button secondary" data-lcdel="1" type="button" style="color:#b3261e">Hapus kotak</button></div><p class="sub">Balik urutan nomor: urutan nomor pada kotak yang dipilih dibalik menurut posisinya (kiri ke kanan atau atas ke bawah). Contoh: pilih H1 sampai H16, nomor yang tadinya naik dari atas ke bawah menjadi turun. Pilih beberapa kotak dengan Shift+klik.</p>';
-  if(one&&one.id)h+=binEditor(one.id);
+  if(one&&one.id&&!one.t)h+=binEditor(one.id);
   return h+'</div>'}
  let lDrag=null;
  document.addEventListener('pointerdown',e=>{if(!lay.edit)return;const g=e.target.closest&&e.target.closest('[data-lced]');if(!g||!body||!body.contains(g))return;
   const ci=Number(g.dataset.lced),svg=g.ownerSVGElement,r=svg.getBoundingClientRect();
   if(e.shiftKey){lay.sel.has(ci)?lay.sel.delete(ci):lay.sel.add(ci)}else if(!lay.sel.has(ci)){lay.sel=new Set([ci])}
-  lDrag={x0:e.clientX,y0:e.clientY,k:957/r.width,moved:false,dx:0,dy:0,els:[...lay.sel].map(i=>body.querySelector('[data-lced="'+i+'"]')).filter(Boolean)};e.preventDefault()});
+  lDrag={x0:e.clientX,y0:e.clientY,k:PLAN.W/r.width,moved:false,dx:0,dy:0,els:[...lay.sel].map(i=>body.querySelector('[data-lced="'+i+'"]')).filter(Boolean)};e.preventDefault()});
  document.addEventListener('pointermove',e=>{if(!lDrag)return;const dx=(e.clientX-lDrag.x0)*lDrag.k,dy=(e.clientY-lDrag.y0)*lDrag.k;if(Math.abs(dx)+Math.abs(dy)>2)lDrag.moved=true;lDrag.dx=dx;lDrag.dy=dy;if(lDrag.moved)lDrag.els.forEach(el=>el.setAttribute('transform','translate('+dx.toFixed(1)+' '+dy.toFixed(1)+')'))});
  document.addEventListener('pointerup',()=>{if(!lDrag)return;const d=lDrag;lDrag=null;if(d.moved)[...lay.sel].forEach(i=>{const c=lay.draft[i];if(c){c.x=Math.round(c.x+d.dx);c.y=Math.round(c.y+d.dy)}});draw()});
  document.addEventListener('change',e=>{const t=e.target;if(!lay.edit||!t.dataset)return;
   if(t.dataset.lcf){const i=[...lay.sel][0],c=lay.draft[i];if(!c)return;const k=t.dataset.lcf;
    if(k==='id'){const v=U(t.value);if(v&&lay.draft.some((x,j)=>j!==i&&U(x.id)===v)){lmsg('Kode '+v+' sudah dipakai kotak lain.');return}c.id=v}
-   else if(k==='g')c.g=t.value.trim();else if(k==='dark')c.dark=t.value==='1';else{const n=Number(t.value);if(isFinite(n))c[k]=Math.round(n)}draw();return}
+   else if(k==='g')c.g=t.value.trim();else if(k==='dark')c.dark=t.value==='1';else if(k==='t')c.t=t.value;else if(k==='label')c.label=t.value.trim();else if(k==='color')c.color=t.value.trim();else{const n=Number(t.value);if(isFinite(n))c[k]=Math.round(n)}draw();return}
   if(t.dataset.lcbl){lay.bl=t.value;return}if(t.dataset.lcbz){lay.bz=t.value;return}});
  function levelRows(rackId,extraIds){const have=(rackIndex().get(rackId)||{bins:[]}).bins.map(b=>b.id),all=[...new Set(have.concat(extraIds))];return levelsFor(all)}
  function saveBinRow(id,zona,tipe,lvl,status){const old=masterBins().find(b=>b.id===id)||view('MASTER_BIN').find(b=>b.id===id)||{};const m=/^([A-Z]+)(\d+)\.(.+)$/.exec(id)||[];enq('MASTER_BIN',Object.assign({id,zona:zona||old.zona||'',tipe_rak:tipe||old.tipe_rak||'Rack',no_rak:old.no_rak||m[2]||'',level:lvl==null?(old.level||''):String(lvl),bin:old.bin||m[3]||'',status:status||old.status||'Aktif',catatan:old.catatan||''}))}
  async function saveLayout(){
-  const cells=lay.draft.filter(c=>c&&(c.id||c.g)),ids=cells.map(c=>c.id).filter(Boolean);
+  const cells=lay.draft.filter(c=>c&&(c.id||c.g||c.t)),ids=cells.map(c=>c.id).filter(Boolean);
   if(new Set(ids).size!==ids.length){lmsg('Ada kode rak / palet ganda. Perbaiki dulu sebelum menyimpan.');return}
   const cfg={v:1,cells:cloneCells(cells),by:code(),at:today()+' '+new Date(Date.now()+288e5).toISOString().slice(11,16)};
   applyCfg(cfg);try{localStorage.setItem(LAYK,JSON.stringify(cfg))}catch(e){}
@@ -3830,8 +3838,16 @@ init();
  const nat0=(a,b)=>String(a).localeCompare(String(b),'id',{numeric:true});
  function drawMap(){
   const R=rackIndex();let g='';
+  if(!document.getElementById('lc-zone-style')){const st=document.createElement('style');st.id='lc-zone-style';st.textContent='.lc-zone .zr{fill:transparent}.lc-zone:hover .zr{fill:var(--zc);fill-opacity:.6}.lc-zone .zt{opacity:0;pointer-events:none}.lc-zone:hover .zt{opacity:1}';document.head.appendChild(st)}
+  const frontCell=(c,ci)=>{
+   const ed=lay.edit,on=ed&&lay.sel.has(ci),da=ed?'data-lced="'+ci+'" ':'',cx=c.x+c.w/2,cy=c.y+c.h/2;
+   if(c.t==='z'){const col=c.color||'#9fdcae';g+='<g class="lc-zone" '+da+'style="--zc:'+esc(col)+(ed?';cursor:move':'')+'"><title>'+esc(c.label||'')+'</title><rect class="zr" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'"'+(ed?' style="fill:'+esc(col)+';fill-opacity:.3" stroke="'+(on?'#b5532a':'#5f6f80')+'" stroke-width="'+(on?2.5:1)+'" stroke-dasharray="4 3"':'')+'/><text class="zt" x="'+cx+'" y="'+(cy+4)+'" font-size="'+(c.w<90?9:12)+'" font-weight="800" text-anchor="middle" fill="#1d3b2a" style="paint-order:stroke;stroke:#fff;stroke-width:3;'+(ed?'opacity:1':'')+'">'+esc(c.label||'')+'</text></g>';return true}
+   if(c.t==='k'){g+='<g '+da+(ed?'style="cursor:move"':'')+'><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="'+esc(c.color||'#e6e6e6')+'" stroke="'+(on?'#b5532a':'#8a97a6')+'" stroke-width="'+(on?2.5:1)+'"/><text x="'+cx+'" y="'+(cy+4)+'" font-size="'+(c.w<60?8:11)+'" font-weight="800" text-anchor="middle" fill="#444" pointer-events="none">'+esc(c.label||'')+'</text></g>';return true}
+   if(c.t==='p'){g+='<g '+da+(ed?'style="cursor:move"':'style="pointer-events:none"')+'><title>'+esc(c.id)+'</title><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#f6fbf7" stroke="'+(on?'#b5532a':'#6b8f74')+'" stroke-width="'+(on?2.5:1)+'"/><text x="'+cx+'" y="'+(cy+2.5)+'" font-size="7" text-anchor="middle" fill="#2c4a37" pointer-events="none">'+esc(c.id)+'</text></g>';return true}
+   return false};
   const edAttr=ci=>lay.edit?'data-lced="'+ci+'" style="cursor:move"':'';
-  (lay.edit?lay.draft:PLAN.cells).forEach((c,ci)=>{const r=R.get(c.id),fs=/^LP/.test(c.id)&&c.w<=31?7:c.w<32?8:9;
+  const CL=lay.edit?lay.draft:PLAN.cells;
+  CL.map((c,i)=>i).sort((a,b)=>(CL[a].t==='z'?0:1)-(CL[b].t==='z'?0:1)).forEach(ci=>{const c=CL[ci];if(c.t&&frontCell(c,ci))return;const r=R.get(c.id),fs=/^LP/.test(c.id)&&c.w<=31?7:c.w<32?8:9;
    if(!c.id){g+='<rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#fafafa" stroke="#c4ccd6"/>';return}
    if(!r){g+='<g opacity="'+(lay.edit?'.75':'.4')+'" '+edAttr(ci)+'><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#f4f4f4" stroke="#8a97a6"/><text x="'+(c.x+c.w/2)+'" y="'+(c.y+c.h/2+3)+'" font-size="'+fs+'" text-anchor="middle" fill="#789">'+esc(c.id)+'</text></g>';return}
    const s=rackStat(r),pct=s.total?s.occ/s.total:0,z=U(r.zona),on=lay.edit?lay.sel.has(ci):selRacks.includes(c.id);
@@ -3845,7 +3861,7 @@ init();
   const aisles=[[62,1],[158,2],[262,3],[366,4],[476,5],[566,6]].map(a=>lt(150,a[0]+3,'LORONG '+a[1])+lt(700,a[0]+3,'LORONG '+a[1])).join('')+lt(62,330,'LORONG 1.A',1)+lt(490,330,'LORONG 1.B',1)+lt(903,330,'LORONG 1.C',1);
   const doors='<rect x="5" y="49" width="16" height="62" fill="#4aa896" stroke="#2a6b5e"/><text transform="translate(16 80) rotate(-90)" font-size="8" text-anchor="middle" fill="#fff" font-weight="700">INBOUND</text><rect x="5" y="523" width="16" height="63" fill="#e8636a" stroke="#9b2c33"/><text transform="translate(16 554) rotate(-90)" font-size="8" text-anchor="middle" fill="#fff" font-weight="700">OUTBOUND</text>';
   const scale='<g font-size="9" fill="#456"><line x1="600" y1="620" x2="919" y2="620" stroke="#456" stroke-width="2"/><text x="760" y="617" text-anchor="middle">10 m</text></g>';
-  return '<div style="overflow:auto;max-height:78vh"><svg viewBox="0 0 957 631" '+(lay.edit?'data-lcsvg="1" ':'')+'style="'+(lay.edit?'touch-action:none;user-select:none;':'')+'width:'+(mapZoom*100)+'%;min-width:'+Math.round(780*mapZoom)+'px;'+(mapZoom>1?'':'max-width:1150px;')+'background:#f7f7f7;border:2px solid #7d8794;border-radius:6px"><rect x="4" y="8" width="948" height="618" fill="none" stroke="#9aa5b1"/>'+dash+aisles+yellow+g+doors+scale+'</svg></div><p class="sub">Denah skala 30 m × 20 m. Pintu hijau = inbound, merah = outbound, garis kuning = batas blok rak. Klik beberapa rak sekaligus untuk membandingkan.</p>'} const legend=()=>mapMode==='stok'?'<span class="lc-lg" style="background:#cfe0f5"></span>Golden<span class="lc-lg" style="background:#e3e9f0"></span>Silver<span class="lc-lg" style="background:#f9e7a8"></span>Bronze<span class="lc-lg" style="background:#9aa0a8"></span>Palet plastik · garis hijau = persen bin terisi':'<span class="lc-lg" style="background:#bfe6cb"></span>dihitung &lt;180 hari<span class="lc-lg" style="background:#fbd89c"></span>&gt;180 hari<span class="lc-lg" style="background:#f7b9b0"></span>belum pernah dihitung<span class="lc-lg" style="background:#f4f4f4"></span>kosong';
+  return '<div style="overflow:auto;max-height:78vh"><svg viewBox="'+PLAN.vx+' 0 '+PLAN.W+' 631" '+(lay.edit?'data-lcsvg="1" ':'')+'style="'+(lay.edit?'touch-action:none;user-select:none;':'')+'width:'+(mapZoom*100)+'%;min-width:'+Math.round(1000*mapZoom)+'px;'+(mapZoom>1?'':'max-width:1500px;')+'background:#f7f7f7;border:2px solid #7d8794;border-radius:6px"><rect x="-388" y="8" width="392" height="618" fill="#fff" stroke="#8a97a6" stroke-width="2"/><rect x="4" y="8" width="948" height="618" fill="none" stroke="#9aa5b1"/>'+dash+aisles+yellow+g+doors+scale+'</svg></div><p class="sub">Denah gudang 30 m × 20 m dan area operasional di sisi kiri. Pintu hijau = inbound, merah = outbound, garis kuning = batas blok rak. Arahkan kursor ke area operasional untuk melihat namanya. Klik beberapa rak sekaligus untuk membandingkan.</p>'} const legend=()=>mapMode==='stok'?'<span class="lc-lg" style="background:#cfe0f5"></span>Golden<span class="lc-lg" style="background:#e3e9f0"></span>Silver<span class="lc-lg" style="background:#f9e7a8"></span>Bronze<span class="lc-lg" style="background:#9aa0a8"></span>Palet plastik · garis hijau = persen bin terisi':'<span class="lc-lg" style="background:#bfe6cb"></span>dihitung &lt;180 hari<span class="lc-lg" style="background:#fbd89c"></span>&gt;180 hari<span class="lc-lg" style="background:#f7b9b0"></span>belum pernah dihitung<span class="lc-lg" style="background:#f4f4f4"></span>kosong';
 
  // ---- rak 3D
  function cube(w,h,d,color,inner,attrs,extra){
