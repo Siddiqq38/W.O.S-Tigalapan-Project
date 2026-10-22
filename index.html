@@ -4176,7 +4176,8 @@ init();
  async function readSaldo(file){
   try{const rows=await G.readRows(file),hi=rows.findIndex(r=>r.some(c=>/^BIN$|^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Bin / Location tidak ditemukan.');
    const h=rows[hi].map(c=>U(c)),iB=h.findIndex(c=>c==='BIN'||c==='LOCATION'),iI=h.findIndex(c=>/^(ITEM|ITEMS NAME|ITEM NAME|SKU|NAMA ITEM)$/.test(c)),iT=h.findIndex(c=>/TANGGAL/.test(c));
-   const cands=[];h.forEach((c,i)=>{if(/^(QTY|ON HAND|SALDO|STOK|JUMLAH|OPENING STOK|OPENING STOCK|SALDO AWAL|BALANCE)$/.test(c)){let t=0;rows.slice(hi+1).forEach(r=>{const q=num(r[i]);if(q>0)t+=q});cands.push({name:String(rows[hi][i]).trim(),i,total:t})}});
+   const cands=[];h.forEach((c,i)=>{if(/^(QTY|ON HAND|SALDO|STOK|JUMLAH|OPENING STOK|OPENING STOCK|SALDO AWAL|BALANCE|ENDING|ENDING STOCK|STOK AKHIR)$/.test(c)){let t=0;rows.slice(hi+1).forEach(r=>{const q=num(r[i]);if(q>0)t+=q});cands.push({name:String(rows[hi][i]).trim(),i,total:t})}});
+   const ed=cands.filter(x=>/^(ENDING|ENDING STOCK|STOK AKHIR)$/.test(U(x.name)));if(ed.length===1){cands.length=0;cands.push(ed[0])}
    if(iI<0||!cands.length)throw new Error('Kolom Item/SKU dan jumlah (Qty, Opening Stok, Balance) tidak ditemukan.');
    saCtx={rows,hi,iB,iI,iT,cands};
    if(cands.length===1)buildSaldo(cands[0].i);else{sa={rows:[],bad:[],cands,pick:'',info:'File punya lebih dari satu kolom jumlah. Pilih kolom yang dipakai sebagai stok awal.'};draw()}}catch(e){sa=null;say('Gagal membaca file: '+(e&&e.message||e),true)}}
