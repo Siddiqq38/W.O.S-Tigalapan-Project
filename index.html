@@ -4940,7 +4940,9 @@ init();
  const MONTHS=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
  const longDate=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||'');return m?(+m[3])+' '+MONTHS[+m[2]-1]+' '+m[1]:''};
  const cfg=()=>window.WOSStore&&window.WOSStore.config?window.WOSStore.config():null;
- async function api(body,get){const c=cfg();if(!c)throw new Error('Penyimpanan belum siap');const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),60000);
+ // evaluasi bersifat rahasia: hanya SPV, Manager, dan HRD (menu juga disembunyikan untuk peran lain)
+ const okLv=()=>{try{const l=sessionStorage.getItem('wos-session-v1');return l==='supervisor'||l==='hrd'}catch(e){return false}};
+ async function api(body,get){if(!okLv())throw new Error('Akses ditolak: evaluasi hanya untuk SPV, Manager, dan HRD');const c=cfg();if(!c)throw new Error('Penyimpanan belum siap');const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),60000);
   try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}
   catch(e){throw new Error(e&&e.name==='AbortError'?'koneksi lambat, coba lagi':String(e&&e.message||e))}finally{clearTimeout(tm)}}
@@ -4959,7 +4961,7 @@ init();
  const fresh=()=>{const t=today();return{id:'EV-'+t.replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6),kode:'',evaluator:me(),tanggal:t,dari:t.slice(0,4)+'-01-01',sampai:addMonths(t.slice(0,4)+'-01-01',12),noDok:NODOK,jabatan:'',departemen:'',nik:'',skor:{},q:['','','',''],sp:'',absensi:'',telat:'',audioId:'',audioMenit:0,status:'Draft'}};
  const total=sk=>Object.values(sk||{}).map(Number).filter(x=>x>0).reduce((a,b)=>a+b,0),cnt=sk=>Object.values(sk||{}).filter(x=>Number(x)>0).length;
  const band=t=>t>=29?0:t>=15?1:t>=1?2:-1;   // 0 LANJUT, 1 DIPERTIMBANGKAN, 2 TIDAK LANJUT
- async function load(s){busy=true;draw(s);try{const r=await api({action:'list',tab:'EVALUASI'},true);if(!r.ok)throw new Error(r.error||'gagal memuat');list=(r.rows||[]).sort((a,b)=>String(b.waktu).localeCompare(String(a.waktu)));msg=''}catch(e){msg='Data evaluasi belum bisa dimuat: '+e.message+(/tidak dikenal/.test(e.message)?' (tab EVALUASI belum ada: tempel script operasional terbaru, jalankan setup, deploy versi baru)':'');bad=true}busy=false;draw(s)}
+ async function load(s){if(!okLv())return draw(s);busy=true;draw(s);try{const r=await api({action:'list',tab:'EVALUASI'},true);if(!r.ok)throw new Error(r.error||'gagal memuat');list=(r.rows||[]).sort((a,b)=>String(b.waktu).localeCompare(String(a.waktu)));msg=''}catch(e){msg='Data evaluasi belum bisa dimuat: '+e.message+(/tidak dikenal/.test(e.message)?' (tab EVALUASI belum ada: tempel script operasional terbaru, jalankan setup, deploy versi baru)':'');bad=true}busy=false;draw(s)}
  function drawList(){
   let h='<div class="an-card" style="margin-top:0"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div><h3>Riwayat evaluasi</h3><p class="sub" style="margin:0">Evaluasi tersimpan di Google Sheets. Rekaman suara tersimpan di Google Drive (folder Evaluasi).</p></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="button" data-ev="new" type="button">+ Evaluasi baru</button><button class="button secondary" data-ev="newr" type="button">+ Evaluasi rekan kerja</button></div></div>';
   if(!list.length)h+='<p class="sub" style="margin-top:12px">'+(busy?'Memuat…':'Belum ada evaluasi.')+'</p>';
@@ -4985,6 +4987,7 @@ init();
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="button secondary" data-ev="save" data-st="Draft" type="button">Simpan draft</button><button class="button" data-ev="save" data-st="Final" type="button">Simpan final</button><button class="button secondary" data-ev="print" type="button">&#128438; Cetak / PDF</button></div></div>';
   return h}
  function draw(s){const b=s.querySelector('.v3-b');if(!b)return;
+  if(!okLv()){list=[];form=null;rec=null;s._sig='';b.innerHTML='<p class="note" style="color:#b3261e">Halaman ini hanya untuk SPV, Manager, dan HRD.</p>';return}
   let h=(msg?'<p class="note" style="'+(bad?'color:#b3261e':'')+'">'+esc(msg)+'</p>':'')+(form?drawForm():drawList());
   if(s._sig!==h){const ae=document.activeElement,fk=ae&&ae.dataset&&(ae.dataset.evf||ae.dataset.evq!=null&&('q'+ae.dataset.evq));s._sig=h;b.innerHTML=h;
    if(fk){const e=ae.dataset.evf?b.querySelector('[data-evf="'+ae.dataset.evf+'"]'):b.querySelector('[data-evq="'+ae.dataset.evq+'"]');if(e&&e.tagName==='TEXTAREA'){e.focus({preventScroll:true});try{e.setSelectionRange(e.value.length,e.value.length)}catch(x){}}}}}
