@@ -1050,11 +1050,11 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
+const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['analysis','tracking','wms-inbound','wms-outbound']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['analysis','tracking','wms-inbound','wms-outbound']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -5637,6 +5637,115 @@ init();
    h.addEventListener('change',e=>{if(e.target.id==='ar-before'){st.before=e.target.value;st.res=null;st.got=false;draw()}})}
   draw()}
  setInterval(()=>{try{if($('compliance')&&$('compliance').classList.contains('active'))mount()}catch(e){}},1500);
+})();
+</script>
+<script>
+// PERFORMANCE TIM: kehadiran + produktivitas (task) + compliance, potong periode 23 s/d 22. Rumus mengikuti rekap bulanan yang sudah dipakai:
+//   Produktivitas % = 40% x (hadir / hari kerja) + 60% x (task selesai / task ditugaskan)
+//   Compliance %    = 100 - poin pelanggaran / (2 x hari hadir) x 100
+//   Skor akhir      = 70% Produktivitas + 30% Compliance. Peringkat: skor akhir, lalu jumlah task selesai.
+// Tab Tahunan: peringkat bulanan Jan-Des (riwayat Jan-Okt 2026 dari rekap lama; bulan berikutnya dihitung otomatis dari data WOS).
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3||!V3.mkPage)return;
+ const {esc,call,today}=A;
+ const WA=40,WP=60,WPROD=0.7,WCOMP=0.3;
+ const MON=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+ const pad=n=>String(n).padStart(2,'0');
+ const fm=n=>(Math.round(n*100)/100).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2});
+ const iso=(y,m,d)=>{const t=new Date(Date.UTC(y,m,d));return t.getUTCFullYear()+'-'+pad(t.getUTCMonth()+1)+'-'+pad(t.getUTCDate())};
+ const dl=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(d||'');return m?(+m[3])+' '+MON[+m[2]-1]+' '+m[1]:''};
+ // potong 23-22: periode yang berakhir pada tanggal 22 bulan indeks m (0-11)
+ const perOf=(y,m)=>({from:iso(y,m-1,23),to:iso(y,m,22)});
+ const perFor=d=>{const y=+d.slice(0,4),m=+d.slice(5,7)-1,dd=+d.slice(8,10);return dd>=23?perOf(y,m+1):perOf(y,m)};
+ const shiftPer=(p,n)=>{const y=+p.to.slice(0,4),m=+p.to.slice(5,7)-1;return perOf(y,m+n)};
+ const workdays=(from,to)=>{let n=0;for(let d=from;d<=to;){if(new Date(d+'T00:00:00Z').getUTCDay()!==0)n++;const x=new Date(d+'T00:00:00Z');x.setUTCDate(x.getUTCDate()+1);d=x.toISOString().slice(0,10)}return n};
+ const lv=()=>{try{return sessionStorage.getItem('wos-session-v1')}catch(e){return''}};
+ const okLv=()=>lv()==='supervisor'||lv()==='hrd';
+ const smaster=()=>{try{return staffMaster}catch(e){return{}}};
+ const profOf=c=>{try{return window.getEmployeeProfile(c)||{}}catch(e){return{}}};
+ const cfg=()=>{try{return window.WOSStore.config()}catch(e){return null}};
+ async function opsList(tab,from,to){const c=cfg();if(!c||!c.url)throw new Error('alamat skrip Google belum diatur');const r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab,from,to}));const j=await r.json();if(!j.ok)throw new Error(tab+': '+(j.error||'gagal'));return j.rows||[]}
+ // data awal: peringkat bulanan Jan-Okt 2026 dari rekap lama (kosong = belum bergabung / keluar)
+ const SEED={W04:[3,2,1,2,2,1,3,2,6,4],W07:[1,3,3,15,7,9,9,1,13,4],W19:[6,5,7,3,1,5,5,5,6,11],W21:[16,8,10,12,13,4,14,12,14,14],W09:[4,1,4,14,12,7,6,7,1,2],W14:[5,9,6,5,4,14,12,4,12,1],W24:[12,13,5,4,11,8,4,11,8,4],W17:[17,15,14,1,14,11,10,15,5,4],W08:[13,17,15,9,6,12,13,16,15,10],W33:[14,7,12,8,8,10,7,9,16,null],W28:[2,6,2,11,5,13,1,8,3,13],W29:[21,10,9,6,null,null,15,10,11,3],W34:[null,null,19,10,10,15,2,6,9,8],W03:[10,11,17,13,3,3,8,14,3,9],W35:[null,null,null,null,null,null,17,13,10,15],W36:[null,null,null,null,null,null,16,3,2,11]};
+ const SEED_UNTIL=9; // indeks bulan terakhir pada data awal (Okt)
+ const st={tab:'Periode',per:perFor(today()),hk:{},cache:{},busy:false,err:'',sel:'',yr:2026,yrd:{},yrBusy:false};
+ try{st.hk=JSON.parse(localStorage.getItem('wos-perf-hk')||'{}')||{}}catch(e){}
+ const keyOf=p=>p.from+'|'+p.to;
+ const hkOf=p=>Number(st.hk[keyOf(p)])||workdays(p.from,p.to);
+ async function loadRaw(p){
+  const k=keyOf(p);if(st.cache[k]&&Date.now()-st.cache[k].at<120000)return st.cache[k];
+  const to2=(()=>{const x=new Date(p.to+'T00:00:00Z');x.setUTCDate(x.getUTCDate()+1);return x.toISOString().slice(0,10)})();
+  const [att,task,ev]=await Promise.all([opsList('ATTENDANCE',p.from,p.to),opsList('TASK',p.from,p.to),opsList('COMPLIANCE_EVENT',p.from,p.to)]);
+  let kol=[],gr=[];
+  try{const r=await call({action:'multi',q:'PICK_KOLI:'+p.from+':'+to2+',PICK_GR:'+p.from+':'+to2},true);if(r.ok){kol=r.data['PICK_KOLI|'+p.from+'|'+to2]||[];gr=r.data['PICK_GR|'+p.from+'|'+to2]||[]}}catch(e){}
+  return st.cache[k]={at:Date.now(),att,task,ev,kol,gr}}
+ function compute(raw,p){
+  const hk=hkOf(p),S=smaster(),rows=[],by={};
+  Object.entries(S).forEach(([c,x])=>{if(x.out||x.role==='Supervisor')return;by[c]=rows[rows.push({code:c,name:x.name,pos:(profOf(c).role||x.role||'')+'',days:new Set(),assign:0,done:0,kinds:{},pts:0,viol:[]})-1]});
+  raw.att.forEach(r=>{if(r.aksi!=='Attendance in'||r.simulasi==='hapus')return;const o=by[r.kode_staf];if(o&&r.tanggal>=p.from&&r.tanggal<=p.to)o.days.add(r.tanggal)});
+  const seenT=new Set();
+  raw.task.forEach(r=>{if(!r||seenT.has(r.id))return;seenT.add(r.id);const o=by[r.tujuan];if(!o||r.status==='batal')return;let kind='lain';try{kind=(JSON.parse(r.judul||'{}').kind)||'lain'}catch(e){}const k=o.kinds[kind]||(o.kinds[kind]={a:0,d:0});k.a++;o.assign++;if(r.status==='selesai'){k.d++;o.done++}});
+  const seenE=new Set();
+  raw.ev.forEach(r=>{if(!r||seenE.has(r.id))return;seenE.add(r.id);const o=by[r.kode_staf];if(!o||r.status==='batal'||!o.days.has(r.tanggal))return;let j={};try{j=JSON.parse(r.json||'{}')}catch(e){}const type=r.jenis||j.type||'Temuan',w=type==='DRM'?0.5:1;o.pts+=w;o.viol.push({day:r.tanggal,type,detail:j.detail||'',w})});
+  const kmap={};raw.kol.forEach(k=>{kmap[k.id]=k});const seenG=new Set();
+  raw.gr.forEach(g=>{if(!g||g.status!=='Salah'||seenG.has(g.id))return;seenG.add(g.id);const k=kmap[g.dok+'|K'+g.koli];if(!k)return;[...new Set([k.picker,k.vp_oleh,k.pack_oleh].filter(Boolean))].forEach(c=>{const o=by[c];if(!o||!o.days.size)return;o.pts+=1;o.viol.push({day:g.tanggal,type:'Miss-picking di toko',detail:(g.outlet||'')+' · '+(g.item||'')+' (koli '+g.koli+')',w:1})})});
+  rows.forEach(o=>{o.att=o.days.size;const ratio=o.assign?o.done/o.assign:1;o.prod=WA*o.att/hk+WP*ratio;o.comp=o.att?Math.max(0,100*(1-o.pts/(2*o.att))):null;o.final=o.att?WPROD*o.prod+WCOMP*(o.comp==null?100:o.comp):null});
+  const rk=rows.filter(o=>o.att>0).sort((a,b)=>(Math.round(b.final*100)-Math.round(a.final*100))||b.done-a.done);
+  rk.forEach((o,i)=>{o.rank=i&&Math.round(o.final*100)===Math.round(rk[i-1].final*100)&&o.done===rk[i-1].done?rk[i-1].rank:i+1});
+  rows.sort((a,b)=>(a.rank||999)-(b.rank||999)||a.name.localeCompare(b.name));
+  return{rows,hk}}
+ async function loadPer(s){
+  st.busy=true;st.err='';draw(s);
+  try{await loadRaw(st.per)}catch(e){st.err=String(e&&e.message||e)}
+  st.busy=false;draw(s)}
+ async function loadYear(s){
+  st.yrBusy=true;st.err='';draw(s);
+  try{const t=today();for(let m=SEED_UNTIL+1;m<12;m++){const p=perOf(st.yr,m);if(p.from>t)break;const raw=await loadRaw(p),res=compute(raw,p);st.yrd[m]={};res.rows.forEach(o=>{if(o.rank)st.yrd[m][o.code]={r:o.rank,s:o.final}})}}
+  catch(e){st.err=String(e&&e.message||e)}
+  st.yrBusy=false;draw(s)}
+ const kindLbl={picking:'Picking',gr:'Good Receipt',de:'Data Entry',lc:'Location Control',verifikasi:'Verifikasi',lain:'Lainnya'};
+ function vPeriode(){
+  const k=keyOf(st.per),raw=st.cache[k];let h='';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:10px"><button class="button secondary" data-pf="prev" type="button">&larr;</button><b>'+esc(dl(st.per.from))+' – '+esc(dl(st.per.to))+'</b><button class="button secondary" data-pf="next" type="button">&rarr;</button><button class="button secondary" data-pf="now" type="button">Periode ini</button><label class="sub">Dari<input type="date" data-pff="from" value="'+esc(st.per.from)+'" style="display:block"></label><label class="sub">Sampai<input type="date" data-pff="to" value="'+esc(st.per.to)+'" style="display:block"></label><label class="sub">Hari kerja<input type="number" min="1" max="31" data-pfhk="1" value="'+hkOf(st.per)+'" style="display:block;width:80px"></label><button class="button secondary" data-pf="reload" type="button">Muat ulang</button>'+(raw?'<button class="button secondary" data-pf="csv" type="button">&#11015; Unduh CSV</button>':'')+'</div>';
+  h+='<p class="sub" style="margin:0 0 10px">Skor akhir = <b>70% Produktivitas</b> + <b>30% Compliance</b>. Produktivitas = 40% × (hadir ÷ hari kerja) + 60% × (task selesai ÷ task ditugaskan). Compliance = 100 − poin pelanggaran ÷ (2 × hari hadir). Poin: DRM tidak ikut 0,5 · laporan 5R tidak masuk atau ditolak, komplain, dan temuan 1 · miss-picking di toko 1 untuk picker, checker, dan packer.</p>';
+  if(!raw)return h+'<p class="sub">'+(st.busy?'Memuat data…':'Belum ada data.')+'</p>';
+  const res=compute(raw,st.per);
+  h+='<div class="an-wrap"><table class="an-t"><thead><tr><th>Rank</th><th>Nama</th><th>Posisi</th><th style="text-align:right">Hadir / HK</th><th style="text-align:right">Assignment</th><th style="text-align:right">Selesai</th><th style="text-align:right">Productivity %</th><th style="text-align:right">Compliance %</th><th style="text-align:right">Skor akhir</th><th></th></tr></thead><tbody>'+res.rows.map(o=>{
+   const med=o.rank===1?'&#129351; ':o.rank===2?'&#129352; ':o.rank===3?'&#129353; ':'';
+   let r='<tr'+(o.att?'':' style="opacity:.55"')+'><td><b>'+(o.rank?med+o.rank:'-')+'</b></td><td>'+esc(o.name)+' <span class="sub">'+esc(o.code)+'</span></td><td>'+esc(o.pos)+'</td><td style="text-align:right">'+o.att+' / '+res.hk+'</td><td style="text-align:right">'+o.assign+'</td><td style="text-align:right">'+o.done+'</td><td style="text-align:right">'+(o.att?fm(o.prod)+'%':'-')+'</td><td style="text-align:right">'+(o.comp==null?'-':fm(o.comp)+'%')+'</td><td style="text-align:right"><b>'+(o.final==null?'-':fm(o.final))+'</b></td><td><button class="button secondary" data-pf="sel" data-c="'+esc(o.code)+'" type="button" style="padding:3px 10px">'+(st.sel===o.code?'Tutup':'Detail')+'</button></td></tr>';
+   if(st.sel===o.code){const ks=Object.entries(o.kinds);r+='<tr><td colspan="10" style="background:#f6f9fc"><div style="display:flex;gap:24px;flex-wrap:wrap"><div><b>Task per jenis</b>'+(ks.length?'<ul style="margin:4px 0 0 18px">'+ks.map(([k,v])=>'<li>'+esc(kindLbl[k]||k)+': '+v.d+' selesai dari '+v.a+'</li>').join('')+'</ul>':'<p class="sub" style="margin:4px 0 0">Tidak ada task pada periode ini.</p>')+'</div><div style="flex:1;min-width:260px"><b>Pelanggaran compliance ('+fm(o.pts).replace(',00','')+' poin)</b>'+(o.viol.length?'<ul style="margin:4px 0 0 18px">'+o.viol.sort((a,b)=>String(a.day).localeCompare(b.day)).map(v=>'<li>'+esc(dl(v.day))+' · '+esc(v.type)+' ('+v.w+')'+(v.detail?' — '+esc(v.detail):'')+'</li>').join('')+'</ul>':'<p class="sub" style="margin:4px 0 0">Tidak ada pelanggaran.</p>')+'</div></div></td></tr>'}
+   return r}).join('')+'</tbody></table></div><p class="sub" style="margin:8px 0 0">Task dihitung dari daftar Task masing-masing orang; jenis pekerjaan yang belum dibuatkan task otomatis (mis. packing, loading, pengantaran) belum ikut dalam angka Assignment.</p>';
+  return h}
+ function vTahun(){
+  const S=smaster(),codes=Object.keys(SEED).filter(c=>S[c]&&!S[c].out);
+  Object.keys(S).forEach(c=>{if(!S[c].out&&S[c].role!=='Supervisor'&&!codes.includes(c)&&Object.values(st.yrd).some(m=>m[c]))codes.push(c)});
+  const cell=(c,m)=>{if(m<=SEED_UNTIL){const v=(SEED[c]||[])[m];return v==null?null:{r:v}}const d=st.yrd[m]&&st.yrd[m][c];return d?{r:d.r,s:d.s}:null};
+  const rows=codes.map(c=>{const v=Array.from({length:12},(_,m)=>cell(c,m)),rs=v.filter(Boolean).map(x=>x.r);return{c,name:S[c].name,pos:(profOf(c).role||S[c].role||''),v,best:rs.length?Math.min(...rs):null,low:rs.length?Math.max(...rs):null,avg:rs.length?Math.floor(rs.reduce((a,b)=>a+b,0)/rs.length):null}});
+  rows.sort((a,b)=>(a.avg==null)-(b.avg==null)||a.avg-b.avg||a.name.localeCompare(b.name));
+  const col=r=>r==null?'':r<=3?'background:#d7f0dd':r>=14?'background:#fbdcd8':'';
+  return '<p class="sub" style="margin:0 0 8px">Peringkat bulanan tiap anggota tim (angka kecil = lebih baik). Periode potong 23–22; kolom Okt = 23 Sep – 22 Okt. Jan–Okt 2026 dari rekap lama; bulan berikutnya dihitung otomatis dari data WOS (kehadiran, task, compliance). Anggota yang sudah keluar tidak ditampilkan.</p>'+(st.yrBusy?'<p class="sub">Menghitung bulan berjalan…</p>':'')+
+   '<div class="an-wrap"><table class="an-t"><thead><tr><th>Nama</th><th>Posisi</th>'+MON.map(m=>'<th style="text-align:center">'+m+'</th>').join('')+'<th style="text-align:center">Best</th><th style="text-align:center">Lowest</th><th style="text-align:center">AVG</th></tr></thead><tbody>'+rows.map(o=>'<tr><td><b>'+esc(o.name)+'</b></td><td>'+esc(o.pos)+'</td>'+o.v.map(x=>'<td style="text-align:center;'+(x?col(x.r):'')+'" title="'+(x&&x.s!=null?'Skor '+fm(x.s):'')+'">'+(x?x.r:'')+'</td>').join('')+'<td style="text-align:center"><b>'+(o.best==null?'':o.best)+'</b></td><td style="text-align:center">'+(o.low==null?'':o.low)+'</td><td style="text-align:center"><b>'+(o.avg==null?'':o.avg)+'</b></td></tr>').join('')+'</tbody></table></div>'}
+ function draw(s){
+  const b=s.querySelector('.v3-b');if(!b)return;
+  if(!okLv()){s._sig='';b.innerHTML='<p class="note" style="color:#b3261e">Performance tim hanya untuk SPV, Manager, dan HRD.</p>';return}
+  const h='<div class="filters" style="margin-bottom:10px">'+['Periode','Tahunan'].map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-pftab="'+t+'" type="button">'+(t==='Periode'?'Per periode':'Peringkat tahunan')+'</button>').join('')+'</div>'+(st.err?'<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(st.err)+'</p>':'')+(st.tab==='Periode'?vPeriode():vTahun());
+  if(s._sig!==h){s._sig=h;const b2=s.querySelector('.v3-b');b2.style.minHeight=b2.offsetHeight+'px';b2.innerHTML=h;requestAnimationFrame(()=>{b2.style.minHeight=''})}}
+ function csv(){
+  const raw=st.cache[keyOf(st.per)];if(!raw)return;const res=compute(raw,st.per),q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[['Rank','Kode','Nama','Posisi','Hadir','Hari kerja','Assignment','Selesai','Productivity %','Compliance %','Skor akhir','Poin pelanggaran'].map(q).join(',')].concat(res.rows.map(o=>[o.rank||'',o.code,o.name,o.pos,o.att,res.hk,o.assign,o.done,o.att?fm(o.prod):'',o.comp==null?'':fm(o.comp),o.final==null?'':fm(o.final),o.pts].map(q).join(',')));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download='performance-tim-'+st.per.from+'-sd-'+st.per.to+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+ V3.mkPage('performance','Performance','Performance Tim','Kehadiran, produktivitas, dan compliance per periode (potong 23–22)','analysis',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Performance tim</h2><span class="sub">Kehadiran, produktivitas, dan compliance per periode (potong 23–22)</span></div></div><div class="v3-b"></div>';
+  s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+   if(d.pftab){st.tab=d.pftab;st.err='';draw(s);if(st.tab==='Tahunan')loadYear(s);else loadPer(s);return}
+   if(d.pf==='prev'||d.pf==='next'||d.pf==='now'){st.per=d.pf==='now'?perFor(today()):shiftPer(st.per,d.pf==='next'?1:-1);st.sel='';draw(s);loadPer(s);return}
+   if(d.pf==='reload'){delete st.cache[keyOf(st.per)];loadPer(s);return}
+   if(d.pf==='sel'){st.sel=st.sel===d.c?'':d.c;draw(s);return}
+   if(d.pf==='csv'){csv();return}});
+  s.addEventListener('change',e=>{const t=e.target,d=t.dataset;
+   if(d.pff){const p=Object.assign({},st.per);p[d.pff]=t.value;if(p.from&&p.to&&p.from>p.to){const x=p.from;p.from=p.to;p.to=x}st.per=p;st.sel='';draw(s);loadPer(s)}
+   else if(d.pfhk){st.hk[keyOf(st.per)]=Number(t.value)||'';try{localStorage.setItem('wos-perf-hk',JSON.stringify(st.hk))}catch(x){}s._sig='';draw(s)}});
+  s._draw=()=>draw(s);s._show=()=>{if(st.tab==='Tahunan')loadYear(s);else loadPer(s)}});
 })();
 </script>
 </body></html>
