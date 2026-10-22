@@ -5323,10 +5323,13 @@ init();
    '<div class="form-grid" style="margin-top:10px"><div class="field"><label for="pg-from">Hapus data bertanggal SEBELUM</label><input id="pg-from" type="date" value="'+esc(st.from)+'"></div></div>'+
    '<div class="ob-actions"><button class="button" data-pgcount="1" type="button"'+(st.busy?' disabled':'')+'>Hitung dulu (tidak menghapus)</button></div>'+
    '<div style="overflow:auto;margin-top:8px"><table><thead><tr><th></th><th>Kategori</th><th>Akan dihapus (baris)</th><th>Tetap ada</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
-   '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" data-pgsa="1"'+(st.sa?' checked':'')+'><span><b>Nolkan seluruh stok</b>: sertakan juga baris SALDO AWAL (hasil impor opening stok) pada kategori Mutasi stok. Biarkan kosong bila opening stok sudah benar dan hanya mutasi simulasi yang dibersihkan.</span></label>'+qBox()+
+   '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" data-pgsa="1"'+(st.sa?' checked':'')+'><span><b>Nolkan seluruh stok</b>: sertakan juga baris SALDO AWAL (hasil impor opening stok) pada kategori Mutasi stok. Biarkan kosong bila opening stok sudah benar dan hanya mutasi simulasi yang dibersihkan.</span></label><div id="pg-q"></div>'+
    '<div class="ob-actions"><button class="button" data-pgdel="1" type="button" style="background:#b3261e"'+(st.busy||!r?' disabled':'')+'>Hapus kategori terpilih</button></div>'+
    (st.prog?'<p class="sub">'+esc(st.prog)+'</p>':'')+(st.msg?'<p class="note">'+esc(st.msg)+'</p>':'')}
- function draw(){const host=$('wos-purge');if(!host)return;const h=html();if(host.dataset.sig===h)return;host.dataset.sig=h;const ae=document.activeElement;host.innerHTML=h}
+ // kotak antrean diperbarui sendiri (tanpa membangun ulang seluruh panel) dan posisi gulir dijaga supaya panel tidak naik turun
+ function draw(){const host=$('wos-purge');if(!host)return;const h=html();
+  if(host.dataset.sig!==h){host.dataset.sig=h;const sc=host.closest('main')||document.scrollingElement||document.documentElement,y=sc.scrollTop,wy=window.scrollY;host.style.minHeight=host.offsetHeight+'px';host.innerHTML=h;sc.scrollTop=y;if(window.scrollY!==wy)window.scrollTo(window.scrollX,wy);requestAnimationFrame(()=>{host.style.minHeight=''})}
+  const q=host.querySelector('#pg-q');if(q){const qh=qBox();if(q.dataset.sig!==qh){q.dataset.sig=qh;q.innerHTML=qh}}}
  function mount(){
   const pg=$('master');if(!pg||!isSpv())return;let host=$('wos-purge');
   if(!host){host=document.createElement('section');host.id='wos-purge';host.className='card';host.style.marginTop='18px';pg.appendChild(host);
