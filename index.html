@@ -1029,11 +1029,11 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
+const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','project','kaskecil','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','project','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['analysis','tracking','wms-inbound','wms-outbound']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','project','kaskecil','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['analysis','tracking','wms-inbound','wms-outbound']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -1052,7 +1052,7 @@ function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),d
 
 function navVisibility(){
  const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN')return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');return o};
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas','kaskecil',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -2125,8 +2125,8 @@ init();
 
  // ---- koneksi dan antrean (dikirim bertahap, tahan sinyal putus)
  let state='',err='',busy=false,busyAt=0;
- const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog'};
- let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[]};let dv=0;
+ const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog',KAS_KECIL:'kas'};
+ let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[],kas:[]};let dv=0;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
  async function call(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
@@ -5254,6 +5254,135 @@ init();
    host.addEventListener('change',e=>{const t=e.target;if(t.id==='pg-from'){st.from=t.value;st.res=null;draw()}else if(t.dataset&&t.dataset.pg){t.checked?st.sel.add(t.dataset.pg):st.sel.delete(t.dataset.pg);draw()}})}
   draw()}
  setInterval(()=>{try{if(document.getElementById('master')&&document.getElementById('master').classList.contains('active'))mount()}catch(e){}},1500);
+})();
+</script>
+<script>
+// KAS KECIL (petty cash): pengajuan kebutuhan departemen oleh Admin, persetujuan + PIC belanja oleh SPV, realisasi belanja, LPJ cetak.
+// Data di tab KAS_KECIL (Apps Script gudang). Satu baris = satu pengajuan; baris jenis SALDO menyimpan limit dan penanggung jawab periode.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3||!V3.mkPage)return;
+ const {esc,view,enq,call,code,level,nameOf,today,setData}=A;
+ const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0};
+ const rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID');
+ const MON=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'],MONL=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+ const dl=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(d||'');return m?(+m[3])+' '+MON[+m[2]-1]+' '+m[1]:''};
+ const dlong=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(d||'');return m?(+m[3])+' '+MONL[+m[2]-1]+' '+m[1]:''};
+ const pad=n=>String(n).padStart(2,'0');
+ const norm=(y,m)=>{while(m>12){m-=12;y++}while(m<1){m+=12;y--}return[y,m]};
+ const mk=(y,m,d)=>{const t=norm(y,m);return t[0]+'-'+pad(t[1])+'-'+pad(d)};
+ // periode: 11-24 dan 25-10 (bulan berikutnya); kunci periode = tanggal awal
+ const periodOf=d=>{const y=+d.slice(0,4),m=+d.slice(5,7),dd=+d.slice(8,10);return dd>=25?mk(y,m,25):dd<=10?mk(y,m-1,25):mk(y,m,11)};
+ const endOf=p=>{const y=+p.slice(0,4),m=+p.slice(5,7);return +p.slice(8,10)===11?mk(y,m,24):mk(y,m+1,10)};
+ const nextP=p=>{const y=+p.slice(0,4),m=+p.slice(5,7);return +p.slice(8,10)===11?mk(y,m,25):mk(y,m+1,11)};
+ const prevP=p=>{const y=+p.slice(0,4),m=+p.slice(5,7);return +p.slice(8,10)===11?mk(y,m-1,25):mk(y,m,11)};
+ const plabel=p=>dl(p)+' – '+dl(endOf(p));
+ const LIMIT0=2000000;
+ const staff=()=>{try{return Object.entries(staffMaster).filter(([,p])=>!p.out).sort((a,b)=>a[1].name.localeCompare(b[1].name))}catch(e){return[]}};
+ const st={p:periodOf(today()),tab:'',msg:'',bad:false,f:{uraian:'',qty:'',satuan:'pcs',onhand:'',cat:''},ed:{},nota:{},ready:null,err:'',busy:false,limit:null};
+ const lv=()=>level(),isSpv=()=>lv()==='supervisor',isAdm=()=>lv()==='admin',full=()=>isSpv()||isAdm();
+ const all=()=>view('KAS_KECIL');
+ const saldoRow=()=>all().find(r=>r.id==='KKS-'+st.p);
+ const reqs=()=>all().filter(r=>r.jenis==='PENGAJUAN'&&r.periode===st.p).sort((a,b)=>String(a.waktu).localeCompare(String(b.waktu)));
+ const mine=r=>full()||r.pic===code();
+ const limitOf=()=>{const s=saldoRow();return s&&num(s.total)>0?num(s.total):LIMIT0};
+ const pjOf=()=>{const s=saldoRow();return s&&s.pic?s.pic:''};
+ const bought=()=>reqs().filter(r=>r.status==='Dibeli').sort((a,b)=>String(a.tgl_belanja).localeCompare(String(b.tgl_belanja))||String(a.waktu).localeCompare(String(b.waktu)));
+ const spent=()=>bought().reduce((a,r)=>a+num(r.total),0);
+ const rid=()=>'KK-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
+ const tagC={Menunggu:'amber',Disetujui:'',Dibeli:'green',Ditolak:'red',Batal:'red'};
+ async function load(s){
+  st.busy=true;try{const r=await call({action:'list',tab:'KAS_KECIL'},true);if(r.ok){st.ready=true;st.err='';setData('KAS_KECIL',r.rows||[])}else{st.ready=false;st.err=r.error||'gagal memuat'}}
+  catch(e){st.ready=false;st.err=String(e&&e.message||e)}
+  st.busy=false;draw(s)}
+ const say=(s,t,b)=>{st.msg=t;st.bad=!!b;draw(s)};
+ const ed=(id,k,d)=>{const e=st.ed[id];return e&&e[k]!=null?e[k]:d};
+ function summary(){const lim=limitOf(),sp=spent();return '<div class="an-kpi"><div class="an-k"><small>Limit kas kecil</small><b>'+rp(lim)+'</b></div><div class="an-k"><small>Terpakai</small><b>'+rp(sp)+'</b></div><div class="an-k"><small>Sisa dana tunai</small><b style="color:'+(lim-sp<0?'#b3261e':'inherit')+'">'+rp(lim-sp)+'</b></div></div>'}
+ function vPengajuan(){
+  const L=reqs(),f=st.f;let h='';
+  if(full()){h+='<div class="card"><h3 style="margin:0">Pengajuan kebutuhan departemen</h3><p class="sub">Admin mengajukan, SPV menyetujui dan menunjuk PIC belanja.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><label class="sub">Kebutuhan / uraian<input data-kkf="uraian" value="'+esc(f.uraian)+'" placeholder="Contoh: lakban bening 2 inci" style="display:block;width:100%"></label><label class="sub">Jumlah<input data-kkf="qty" type="number" min="1" value="'+esc(f.qty)+'" style="display:block;width:100%"></label><label class="sub">Satuan<input data-kkf="satuan" value="'+esc(f.satuan)+'" style="display:block;width:100%"></label><label class="sub">Stok yang masih ada<input data-kkf="onhand" type="number" min="0" value="'+esc(f.onhand)+'" style="display:block;width:100%"></label><label class="sub">Alasan / catatan<input data-kkf="cat" value="'+esc(f.cat)+'" style="display:block;width:100%"></label></div><div class="ob-actions" style="margin-top:10px"><button class="button" data-kkadd="1" type="button">Ajukan</button></div></div>'}
+  if(!L.length)return h+'<p class="sub" style="margin-top:12px">Belum ada pengajuan di periode ini.</p>';
+  const stf=staff();
+  h+='<div class="an-wrap" style="margin-top:12px"><table class="an-t"><thead><tr><th>Tanggal</th><th>Kebutuhan</th><th>Minta</th><th>Stok ada</th><th>Pengaju</th><th>Status</th><th>Disetujui / PIC</th><th></th></tr></thead><tbody>'+L.map(r=>{
+   let act='',apv=r.status==='Menunggu'?'':'<span class="sub">'+(r.qty_apv?esc(r.qty_apv)+' '+esc(r.satuan):'-')+' · PIC '+esc(r.pic?nameOf(r.pic):'-')+'</span>';
+   if(r.status==='Menunggu'&&isSpv()){apv='<input data-kkap="'+esc(r.id)+'|qty" type="number" min="0" value="'+esc(ed(r.id,'qty',r.qty_req))+'" style="width:70px"> <select data-kkap="'+esc(r.id)+'|pic" style="max-width:150px"><option value="">PIC belanja…</option>'+stf.map(([c,p])=>'<option value="'+esc(c)+'"'+(ed(r.id,'pic','')===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select>';act='<button class="button" data-kkok="'+esc(r.id)+'" type="button" style="padding:4px 10px">Setujui</button> <button class="button secondary" data-kkno="'+esc(r.id)+'" type="button" style="padding:4px 10px;color:#b3261e">Tolak</button>'}
+   else if(r.status==='Menunggu'&&r.pengaju===code())act='<button class="button secondary" data-kkbatal="'+esc(r.id)+'" type="button" style="padding:4px 10px">Batalkan</button>';
+   return '<tr><td>'+esc(dl(r.tanggal))+'</td><td>'+esc(r.uraian)+(r.catatan?'<br><span class="sub">'+esc(r.catatan)+'</span>':'')+'</td><td>'+esc(r.qty_req)+' '+esc(r.satuan)+'</td><td>'+esc(r.on_hand||'-')+'</td><td>'+esc(nameOf(r.pengaju))+'</td><td><span class="tag '+(tagC[r.status]||'')+'">'+esc(r.status)+'</span></td><td>'+apv+'</td><td>'+act+'</td></tr>'}).join('')+'</tbody></table></div>';
+  return h}
+ function vRealisasi(){
+  const L=reqs().filter(r=>(r.status==='Disetujui'||r.status==='Dibeli')&&mine(r));
+  if(!L.length)return '<p class="sub">'+(full()?'Belum ada pengajuan yang disetujui di periode ini.':'Belum ada belanja yang ditugaskan kepada Anda di periode ini.')+'</p>';
+  return L.map(r=>{const done=r.status==='Dibeli',q=ed(r.id,'qty',r.qty_apv||r.qty_req),hg=ed(r.id,'harga',r.harga||''),vd=ed(r.id,'vendor',r.vendor||''),tg=ed(r.id,'tgl',r.tgl_belanja||today());
+   return '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">'+esc(r.uraian)+'</h3><span class="tag '+(done?'green':'')+'">'+(done?'Sudah dibeli · '+rp(num(r.total)):'Belum dibeli')+'</span></div><p class="sub">Disetujui '+esc(r.qty_apv)+' '+esc(r.satuan)+' · PIC belanja '+esc(r.pic?nameOf(r.pic):'-')+'</p>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><label class="sub">Jumlah dibeli<input data-kked="'+esc(r.id)+'|qty" type="number" min="1" value="'+esc(q)+'" style="display:block;width:100%"></label><label class="sub">Harga satuan (Rp)<input data-kked="'+esc(r.id)+'|harga" type="number" min="0" value="'+esc(hg)+'" style="display:block;width:100%"></label><label class="sub">Toko / vendor<input data-kked="'+esc(r.id)+'|vendor" value="'+esc(vd)+'" style="display:block;width:100%"></label><label class="sub">Tanggal belanja<input data-kked="'+esc(r.id)+'|tgl" type="date" value="'+esc(tg)+'" style="display:block;width:100%"></label><label class="sub">Foto nota<input data-kknota="'+esc(r.id)+'" type="file" accept="image/*" capture="environment" style="display:block;width:100%"></label></div>'+
+    '<p class="sub" style="margin:8px 0 0">Total: <b>'+rp(num(q)*num(hg))+'</b>'+(r.nota?' · <a href="https://drive.google.com/file/d/'+esc(r.nota)+'/view" target="_blank" rel="noopener">Lihat nota</a>':'')+'</p><div class="ob-actions" style="margin-top:8px"><button class="button" data-kkreal="'+esc(r.id)+'" type="button">'+(done?'Simpan ulang':'Simpan realisasi')+'</button></div></div>'}).join('')}
+ function lpjRows(){const lim=limitOf();let sal=lim;const rows=[{tgl:st.p,ur:'Saldo awal periode',masuk:lim,keluar:0,akhir:lim,vendor:''}];
+  bought().forEach(r=>{sal-=num(r.total);rows.push({tgl:r.tgl_belanja,ur:r.uraian+' ('+r.qty_apv+' '+r.satuan+')',masuk:0,keluar:num(r.total),akhir:sal,vendor:r.vendor||''})});return rows}
+ function vLpj(){
+  const R=lpjRows(),lim=limitOf(),sp=spent();
+  let h='';
+  if(isSpv()){h+='<div class="card"><h3 style="margin:0">Pengaturan periode</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:6px"><label class="sub">Limit kas kecil (Rp)<input data-kkset="limit" type="number" min="0" value="'+esc(st.limit!=null?st.limit:limitOf())+'" style="display:block;width:100%"></label><label class="sub">Penanggung jawab<input data-kkset="pj" value="'+esc(st.pj!=null?st.pj:pjOf())+'" placeholder="Nama penanggung jawab kas" style="display:block;width:100%"></label></div><div class="ob-actions" style="margin-top:8px"><button class="button secondary" data-kkset="save" type="button">Simpan pengaturan</button></div></div>'}
+  h+='<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">LPJ kas kecil · '+esc(plabel(st.p))+'</h3><button class="button" data-kkprint="1" type="button">&#128438; Cetak LPJ</button></div><div class="an-wrap"><table class="an-t"><thead><tr><th>No</th><th>Tanggal</th><th>Uraian pengeluaran</th><th style="text-align:right">Saldo masuk</th><th style="text-align:right">Saldo keluar</th><th style="text-align:right">Saldo akhir</th><th>Vendor</th></tr></thead><tbody>'+R.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(dl(r.tgl))+'</td><td>'+esc(r.ur)+'</td><td style="text-align:right">'+(r.masuk?rp(r.masuk):'')+'</td><td style="text-align:right">'+(r.keluar?rp(r.keluar):'')+'</td><td style="text-align:right">'+rp(r.akhir)+'</td><td>'+esc(r.vendor)+'</td></tr>').join('')+'</tbody></table></div><p class="sub" style="margin:8px 0 0">Total pengeluaran <b>'+rp(sp)+'</b> · Saldo awal <b>'+rp(lim)+'</b> · Sisa dana tunai <b>'+rp(lim-sp)+'</b></p></div>';
+  return h}
+ function printLpj(){
+  const R=lpjRows(),lim=limitOf(),sp=spent(),e=esc,logo=location.origin+'/assets/logo-tigalapan.png',pj=pjOf();
+  const css='@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;margin:0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:4px 6px;vertical-align:top}.nb{border:0}.r{text-align:right}.c{text-align:center}.b{font-weight:700}.g{background:#d9d9d9}.hd{display:flex;align-items:center;justify-content:space-between}.hd img{height:48px}.t1{font-size:14px;font-weight:700;text-align:center;flex:1}.sig td{height:80px;vertical-align:bottom;text-align:center}';
+  let h='<!doctype html><html><head><meta charset="utf-8"><title>LPJ Kas Kecil '+e(plabel(st.p))+'</title><style>'+css+'</style></head><body>';
+  h+='<div class="hd"><div class="t1">LAPORAN PERTANGGUNGJAWABAN (LPJ) KAS KECIL</div><img src="'+logo+'" alt=""></div>';
+  h+='<table style="margin-top:8px"><tr><td class="b" style="width:28%">Periode</td><td>'+e(plabel(st.p))+'</td></tr><tr><td class="b">Cabang / Divisi</td><td>DC 38 Tigalapan / SCM</td></tr><tr><td class="b">Penanggung jawab</td><td>'+e(pj)+'</td></tr><tr><td class="b">Limit kas kecil</td><td>'+rp(lim)+'</td></tr></table>';
+  h+='<table style="margin-top:8px"><thead><tr><th class="g c" style="width:5%">No</th><th class="g c" style="width:13%">Tanggal</th><th class="g c">Uraian pengeluaran</th><th class="g c" style="width:13%">Saldo masuk</th><th class="g c" style="width:13%">Saldo keluar</th><th class="g c" style="width:13%">Saldo akhir</th><th class="g c" style="width:14%">Vendor</th></tr></thead><tbody>'+R.map((r,i)=>'<tr><td class="c">'+(i+1)+'</td><td>'+e(dl(r.tgl))+'</td><td>'+e(r.ur)+'</td><td class="r">'+(r.masuk?rp(r.masuk):'')+'</td><td class="r">'+(r.keluar?rp(r.keluar):'')+'</td><td class="r">'+rp(r.akhir)+'</td><td>'+e(r.vendor)+'</td></tr>').join('')+'</tbody></table>';
+  h+='<table style="margin-top:8px;width:55%;margin-left:45%"><tr><td class="b">Total pengeluaran</td><td class="r">'+rp(sp)+'</td></tr><tr><td class="b">Saldo awal</td><td class="r">'+rp(lim)+'</td></tr><tr><td class="b">Sisa dana tunai</td><td class="r b">'+rp(lim-sp)+'</td></tr></table>';
+  h+='<div style="margin-top:14px">Makassar, '+e(dlong(today()))+'</div><table class="sig" style="margin-top:6px"><tr><td class="b nb" style="height:auto">Dibuat / diperiksa oleh</td><td class="b nb" style="height:auto">Diketahui oleh</td><td class="b nb" style="height:auto">Diterima oleh</td></tr><tr><td class="nb"><div style="height:56px"></div><b>Ahmad Assidiq</b><br>Supervisor</td><td class="nb"><div style="height:56px"></div><b>Marwan Agus</b><br>Manager SCM</td><td class="nb"><div style="height:56px"></div><b>&nbsp;</b><br>Accounting</td></tr></table>';
+  h+='<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></bo'+'dy></html>';
+  const w=window.open('','_blank');if(!w){st.msg='Pop-up diblokir. Izinkan pop-up untuk situs ini lalu klik Cetak lagi.';st.bad=true;return}
+  w.document.open();w.document.write(h);w.document.close()}
+ function draw(s){
+  const b=s.querySelector('.v3-b');if(!b)return;
+  if(!st.tab)st.tab=full()?'Pengajuan':'Realisasi';
+  const tabs=full()?['Pengajuan','Realisasi','LPJ']:['Realisasi'];
+  let h;
+  if(st.ready===false){h='<p class="note" style="color:#b3261e">Tab KAS_KECIL belum bisa dibaca: '+esc(st.err)+'. Pasang skrip Google gudang versi terbaru (tab KAS_KECIL), jalankan setup, lalu deploy versi baru.</p>'}
+  else{
+   const cur=periodOf(today());
+   h='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><button class="button secondary" data-kkp="prev" type="button">&larr;</button><b>Periode '+esc(plabel(st.p))+'</b><button class="button secondary" data-kkp="next" type="button">&rarr;</button>'+(st.p!==cur?'<button class="button secondary" data-kkp="now" type="button">Periode ini</button>':'')+'<span class="sub">'+(+st.p.slice(8,10)===25?'Dana dicairkan sekitar tgl 25–26, belanja sampai tgl 8, LPJ tgl 9.':'Pengajuan kebutuhan periode 11–24.')+'</span></div>'+
+    '<div class="filters" style="margin-bottom:10px">'+tabs.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-kktab="'+t+'" type="button">'+t+'</button>').join('')+'</div>'+(st.msg?'<p class="note" style="color:'+(st.bad?'#b3261e':'#1b7a46')+'">'+esc(st.msg)+'</p>':'')+(full()?summary():'')+
+    (st.ready===null?'<p class="sub">Memuat…</p>':st.tab==='Pengajuan'?vPengajuan():st.tab==='Realisasi'?vRealisasi():vLpj())}
+  if(s._sig!==h){s._sig=h;const ae=document.activeElement,k=ae&&ae.dataset&&(ae.dataset.kkf||ae.dataset.kked||ae.dataset.kkset||ae.dataset.kkap),att=ae&&ae.dataset&&(ae.dataset.kkf?'kkf':ae.dataset.kked?'kked':ae.dataset.kkset?'kkset':ae.dataset.kkap?'kkap':''),pos=ae&&ae.selectionStart;
+   b.style.minHeight=b.offsetHeight+'px';b.innerHTML=h;requestAnimationFrame(()=>{b.style.minHeight=''});
+   if(k&&att){const el=b.querySelector('[data-'+att+'="'+k+'"]');if(el){el.focus({preventScroll:true});try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(x){}}}}}
+ const b64=f=>new Promise(res=>{const r=new FileReader();r.onload=()=>A.shrink(String(r.result),x=>res(x||''));r.onerror=()=>res('');r.readAsDataURL(f)});
+ V3.mkPage('kaskecil','Kas Kecil','Kas Kecil (Petty Cash)','Pengajuan kebutuhan departemen, persetujuan SPV, realisasi belanja, dan LPJ','project',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Kas Kecil</h2><span class="sub">Pengajuan kebutuhan departemen, persetujuan SPV, realisasi belanja, dan LPJ</span></div></div><div class="v3-b"></div>';
+  s.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+   if(d.kktab){st.tab=d.kktab;st.msg='';draw(s);return}
+   if(d.kkp){st.p=d.kkp==='prev'?prevP(st.p):d.kkp==='next'?nextP(st.p):periodOf(today());st.msg='';st.limit=null;st.pj=null;draw(s);return}
+   if(d.kkadd){const f=st.f;if(!f.uraian.trim())return say(s,'Isi kebutuhan yang diajukan.',true);if(!(num(f.qty)>0))return say(s,'Isi jumlah yang dibutuhkan.',true);
+    enq('KAS_KECIL',{id:rid(),periode:st.p,jenis:'PENGAJUAN',tanggal:today(),uraian:f.uraian.trim(),qty_req:String(num(f.qty)),satuan:f.satuan||'pcs',on_hand:f.onhand===''?'':String(num(f.onhand)),qty_apv:'',vendor:'',harga:'',total:'',status:'Menunggu',pengaju:code(),pic:'',disetujui_oleh:'',tgl_belanja:'',nota:'',catatan:f.cat||'',waktu:new Date().toISOString()});
+    st.f={uraian:'',qty:'',satuan:f.satuan||'pcs',onhand:'',cat:''};return say(s,'Pengajuan terkirim ke SPV.')}
+   if(d.kkok||d.kkno){const id=d.kkok||d.kkno,r=all().find(x=>x.id===id);if(!r)return;
+    if(d.kkok){const q=num(ed(id,'qty',r.qty_req)),pic=ed(id,'pic','');if(!(q>0))return say(s,'Isi jumlah yang disetujui.',true);if(!pic)return say(s,'Pilih PIC belanja.',true);
+     enq('KAS_KECIL',Object.assign({},r,{status:'Disetujui',qty_apv:String(q),pic,disetujui_oleh:code()}));delete st.ed[id];return say(s,'Disetujui. PIC belanja: '+nameOf(pic)+'.')}
+    if(!confirm('Tolak pengajuan "'+r.uraian+'"?'))return;enq('KAS_KECIL',Object.assign({},r,{status:'Ditolak',disetujui_oleh:code()}));return say(s,'Pengajuan ditolak.')}
+   if(d.kkbatal){const r=all().find(x=>x.id===d.kkbatal);if(r&&confirm('Batalkan pengajuan "'+r.uraian+'"?')){enq('KAS_KECIL',Object.assign({},r,{status:'Batal'}));say(s,'Pengajuan dibatalkan.')}return}
+   if(d.kkreal){const id=d.kkreal,r=all().find(x=>x.id===id);if(!r)return;const q=num(ed(id,'qty',r.qty_apv||r.qty_req)),hg=num(ed(id,'harga',r.harga)),vd=String(ed(id,'vendor',r.vendor||'')).trim(),tg=ed(id,'tgl',r.tgl_belanja||today());
+    if(!(q>0))return say(s,'Isi jumlah yang dibeli.',true);if(!(hg>0))return say(s,'Isi harga satuan.',true);if(!vd)return say(s,'Isi nama toko / vendor.',true);
+    const tot=q*hg,other=bought().filter(x=>x.id!==id).reduce((a,x)=>a+num(x.total),0);
+    if(other+tot>limitOf()&&!confirm('Total belanja ('+rp(other+tot)+') melebihi limit kas kecil ('+rp(limitOf())+'). Tetap simpan?'))return;
+    let nota=r.nota||'';const fl=st.nota[id];
+    if(fl){say(s,'Mengunggah foto nota…');const data=await b64(fl);if(data){try{const x=await call({action:'photo',data,mime:'image/jpeg',name:'NOTA-'+id+'.jpg',date:tg,kategori:'KasKecil'});if(x.ok)nota=x.file_id;else return say(s,'Foto nota gagal diunggah: '+(x.error||'')+'. Realisasi belum disimpan.',true)}catch(err){return say(s,'Foto nota gagal diunggah: '+(err&&err.message||err)+'. Realisasi belum disimpan.',true)}}}
+    enq('KAS_KECIL',Object.assign({},r,{status:'Dibeli',qty_apv:String(q),harga:String(hg),total:String(tot),vendor:vd,tgl_belanja:tg,nota}));delete st.ed[id];delete st.nota[id];return say(s,'Realisasi tersimpan: '+rp(tot)+'.')}
+   if(d.kkset==='save'){const lim=num(st.limit!=null?st.limit:limitOf());if(!(lim>0))return say(s,'Isi limit kas kecil.',true);const o=saldoRow()||{};
+    enq('KAS_KECIL',{id:'KKS-'+st.p,periode:st.p,jenis:'SALDO',tanggal:st.p,uraian:'Saldo awal periode',qty_req:'',satuan:'',on_hand:'',qty_apv:'',vendor:'',harga:'',total:String(lim),status:'Aktif',pengaju:o.pengaju||code(),pic:String(st.pj!=null?st.pj:pjOf()).trim(),disetujui_oleh:code(),tgl_belanja:'',nota:'',catatan:'',waktu:new Date().toISOString()});st.limit=null;st.pj=null;return say(s,'Pengaturan periode tersimpan.')}
+   if(d.kkprint){printLpj();draw(s)}});
+  s.addEventListener('input',e=>{const t=e.target,d=t.dataset;
+   if(d.kkf){st.f[d.kkf]=t.value}
+   else if(d.kked){const p=d.kked.split('|');(st.ed[p[0]]=st.ed[p[0]]||{})[p[1]]=t.value}
+   else if(d.kkap){const p=d.kkap.split('|');(st.ed[p[0]]=st.ed[p[0]]||{})[p[1]]=t.value}
+   else if(d.kkset==='limit')st.limit=t.value;else if(d.kkset==='pj')st.pj=t.value});
+  s.addEventListener('change',e=>{const t=e.target,d=t.dataset;
+   if(d.kknota){if(t.files&&t.files[0])st.nota[d.kknota]=t.files[0];return}
+   if(d.kkap){const p=d.kkap.split('|');(st.ed[p[0]]=st.ed[p[0]]||{})[p[1]]=t.value}
+   if(d.kked)draw(s)});
+  s._draw=()=>draw(s);s._show=()=>{st.p=st.p||periodOf(today());load(s)}});
 })();
 </script>
 </body></html>
