@@ -2152,7 +2152,14 @@ init();
  const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog',KAS_KECIL:'kas',TRIP:'trip',TRIP_TITIK:'trpt',BBM_LOG:'bbm'};
  let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[],kas:[],trip:[],trpt:[],bbm:[]};let dv=0;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
- async function call(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
+ // saldo stok (besar) dipakai banyak layar: satu permintaan dibagi bersama dan disimpan 45 detik; dibatalkan saat ada mutasi stok terkirim
+ const stokC={at:0,p:null,v:null};
+ async function call(body,get){
+  if(get&&body&&body.action==='stok'&&!body.fresh){
+   if(stokC.v&&Date.now()-stokC.at<45000)return stokC.v;if(stokC.p)return stokC.p;
+   stokC.p=callRaw(body,get).then(r=>{if(r&&r.ok){stokC.v=r;stokC.at=Date.now()}stokC.p=null;return r},e=>{stokC.p=null;throw e});return stokC.p}
+  return callRaw(body,get)}
+ async function callRaw(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
  const JR=[];function replayJ(tab){const lim=Date.now()-180000;while(JR.length&&JR[0].t<lim)JR.shift();JR.forEach(j=>{if(tab&&j.x.tab!==tab)return;if(j.x.a==='delete')dropLocal(j.x.tab,j.x.id);else applyLocal(j.x.tab,j.x.row)})}
  let sbC={at:0,hadir:new Set(),roles:new Map()};
@@ -2177,7 +2184,7 @@ init();
    if(q[0].a==='photo'){const it=q[0],r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){const q2=queue();if(q2[0]&&q2[0].a==='photo'){q2[0].tries=(q2[0].tries||0)+1;if(q2[0].tries>=3)q2.shift();saveQ(q2)}throw new Error(r.error)}q=queue();q.shift();q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q)}
    else{let n=0;while(n<q.length&&n<40&&(q[n].a==='append'||q[n].a==='delete'))n++;const items=q.slice(0,n);let r=await call({action:'batch',ops:items.map(x=>x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})});
     if(!r.ok&&/non-frozen rows/i.test(String(r.error))){for(const x of items){const r1=await call(x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row});if(!r1.ok&&!(x.a==='delete'&&/non-frozen rows/i.test(String(r1.error))))throw new Error(r1.error)}r={ok:true}}
-    if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row);JR.push({t:Date.now(),x})});q=queue();q.splice(0,n);saveQ(q)}
+    if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row);JR.push({t:Date.now(),x});if(x.tab==='STOK_BIN')stokC.at=0});q=queue();q.splice(0,n);saveQ(q)}
    q=queue()}
    state='ok';err=''}catch(e){state='err';err=String(e&&e.message||e)}
   busy=false;paintState();render()}
@@ -2784,22 +2791,24 @@ init();
  const sec=document.createElement('section');sec.className='page';sec.id='wms-inventory';main.appendChild(sec);
  const nav=document.createElement('button');nav.className='nav';nav.dataset.page='wms-inventory';nav.textContent='Inventory';after.after(nav);
  try{names['wms-inventory']=['Inventory (WMS)','Rekap stok per bin dan mutasi barang']}catch(e){}
- let built=false,tab='bin',stok=[],hist=[],from=back(29),to=today(),q='',state='',err='',note='';
- nav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));nav.classList.add('active');sec.classList.add('active');$('title').textContent='Inventory (WMS)';$('subtitle').textContent='Rekap stok per bin dan mutasi barang';build();draw();load()});
+ let built=false,tab='bin',stok=[],hist=[],from=back(29),to=today(),q='',state='',err='',note='',lim=300,lastLoad=0;
+ nav.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));nav.classList.add('active');sec.classList.add('active');$('title').textContent='Inventory (WMS)';$('subtitle').textContent='Rekap stok per bin dan mutasi barang';build();draw();load(false)});
  async function call(body){const c=window.WOSGudang.config();const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)));return r.json()}
- async function load(){
+ async function load(force){
   if(!sec.classList.contains('active')||document.hidden)return;
+  if(!force&&stok.length&&Date.now()-lastLoad<45000)return;
   try{
+   const pH=call({action:'list',tab:'STOK_BIN',from,to});   // riwayat dimuat bersamaan dengan saldo
    let s=await call({action:'stok'});
    if(!s.ok&&/tidak dikenal/.test(s.error||'')){ // skrip lama: hitung dari riwayat terbaru
     const l=await call({action:'list',tab:'STOK_BIN'});if(!l.ok)throw new Error(l.error);note='Skrip Google belum diperbarui; saldo dihitung dari data terbaru saja.';
     const m={};l.rows.forEach(r=>{const k=r.bin+'|'+r.sku,o=m[k]||(m[k]={bin:r.bin,sku:r.sku,item:r.item||'',masuk:0,keluar:0});o.masuk+=Number(r.qty_masuk)||0;o.keluar+=Number(r.qty_keluar)||0});
     s={ok:true,rows:Object.values(m).map(o=>({...o,saldo:o.masuk-o.keluar}))}}
    else if(!s.ok)throw new Error(s.error);else note='';
-   stok=s.rows;
-   const h=await call({action:'list',tab:'STOK_BIN',from,to});if(!h.ok)throw new Error(h.error);
-   hist=h.rows.sort((a,b)=>String(b.waktu_server||b.tanggal).localeCompare(String(a.waktu_server||a.tanggal)));
-   state='ok';err=''}catch(e){state='err';err=String(e&&e.message||e)}
+   stok=s.rows;draw();   // saldo tampil lebih dulu
+   const h=await pH;if(!h.ok)throw new Error(h.error);
+   hist=h.rows.filter(r=>r.jenis!=='SALDO AWAL').sort((a,b)=>String(b.waktu_server||b.tanggal).localeCompare(String(a.waktu_server||a.tanggal)));
+   state='ok';err='';lastLoad=Date.now()}catch(e){state='err';err=String(e&&e.message||e)}
   draw()}
  function build(){
   if(built)return;built=true;
@@ -2807,13 +2816,16 @@ init();
   '<div class="filters" style="margin-bottom:12px"><button class="filter active" data-i="bin" type="button">Stok per bin</button><button class="filter" data-i="item" type="button">Stok per item</button><button class="filter" data-i="hist" type="button">Riwayat mutasi</button><button class="filter" data-i="move" type="button">Internal move</button></div>'+
   '<div class="field" style="max-width:420px;margin-bottom:12px"><label for="inv-q">Cari bin / SKU / item</label><input id="inv-q" autocomplete="off"></div><div id="inv-body"></div>';
   sec.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-   if(b.dataset.i){tab=b.dataset.i;draw();return}
-   if(b.dataset.r!==undefined){to=today();from=back(Number(b.dataset.r));load();return}
-   if(b.id==='inv-ref')load()});
-  sec.addEventListener('input',e=>{if(e.target.id==='inv-q'){q=e.target.value;draw()}});
-  sec.addEventListener('change',e=>{if(e.target.id==='inv-from'||e.target.id==='inv-to'){const a=$('inv-from').value,b=$('inv-to').value;if(a&&b&&a<=b){from=a;to=b;load()}}});
+   if(b.dataset.more){lim+=500;draw();return}
+   if(b.dataset.i){tab=b.dataset.i;lim=300;draw();return}
+   if(b.dataset.r!==undefined){to=today();from=back(Number(b.dataset.r));load(true);return}
+   if(b.id==='inv-ref')load(true)});
+  let qT=0;sec.addEventListener('input',e=>{if(e.target.id==='inv-q'){q=e.target.value;lim=300;clearTimeout(qT);qT=setTimeout(draw,180)}});
+  sec.addEventListener('change',e=>{if(e.target.id==='inv-from'||e.target.id==='inv-to'){const a=$('inv-from').value,b=$('inv-to').value;if(a&&b&&a<=b){from=a;to=b;load(true)}}});
  }
  const num=n=>Number(n||0).toLocaleString('id-ID');
+ // hanya sebagian baris digambar (ribuan baris membuat layar berat); gunakan kotak cari untuk menyaring
+ const more=n=>n>lim?'<p class="sub" style="margin:8px 0 0">Menampilkan '+num(lim)+' dari '+num(n)+' baris. Gunakan kotak cari untuk menyaring.</p><div class="ob-actions"><button class="button secondary" data-more="1" type="button">Tampilkan 500 baris lagi</button></div>':'';
  function draw(){
   if(!built)return;
   const st=$('inv-state');if(st){st.textContent=state==='err'?'Gagal terhubung'+(err?': '+err:''):state==='ok'?'Tersambung':'Memeriksa…';st.className='tag '+(state==='err'?'red':state==='ok'?'green':'amber')}
@@ -2825,14 +2837,14 @@ init();
   const nz=stok.filter(r=>r.saldo>0);
   const head='<div class="grid three">'+card('Stok tersimpan',num(nz.reduce((a,r)=>a+r.saldo,0))+' pcs','Total saldo semua bin')+card('Bin terisi',new Set(nz.map(r=>r.bin)).size,'Bin dengan saldo lebih dari 0')+card('SKU tersimpan',new Set(nz.map(r=>r.sku)).size,'SKU dengan saldo lebih dari 0')+'</div>'+(note?'<p class="note" style="margin-top:12px">'+esc(note)+'</p>':'');
   if(tab==='bin'){
-   html=head+'<div class="card" style="margin-top:12px;overflow:auto"><h3>Stok per bin</h3>'+(rows.length?'<table><thead><tr><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Saldo</th></tr></thead><tbody>'+rows.sort((a,b)=>String(a.bin).localeCompare(String(b.bin))||String(a.sku).localeCompare(String(b.sku))).map(r=>'<tr><td><strong>'+esc(r.bin)+'</strong></td><td>'+esc(r.sku)+'</td><td>'+esc(r.item)+'</td><td>'+num(r.masuk)+'</td><td>'+num(r.keluar)+'</td><td><strong>'+num(r.saldo)+'</strong></td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada stok. Stok terisi otomatis dari Put Away (masuk), Picking (keluar), dan Internal Move.</p>')+'</div>'}
+   html=head+'<div class="card" style="margin-top:12px;overflow:auto"><h3>Stok per bin</h3>'+(rows.length?'<table><thead><tr><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Saldo</th></tr></thead><tbody>'+rows.sort((a,b)=>String(a.bin).localeCompare(String(b.bin))||String(a.sku).localeCompare(String(b.sku))).slice(0,lim).map(r=>'<tr><td><strong>'+esc(r.bin)+'</strong></td><td>'+esc(r.sku)+'</td><td>'+esc(r.item)+'</td><td>'+num(r.masuk)+'</td><td>'+num(r.keluar)+'</td><td><strong>'+num(r.saldo)+'</strong></td></tr>').join('')+'</tbody></table>'+more(rows.length):'<p class="sub">Belum ada stok. Stok terisi otomatis dari Put Away (masuk), Picking (keluar), dan Internal Move.</p>')+'</div>'}
   else if(tab==='item'){
    const m={};rows.forEach(r=>{const o=m[r.sku]||(m[r.sku]={sku:r.sku,item:r.item,saldo:0,bins:new Set()});if(!o.item&&r.item)o.item=r.item;o.saldo+=r.saldo;if(r.saldo>0)o.bins.add(r.bin)});
    const list=Object.values(m).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
-   html=head+'<div class="card" style="margin-top:12px;overflow:auto"><h3>Stok per item</h3>'+(list.length?'<table><thead><tr><th>SKU</th><th>Item</th><th>Saldo</th><th>Jumlah bin</th></tr></thead><tbody>'+list.map(o=>'<tr><td><strong>'+esc(o.sku)+'</strong></td><td>'+esc(o.item)+'</td><td><strong>'+num(o.saldo)+'</strong></td><td>'+o.bins.size+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada data.</p>')+'</div>'}
+   html=head+'<div class="card" style="margin-top:12px;overflow:auto"><h3>Stok per item</h3>'+(list.length?'<table><thead><tr><th>SKU</th><th>Item</th><th>Saldo</th><th>Jumlah bin</th></tr></thead><tbody>'+list.slice(0,lim).map(o=>'<tr><td><strong>'+esc(o.sku)+'</strong></td><td>'+esc(o.item)+'</td><td><strong>'+num(o.saldo)+'</strong></td><td>'+o.bins.size+'</td></tr>').join('')+'</tbody></table>'+more(list.length):'<p class="sub">Belum ada data.</p>')+'</div>'}
   else if(tab==='hist'){
    const list=hist.filter(hit);
-   html='<div class="card"><h3>Riwayat mutasi</h3><div class="form-grid"><div class="field"><label for="inv-from">Dari tanggal</label><input id="inv-from" type="date" value="'+from+'"></div><div class="field"><label for="inv-to">Sampai tanggal</label><input id="inv-to" type="date" value="'+to+'"></div></div><div class="ob-actions"><button class="button secondary" data-r="0" type="button">Hari ini</button><button class="button secondary" data-r="6" type="button">7 hari</button><button class="button secondary" data-r="29" type="button">30 hari</button><button class="button secondary" id="inv-ref" type="button">Muat ulang</button></div><div style="overflow:auto;margin-top:8px">'+(list.length?'<table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Referensi</th><th>PIC</th></tr></thead><tbody>'+list.map(r=>'<tr><td>'+esc(r.tanggal)+'</td><td>'+esc(r.jenis||'-')+'</td><td>'+esc(r.bin)+'</td><td>'+esc(r.sku)+'</td><td>'+esc(r.item||'')+'</td><td>'+(Number(r.qty_masuk)?num(r.qty_masuk):'-')+'</td><td>'+(Number(r.qty_keluar)?num(r.qty_keluar):'-')+'</td><td>'+esc(r.referensi||'')+'</td><td>'+esc(r.pic_kode||'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada mutasi pada rentang ini.</p>')+'</div></div>'}
+   html='<div class="card"><h3>Riwayat mutasi</h3><div class="form-grid"><div class="field"><label for="inv-from">Dari tanggal</label><input id="inv-from" type="date" value="'+from+'"></div><div class="field"><label for="inv-to">Sampai tanggal</label><input id="inv-to" type="date" value="'+to+'"></div></div><div class="ob-actions"><button class="button secondary" data-r="0" type="button">Hari ini</button><button class="button secondary" data-r="6" type="button">7 hari</button><button class="button secondary" data-r="29" type="button">30 hari</button><button class="button secondary" id="inv-ref" type="button">Muat ulang</button></div><div style="overflow:auto;margin-top:8px">'+(list.length?'<table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Bin</th><th>SKU</th><th>Item</th><th>Masuk</th><th>Keluar</th><th>Referensi</th><th>PIC</th></tr></thead><tbody>'+list.slice(0,lim).map(r=>'<tr><td>'+esc(r.tanggal)+'</td><td>'+esc(r.jenis||'-')+'</td><td>'+esc(r.bin)+'</td><td>'+esc(r.sku)+'</td><td>'+esc(r.item||'')+'</td><td>'+(Number(r.qty_masuk)?num(r.qty_masuk):'-')+'</td><td>'+(Number(r.qty_keluar)?num(r.qty_keluar):'-')+'</td><td>'+esc(r.referensi||'')+'</td><td>'+esc(r.pic_kode||'')+'</td></tr>').join('')+'</tbody></table>'+more(list.length):'<p class="sub">Belum ada mutasi pada rentang ini.</p>')+'</div></div>'}
   else{
    html='<div class="card"><h3>Internal move (relokasi barang)</h3><p class="sub">Memindahkan barang antar bin, per item dan qty: dari bin asal ke bin tujuan. Setiap pemindahan tercatat sebagai dua mutasi (keluar dari bin asal, masuk ke bin tujuan) dengan satu nomor referensi, sehingga saldo per bin selalu seimbang dan riwayatnya bisa dilacak.</p><p class="sub">Formulir pemindahan akan dibuat di menu Location Control setelah alur dan dokumennya dijelaskan. Hasilnya otomatis muncul di Stok per bin dan Riwayat mutasi di halaman ini.</p></div>'}
   const b=$('inv-body');if(b&&b.dataset.sig!==html){const ae=document.activeElement&&document.activeElement.id;b.dataset.sig=html;b.innerHTML=html;if(ae==='inv-from'||ae==='inv-to')$(ae).focus({preventScroll:true})}
@@ -4225,13 +4237,24 @@ init();
    saCtx={rows,hi,iB,iI,iT,cands};
    if(cands.length===1)buildSaldo(cands[0].i);else{sa={rows:[],bad:[],cands,pick:'',info:'File punya lebih dari satu kolom jumlah. Pilih kolom yang dipakai sebagai stok awal.'};draw()}}catch(e){sa=null;say('Gagal membaca file: '+(e&&e.message||e),true)}}
  async function importSaldo(){
-  const rows=sa.rows;if(!confirm('Impor '+rows.length+' baris saldo awal? Proses berjalan di latar belakang.'))return;
-  const iso=t=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(t)||/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(t);if(!m)return '';return m[1].length===4?m[1]+'-'+m[2]+'-'+m[3]+' 00:00:00':m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0')+' 00:00:00'};
+  const rows=sa.rows;if(!confirm('Impor '+rows.length+' baris saldo awal? Proses berjalan di latar belakang. Biarkan halaman ini terbuka sampai selesai.'))return;
+  const iso=t=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(t)||/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(t);if(!m)return '';return m[1].length===4?m[1]+'-'+m[2]+'-'+m[3]+' 00:00:00':m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0')+' 00:00:00'},defD=sa&&sa.defDate||'';
+  const send=o=>{const w=iso(o.tgl)||iso(defD);enq('STOK_BIN',Object.assign({id:'SA|'+o.bin+'|'+U(o.item),tanggal:today(),jenis:'SALDO AWAL',bin:o.bin,sku:U(o.item),item:o.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:'Saldo awal',pic_kode:code(),catatan:'impor saldo awal'},w?{waktu_server:w}:{}))};
+  // tunggu sampai antrean kirim <= max (batas antrean perangkat 1500, jadi jangan menumpuk lebih dari itu)
+  const wait=async max=>{for(let t=0;t<14400&&A.queueLen&&A.queueLen()>max;t++){await new Promise(r=>setTimeout(r,500));if(t%6===0){msg='Mengirim saldo awal… sisa antrean '+A.queueLen();draw()}}};
   const total=rows.length;say('Mengirim saldo awal… 0 / '+total);
-  for(let i=0;i<total;i+=300){rows.slice(i,i+300).forEach(o=>{const w=iso(o.tgl)||iso(sa&&sa.defDate||'');enq('STOK_BIN',Object.assign({id:'SA|'+o.bin+'|'+U(o.item),tanggal:today(),jenis:'SALDO AWAL',bin:o.bin,sku:U(o.item),item:o.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:'Saldo awal',pic_kode:code(),catatan:'impor saldo awal'},w?{waktu_server:w}:{}))});
-   msg='Mengirim saldo awal… '+Math.min(i+300,total)+' / '+total;draw();
-   for(let t=0;t<600&&A.queueLen&&A.queueLen()>100;t++)await new Promise(r=>setTimeout(r,500))}
-  sa=null;say('Saldo awal dikirim ('+total+' baris). Setelah selesai tersambung, muat ulang halaman untuk melihat stok.')}
+  for(let i=0;i<total;i+=300){rows.slice(i,i+300).forEach(send);msg='Mengirim saldo awal… '+Math.min(i+300,total)+' / '+total;draw();await wait(400)}
+  await wait(0);
+  // periksa di server: baris yang belum tercatat dikirim ulang (maksimal 2 putaran)
+  let missing=null;
+  for(let round=0;round<3;round++){
+   msg='Memeriksa hasil di server…';draw();let sv;try{sv=await A.call({action:'stok',fresh:1},true)}catch(e){sv=null}
+   if(!sv||!sv.ok){missing=null;break}
+   const m=new Map();sv.rows.forEach(x=>m.set(String(x.bin).toUpperCase()+'|'+U(x.sku),Number(x.saldo)||0));
+   const miss=rows.filter(o=>(m.get(o.bin+'|'+U(o.item))||0)<o.qty);missing=miss.length;
+   if(!miss.length||round===2)break;
+   msg='Mengirim ulang '+miss.length+' baris yang belum tercatat…';draw();miss.forEach(send);await wait(0)}
+  sa=null;say(missing===0?'Saldo awal selesai: semua '+total+' baris tercatat di server.':missing==null?'Saldo awal dikirim ('+total+' baris), tetapi hasilnya belum bisa diperiksa. Cek Inventory.':'Saldo awal dikirim, tetapi '+missing+' baris belum tercatat. Pilih file dan impor lagi untuk melengkapi.',missing!==0&&missing!=null)}
 
  // ---- tampilan
  function draw(){

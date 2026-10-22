@@ -94,7 +94,9 @@ function doPost(e) {
     lock.waitLock(20000);
     try {
       if (body.action === 'batch') {
-        const results = (body.ops || []).map(function (op) { return runOp_(op); });
+        const ops = body.ops || [];
+        const simple = ops.every(function (o) { return o && (o.action === 'append' || o.action === 'delete'); });
+        const results = simple ? batch_(ops) : ops.map(function (op) { return runOp_(op); });
         return json_({ ok: true, results: results });
       }
       return json_(Object.assign({ ok: true }, runOp_(body)));
@@ -165,6 +167,48 @@ function multi_(q) {
     res[p[0] + '|' + (p[1] || '') + '|' + (p[2] || '')] = list_(p[0], p[1] || '', p[2] || '');
   });
   return res;
+}
+
+/* Batch cepat: kolom id dibaca sekali per tab, baris baru ditulis sekaligus dan sel dipaksa berformat teks
+   (jauh lebih cepat daripada upsert satu per satu, dan mencegah tanggal berubah menjadi tipe Date). */
+function batch_(ops) {
+  const results = new Array(ops.length), byTab = {};
+  ops.forEach(function (op, i) { (byTab[op.tab] = byTab[op.tab] || []).push(i); });
+  Object.keys(byTab).forEach(function (tab) {
+    const sh = sheet_(tab), headers = TABS[tab], H = headers.length, hasWs = headers.indexOf('waktu_server') >= 0;
+    const last = sh.getLastRow(), idx = {};
+    if (last >= 2) sh.getRange(2, 1, last - 1, 1).getValues().forEach(function (r, i) { if (r[0] !== '') idx[String(r[0])] = i + 2; });
+    const fresh = [], freshId = {}, dels = [];
+    byTab[tab].forEach(function (i) {
+      const op = ops[i];
+      if (op.action === 'append') {
+        const row = op.row;
+        if (!row) throw new Error('baris kosong');
+        if (hasWs && !row.waktu_server) row.waktu_server = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
+        const v = headers.map(function (h) { return row[h] === undefined || row[h] === null ? '' : String(row[h]); }), id = v[0];
+        if (id && freshId[id] !== undefined) { fresh[freshId[id]] = v; results[i] = { saved: id, updated: true }; }
+        else if (id && idx[id]) { sh.getRange(idx[id], 1, 1, H).setValues([v]); results[i] = { saved: id, updated: true }; }
+        else { if (id) freshId[id] = fresh.length; fresh.push(v); results[i] = { saved: id, updated: false }; }
+      } else {
+        const id = String(op.id);
+        if (freshId[id] !== undefined) { fresh[freshId[id]] = null; delete freshId[id]; results[i] = { removed: true }; }
+        else if (idx[id]) { dels.push(idx[id]); delete idx[id]; results[i] = { removed: true }; }
+        else results[i] = { removed: false };
+      }
+    });
+    const rows = fresh.filter(function (r) { return r; });
+    if (rows.length) {
+      const need = last + rows.length - sh.getMaxRows();
+      if (need > 0) sh.insertRowsAfter(sh.getMaxRows(), need);
+      const rng = sh.getRange(last + 1, 1, rows.length, H);
+      rng.setNumberFormat('@');
+      rng.setValues(rows);
+    }
+    dels.sort(function (a, b) { return b - a; }).forEach(function (pos) {
+      try { sh.deleteRow(pos); } catch (e) { sh.getRange(pos, 1, 1, sh.getMaxColumns()).clearContent(); }
+    });
+  });
+  return results;
 }
 
 function upsert_(tab, row) {
