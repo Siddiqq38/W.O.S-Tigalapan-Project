@@ -3395,7 +3395,7 @@ init();
  function listKoli(mode){
   const me=code(),adm=canAdmin();let list=view('PICK_KOLI');
   if(mode==='pick')list=list.filter(k=>adm?(!filterOp||k.picker===filterOp):k.picker===me);else if(adm&&filterOp)list=list.filter(k=>k.picker===filterOp);
-  if(mode==='vp')list=list.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status));
+  if(mode==='vp'){list=list.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status));ensureVp(list)}
   let h='';
   if(adm)h+='<div class="field" style="max-width:320px"><label for="ob-fop">Picker</label><select id="ob-fop"><option value="">Semua picker</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
   if(!list.length)return h+'<p class="sub">'+(mode==='pick'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap diverifikasi.')+'</p>';
@@ -3421,8 +3421,17 @@ init();
   taskEdit(arr=>{const o=arr.find(t=>t.id===k.task_id);if(o&&o.status!=='selesai')o.status='batal';arr.push({id:tid,day:today(),at:stIso(),title:'Picking '+d.kode+' '+d.outlet+' koli '+k.koli,qty:pcs+' pcs',by:code(),to:np,status:'baru',kind:'picking'})});
   updKoli(k,{picker:np,picker_nama:nameOf(np),task_id:tid})}
  function taskAccept(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t&&t.status==='baru'){t.status='diterima';t.by2=k.picker;t.ackAt=stIso()}})}
+ // tugas Verification Pick untuk checker yang bertugas hari ini (bukan picker koli itu)
+ const checkersToday=()=>{try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null'),pl=(r&&r.plans&&r.plans[today()])||{};return Object.keys(pl).filter(c=>(pl[c]||[]).some(x=>x.roleId==='checker'))}catch(e){return[]}};
+ function ensureVp(ks){
+  try{const cs=checkersToday();if(!cs.length||!ks.length)return;const have=new Set((JSON.parse(localStorage.getItem('wos-tasks-v1')||'[]')||[]).map(t=>t.id)),miss=[];
+   ks.filter(k=>k.status==='Siap verifikasi'||k.status==='Perbaikan').forEach(k=>cs.forEach(c=>{if(c!==k.picker&&!have.has('VP-'+k.id+'-'+c))miss.push([k,c])}));
+   if(!miss.length)return;
+   taskEdit(arr=>miss.forEach(([k,c])=>{const d=view('PICK_DOK').find(x=>x.id===k.dok)||{kode:k.dok,outlet:''},pcs=itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)&&r.kategori!=='OTHER').reduce((a,r)=>a+num(r.qty_actual||r.qty),0);
+    arr.push({id:'VP-'+k.id+'-'+c,day:today(),at:stIso(),title:'Verifikasi '+d.kode+' '+d.outlet+' koli '+k.koli,qty:pcs+' pcs',by:'SISTEM',to:c,status:'baru',kind:'verifikasi'})}))}catch(e){}}
+ function vpTaskState(k,st){try{taskEdit(arr=>arr.forEach(t=>{if(String(t.id).indexOf('VP-'+k.id+'-')!==0)return;if(st==='selesai'&&t.status!=='selesai'){t.status='selesai';t.doneAt=stIso()}else if(st==='diterima'&&t.to===code()&&t.status==='baru'){t.status='diterima';t.by2=code();t.ackAt=stIso()}}))}catch(e){}}
  function taskMaybeDone(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}
- function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();else if(cur.mode==='vp'){LY.at=0;loadLayers()}pull(true);draw()}
+ function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.status==='Ditugaskan'&&k.picker===code()){updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();else if(cur.mode==='vp'){vpTaskState(k,'diterima');LY.at=0;loadLayers()}pull(true);draw()}
  function stokOut(r,bin,sku,qty){if(!(qty>0)||!bin)return;enq('STOK_BIN',{id:'SB|PK|'+r.id,tanggal:today(),jenis:'PICKING',bin,sku:sku||U(r.item),item:r.item,qty_masuk:'0',qty_keluar:String(qty),referensi:r.dok+' koli '+r.koli,pic_kode:code(),catatan:''})}
  function pickRow(r,status,binA,qtyA,ket,video,cb){
   {const lb=[binA,r.bin].find(b=>b&&A.binLocked(String(b).toUpperCase()));if(lb){alert('Bin '+lb+' sedang dikunci untuk cycle count / stok opname. Tidak ada transaksi di bin ini sampai dibuka. Hubungi SPV atau Location Control.');return}}
@@ -3462,7 +3471,7 @@ init();
  // ---- verification pick
  const REASONS=['Salah item','Salah ukuran','Qty kurang','Qty lebih','Bin salah','Barang rusak / cacat','Lainnya'];
  function vpState(k){const rows=koliRows(k).filter(r=>num(r.qty_actual)>0);if(rows.some(r=>r.vp==='Salah'))return 'Perbaikan';if(rows.length&&rows.every(r=>r.vp==='Sesuai'||r.vp==='Dikoreksi'))return 'Siap TFS';return 'Siap verifikasi'}
- function setVp(r,vp,ket){enq('PICK_ITEM',Object.assign({},r,{vp,vp_ket:ket||'',vp_oleh:code(),vp_jam:nowHM()}));const k2=koliById(r.dok+'|K'+r.koli);if(!k2)return;const st=vpState(k2);if(st!==k2.status)updKoli(k2,{status:st,vp_oleh:code(),vp_selesai:st==='Siap TFS'?stIso():''});draw()}
+ function setVp(r,vp,ket){enq('PICK_ITEM',Object.assign({},r,{vp,vp_ket:ket||'',vp_oleh:code(),vp_jam:nowHM()}));const k2=koliById(r.dok+'|K'+r.koli);if(!k2)return;const st=vpState(k2);if(st!==k2.status)updKoli(k2,{status:st,vp_oleh:code(),vp_selesai:st==='Siap TFS'?stIso():''});if(st==='Siap TFS')vpTaskState(k2,'selesai');draw()}
  function salahModal(r){
   const m=G.modal('<h3>Verifikasi: tidak sesuai</h3><p class="sub">'+esc(r.item)+' · qty '+esc(r.qty_actual||r.qty)+'</p><label style="font-weight:600">Jenis kesalahan</label><select id="vp-r" style="width:100%">'+REASONS.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select><label style="font-weight:600;margin-top:8px;display:block">Keterangan</label><input id="vp-k" style="width:100%" placeholder="Jelaskan kesalahannya"><div class="ob-actions" style="margin-top:10px"><button class="button" id="vp-ok" type="button">Simpan</button><button class="button secondary" id="vp-x" type="button">Batal</button></div>');
   m.querySelector('#vp-x').onclick=()=>m.remove();m.querySelector('#vp-ok').onclick=()=>{const t=m.querySelector('#vp-r').value,kt=m.querySelector('#vp-k').value.trim();if(!kt){alert('Isi keterangan kesalahan.');return}setVp(r,'Salah',t+': '+kt);m.remove()}}
@@ -3523,14 +3532,15 @@ init();
  // ---- Transfer Stok (TFS ke MOKA)
  function drawTfsList(){const g=dokGroups(SETS.tfs);if(!g.length)return none('Belum ada koli yang lolos verifikasi.');
   return g.map(x=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+''+'</div><p class="sub">Selesai TFS '+x.ks.filter(k=>k.status==='Selesai TFS').length+' dari '+x.ks.length+' koli yang siap.</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obopen')).join('')+'</div></div>').join('')}
- const cp=(t)=>'<button class="button secondary" data-obcp="'+esc(t)+'" type="button" title="Copy" style="padding:2px 8px">📋</button>';
+ const cp=(t)=>!canAdmin()?'':'<button class="button secondary" data-obcp="'+esc(t)+'" type="button" title="Copy" style="padding:2px 8px">📋</button>';
  function drawTfsScreen(){
-  const k=koliById(cur.id);if(!k){cur=null;return ''}const d=dokOf(k.dok),rows=koliRows(k).filter(r=>num(r.qty_actual)>0),oth=koliOthers(k),done=k.status==='Selesai TFS',locked=PASTTFS.includes(k.status)&&!done;
+  const k=koliById(cur.id);if(!k){cur=null;return ''}const d=dokOf(k.dok),rows=koliRows(k).filter(r=>num(r.qty_actual)>0),oth=koliOthers(k),done=k.status==='Selesai TFS',viewOnly=!canAdmin(),locked=(PASTTFS.includes(k.status)&&!done)||viewOnly;
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button></div><div class="card"><h3 style="margin:0">TFS · '+esc(d.kode)+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.outlet)+' · status <strong>'+esc(k.status)+'</strong>. Salin Item dan Qty satu per satu ke halaman Transfer Stok di MOKA.</p>';
   h+='<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+' '+cp(r.item)+'</td><td><strong>'+esc(r.qty_actual)+'</strong> '+cp(r.qty_actual)+'</td></tr>').join('')+'</tbody></table></div>';
   h+='<h4 style="margin:14px 0 4px">Other (tambahan manual)</h4><p class="sub">Contoh: surat jalan, barang POP titipan marketing, dan lainnya. Tidak ikut stok bin.</p>';
   if(oth.length)h+='<div style="overflow:auto"><table><thead><tr><th>Other</th><th>Qty</th><th>Keterangan</th><th></th></tr></thead><tbody>'+oth.map(r=>'<tr><td>'+esc(r.item)+' '+cp(r.item)+'</td><td><strong>'+esc(r.qty_actual)+'</strong> '+cp(r.qty_actual)+'</td><td>'+esc(r.ket_pick)+'</td><td>'+(locked||level()!=='supervisor'?'':'<button class="button secondary" data-obdelo="'+esc(r.id)+'" type="button" style="color:#b3261e">Hapus</button>')+'</td></tr>').join('')+'</tbody></table></div>';
   if(!locked)h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><input id="ob-on" placeholder="Nama (mis. Surat jalan, POP)" style="flex:2;min-width:160px"><input id="ob-oq" type="number" inputmode="numeric" min="1" placeholder="Qty" style="flex:1;min-width:70px"><input id="ob-ot" placeholder="Keterangan" style="flex:2;min-width:140px"><button class="button" data-obaddo="1" type="button">+ Tambah</button></div>';
+  if(viewOnly)h+='<p class="note">Hanya untuk dilihat. Transfer stok ke MOKA dan penandaan selesai TFS dilakukan oleh Admin Outbound.</p>';
   h+='<div style="margin-top:14px"><label style="font-weight:600;display:flex;gap:8px;align-items:center"><input type="checkbox" data-obtfs="1"'+(done?' checked':'')+(locked?' disabled':'')+'> Koli ini sudah selesai TFS di MOKA</label></div>';
   if(done)h+='<p class="note">TFS selesai ('+esc(k.tfs_oleh||'')+'). Lanjut ke tab <strong>Packing &amp; Staging</strong>; surat jalan dan STTB dicetak di sana.</p>';
   return h+'</div>'}
@@ -3634,7 +3644,7 @@ init();
     LY.map=by;LY.pk=PK;LY.at=Date.now()}}catch(e){}
   LY.busy=false;draw()}
  // asal PO barang yang sudah diambil (untuk verifikasi): dari lapisan stok saat picking dicatat
- const pkTag=r=>{const a=LY.pk&&LY.pk.get(r.id);if(!a||!a.length)return '';return '<div class="sub" style="font-size:11px;margin-top:2px">PO: '+a.map(x=>'<b>'+esc(x.po)+'</b>'+(a.length>1?' ×'+x.qty:'')).join(' · ')+'</div>'};
+ const pkTag=r=>{const a=LY.pk&&LY.pk.get(r.id);if(!a||!a.length)return LY.at?'<div class="sub" style="font-size:11px;margin-top:2px;color:#8896ab">PO: tidak tercatat (bin ini belum punya riwayat masuk PO)</div>':'<div class="sub" style="font-size:11px;margin-top:2px;color:#8896ab">PO: memuat…</div>';return '<div class="sub" style="font-size:11px;margin-top:2px">PO: '+a.map(x=>'<b>'+esc(x.po)+'</b>'+(a.length>1?' ×'+x.qty:'')).join(' · ')+'</div>'};
  const lpTag=r=>r.status==='Menunggu'&&isLP(r.bin)?'<div class="sub" style="font-size:11px;margin-top:2px">Bin palet · kelipatan '+palletOf(r.item)+' pcs'+(num(r.qty)%palletOf(r.item)?' (jumlah ini bukan kelipatan, ambil sesuai kebutuhan)':'')+'</div>':'';
  const poTag=r=>{
   if(r.status!=='Menunggu'||!r.bin||!LY.at)return '';
@@ -3686,13 +3696,14 @@ init();
   if(t.dataset.obopen){openKoli(t.dataset.obopen);return}
   if(t.dataset.obok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obok);if(r)pickRow(r,'Sesuai',r.bin,num(r.qty),'',null);return}
   if(t.dataset.obno){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obno);if(r)silangModal(r);return}
-  if(t.dataset.obdone){const k=koliById(cur.id);if(k){updKoli(k,{status:'Siap verifikasi',selesai:stIso()});taskMaybeDone(k);cur=null;say('Picking koli '+k.koli+' selesai. Lanjut verifikasi.')}return}
+  if(t.dataset.obdone){const k=koliById(cur.id);if(k){updKoli(k,{status:'Siap verifikasi',selesai:stIso()});taskMaybeDone(k);ensureVp([Object.assign({},k,{status:'Siap verifikasi'})]);cur=null;say('Picking koli '+k.koli+' selesai. Lanjut verifikasi.')}return}
   if(t.dataset.obvok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obvok);if(r)setVp(r,'Sesuai','');return}
   if(t.dataset.obvno){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obvno);if(r)salahModal(r);return}
   if(t.dataset.obadd){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obadd);if(r)tambahBinModal(r);return}
   if(t.dataset.obcp){const v=t.dataset.obcp,done=()=>{t.textContent='✓';setTimeout(()=>{t.textContent='📋'},900)};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(done,()=>{});else{const ta=document.createElement('textarea');ta.value=v;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done()}catch(x){}ta.remove()}return}
   if(t.dataset.obsj){printSJ(t.dataset.obsj);return}
   if(t.dataset.obsttb){printSTTB(t.dataset.obsttb);return}
+  if((t.dataset.obaddo||t.dataset.obdelo)&&!canAdmin())return say('Hanya Admin Outbound dan SPV yang boleh mengubah data TFS.',true);
   if(t.dataset.obaddo){const k=koliById(cur.id),nm=$('ob-on').value.trim(),q=num($('ob-oq').value);if(!nm||!(q>0))return say('Isi nama dan qty Other.',true);enq('PICK_ITEM',{id:k.id+'|O'+Date.now().toString(36),tanggal:k.tanggal,dok:k.dok,outlet:dokOf(k.dok).outlet,item:nm,sku:'',kategori:'OTHER',soq:'0',ket:'',koli:String(k.koli),bin:'',qty:'0',status:'Sesuai',qty_actual:String(q),ket_pick:$('ob-ot').value.trim(),vp:'Sesuai',vp_oleh:code(),vp_jam:nowHM(),picker:code(),jam_pick:nowHM()});return}
   if(t.dataset.obdelo){enqDel('PICK_ITEM',t.dataset.obdelo);return}
   if(t.dataset.obpk){const k=koliById(t.dataset.obpk);if(k&&k.status==='Selesai TFS'){packSel.has(k.id)?packSel.delete(k.id):packSel.add(k.id);draw()}return}
@@ -3716,7 +3727,7 @@ init();
   if(t.dataset&&t.dataset.obeks&&t.value==='(Lainnya)'){const n=(prompt('Nama ekspedisi')||'').trim();(shipInfo[t.dataset.obeks]=shipInfo[t.dataset.obeks]||{}).eks=n;draw();return}
   if(t.dataset&&t.dataset.obeks){(shipInfo[t.dataset.obeks]=shipInfo[t.dataset.obeks]||{}).eks=t.value;return}
   if(t.dataset&&t.dataset.obeta){(shipInfo[t.dataset.obeta]=shipInfo[t.dataset.obeta]||{}).eta=t.value;return}
-  if(t.dataset&&t.dataset.obtfs&&cur){const k=koliById(cur.id);if(k){if(t.checked&&['Siap TFS','Siap packing'].includes(k.status))updKoli(k,{status:'Selesai TFS',tfs_oleh:code(),tfs_waktu:stIso()});else if(!t.checked&&k.status==='Selesai TFS')updKoli(k,{status:'Siap TFS',tfs_oleh:'',tfs_waktu:''})}draw();return}
+  if(t.dataset&&t.dataset.obtfs&&cur){if(!canAdmin()){t.checked=!t.checked;say('Selesai TFS hanya untuk Admin Outbound dan SPV.',true);return}const k=koliById(cur.id);if(k){if(t.checked&&['Siap TFS','Siap packing'].includes(k.status))updKoli(k,{status:'Selesai TFS',tfs_oleh:code(),tfs_waktu:stIso()});else if(!t.checked&&k.status==='Selesai TFS')updKoli(k,{status:'Siap TFS',tfs_oleh:'',tfs_waktu:''})}draw();return}
   if((t.id==='ob-capp'||t.id==='ob-capj')&&edit){edit.caps={p:Math.max(1,num($('ob-capp').value)),j:Math.max(1,num($('ob-capj').value))};try{localStorage.setItem(CAP2K,JSON.stringify(edit.caps))}catch(x){}return}
   if(t.dataset&&t.dataset.obpk2&&edit){const[id,i,f]=t.dataset.obpk2.split('||');const l=edit.lines.find(x=>x.id===id);if(l&&l.parts[Number(i)]){l.parts[Number(i)][f]=Math.max(0,Math.floor(num(t.value)));draw()}return}
   if(t.dataset&&t.dataset.obp&&edit){edit.pk[t.dataset.obp]=t.value;return}});
