@@ -108,7 +108,7 @@ function runOp_(op) {
   if (op.action === 'photo') return photo_(op);
   if (op.action === 'purge') {
     if (!op.dry && op.konfirmasi !== 'HAPUS') throw new Error('konfirmasi HAPUS diperlukan');
-    return purge_(op.tab, op.before, op.dry);
+    return purge_(op.tab, op.before, op.dry, op.semua === true);
   }
   throw new Error('aksi tidak dikenal: ' + op.action);
 }
@@ -196,7 +196,11 @@ function remove_(tab, id) {
   if (last < 2) return { removed: false };
   const ids = sh.getRange(2, 1, last - 1, 1).getValues();
   for (let i = ids.length - 1; i >= 0; i--) {
-    if (String(ids[i][0]) === String(id)) { sh.deleteRow(i + 2); return { removed: true }; }
+    if (String(ids[i][0]) === String(id)) {
+      // Google tidak mengizinkan menghapus SEMUA baris non-beku; bila ini baris data terakhir, kosongkan isinya saja
+      try { sh.deleteRow(i + 2); } catch (e) { sh.getRange(i + 2, 1, 1, sh.getMaxColumns()).clearContent(); }
+      return { removed: true };
+    }
   }
   return { removed: false };
 }
@@ -215,7 +219,7 @@ const PURGEABLE = {
 /* ============ Pembersihan data simulasi (dipanggil panel Pembersihan Data WOS, khusus SPV) ============
    Hanya tab di PURGEABLE yang boleh dibersihkan, dan hanya baris dengan tanggal SEBELUM tanggal batas.
    Tab master (karyawan, vendor, bin, norm, dll) tidak ada di daftar ini sehingga tidak bisa terhapus. */
-function purge_(tab, before, dry) {
+function purge_(tab, before, dry, semua) {   // semua = true: baris yang biasanya dilindungi (SALDO AWAL) ikut dihapus
   const cfg = PURGEABLE[tab];
   if (!cfg) throw new Error('tab tidak boleh dibersihkan: ' + tab);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(before || ''))) throw new Error('tanggal batas tidak valid');
@@ -228,7 +232,7 @@ function purge_(tab, before, dry) {
   vals.forEach(function (r) {
     if (String(r[0]) === '') return;
     const d = String(r[dc] || '').slice(0, 10);
-    const prot = kc >= 0 && (cfg.keepVal || []).indexOf(String(r[kc])) >= 0;
+    const prot = !semua && kc >= 0 && (cfg.keepVal || []).indexOf(String(r[kc])) >= 0;
     if (d && d < before && !prot) del++; else keep.push(r);
   });
   if (!dry && del) {

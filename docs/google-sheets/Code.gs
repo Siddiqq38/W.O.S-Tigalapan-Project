@@ -180,7 +180,11 @@ function remove_(tab, id) {
   if (last < 2) return { removed: false };
   const ids = sh.getRange(2, 1, last - 1, 1).getValues();
   for (let i = ids.length - 1; i >= 0; i--) {
-    if (String(ids[i][0]) === String(id)) { sh.deleteRow(i + 2); return { removed: true }; }
+    if (String(ids[i][0]) === String(id)) {
+      // Google tidak mengizinkan menghapus SEMUA baris non-beku; bila ini baris data terakhir, kosongkan isinya saja
+      try { sh.deleteRow(i + 2); } catch (e) { sh.getRange(i + 2, 1, 1, sh.getMaxColumns()).clearContent(); }
+      return { removed: true };
+    }
   }
   return { removed: false };
 }

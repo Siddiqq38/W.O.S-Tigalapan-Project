@@ -2175,7 +2175,9 @@ init();
  async function flush(){if((busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paintState();return}busy=true;busyAt=Date.now();
   try{while(q.length){
    if(q[0].a==='photo'){const it=q[0],r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){const q2=queue();if(q2[0]&&q2[0].a==='photo'){q2[0].tries=(q2[0].tries||0)+1;if(q2[0].tries>=3)q2.shift();saveQ(q2)}throw new Error(r.error)}q=queue();q.shift();q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q)}
-   else{let n=0;while(n<q.length&&n<40&&(q[n].a==='append'||q[n].a==='delete'))n++;const items=q.slice(0,n),r=await call({action:'batch',ops:items.map(x=>x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})});if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row);JR.push({t:Date.now(),x})});q=queue();q.splice(0,n);saveQ(q)}
+   else{let n=0;while(n<q.length&&n<40&&(q[n].a==='append'||q[n].a==='delete'))n++;const items=q.slice(0,n);let r=await call({action:'batch',ops:items.map(x=>x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})});
+    if(!r.ok&&/non-frozen rows/i.test(String(r.error))){for(const x of items){const r1=await call(x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row});if(!r1.ok&&!(x.a==='delete'&&/non-frozen rows/i.test(String(r1.error))))throw new Error(r1.error)}r={ok:true}}
+    if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row);JR.push({t:Date.now(),x})});q=queue();q.splice(0,n);saveQ(q)}
    q=queue()}
    state='ok';err=''}catch(e){state='err';err=String(e&&e.message||e)}
   busy=false;paintState();render()}
@@ -5278,7 +5280,7 @@ init();
   {id:'lc',name:'Location Control',note:'Task opname / cycle count, hasil hitung, adjustment',src:'wms',tabs:['LC_TASK','LC_COUNT','ADJUSTMENT']},
   {id:'prj',name:'Project',note:'',src:'wms',tabs:['PROJECT','PROJECT_LOG']},
   {id:'kas',name:'Kas kecil dan perjalanan driver',note:'Hanya bila ada data uji',src:'wms',tabs:['KAS_KECIL','TRIP','TRIP_TITIK','BBM_LOG']}];
- const st={from:'2026-10-23',res:null,busy:false,msg:'',sel:new Set(CATS.map(c=>c.id)),prog:''};
+ const st={sa:false,from:'2026-10-23',res:null,busy:false,msg:'',sel:new Set(CATS.map(c=>c.id)),prog:''};
  const isSpv=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'}catch(e){return false}};
  const cfgOf=s=>{try{return s==='ops'?window.WOSStore.config():window.WOSGudang.config()}catch(e){return null}};
  async function post(s,body){const c=cfgOf(s);if(!c||!c.url)throw new Error('alamat skrip Google belum diatur');const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body))});return r.json()}
@@ -5290,24 +5292,29 @@ init();
  async function arsip(L){
   let out='';
   for(const c of L)for(const t of c.tabs){if(!((st.res[t]&&st.res[t].hapus)||0))continue;st.prog='Mengarsipkan '+t+'…';draw();
-   const col=DATEC[t]||'tanggal',rows=(await getAll(c.src,t)).filter(r=>{const d=String(r[col]||'').slice(0,10);return d&&d<st.from&&!(t==='STOK_BIN'&&r.jenis==='SALDO AWAL')});
+   const col=DATEC[t]||'tanggal',rows=(await getAll(c.src,t)).filter(r=>{const d=String(r[col]||'').slice(0,10);return d&&d<st.from&&!(t==='STOK_BIN'&&r.jenis==='SALDO AWAL'&&!st.sa)});
    if(!rows.length)continue;const cols=[...rows.reduce((a,r)=>{Object.keys(r).forEach(k=>a.add(k));return a},new Set())];
    out+='#TAB,'+t+',baris,'+rows.length+'\r\n'+cols.map(q2).join(',')+'\r\n'+rows.map(r=>cols.map(k=>q2(r[k])).join(',')).join('\r\n')+'\r\n\r\n'}
   if(!out)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+out],{type:'text/csv;charset=utf-8'}));a.download='arsip-simulasi-sebelum-'+st.from+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
  async function hitung(){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(st.from)){st.msg='Isi tanggal batas.';draw();return}
   st.busy=true;st.msg='';st.res={};
-  for(const c of CATS){for(const t of c.tabs){st.prog='Menghitung '+t+'…';draw();let r;try{r=await post(c.src,{action:'purge',tab:t,before:st.from,dry:true})}catch(e){r={ok:false,error:String(e&&e.message||e)}}st.res[t]=r.ok?{hapus:r.hapus,sisa:r.sisa,total:r.total}:{err:r.error||'gagal'}}}
+  for(const c of CATS){for(const t of c.tabs){st.prog='Menghitung '+t+'…';draw();let r;try{r=await post(c.src,Object.assign({action:'purge',tab:t,before:st.from,dry:true},st.sa&&t==='STOK_BIN'?{semua:true}:{}))}catch(e){r={ok:false,error:String(e&&e.message||e)}}st.res[t]=r.ok?{hapus:r.hapus,sisa:r.sisa,total:r.total}:{err:r.error||'gagal'}}}
   st.busy=false;st.prog='';draw()}
  async function hapus(){
   const L=CATS.filter(c=>st.sel.has(c.id)),tot=L.reduce((a,c)=>a+c.tabs.reduce((b,t)=>b+((st.res&&st.res[t]&&st.res[t].hapus)||0),0),0);
   if(!tot){st.msg='Tidak ada baris yang perlu dihapus pada kategori terpilih.';draw();return}
-  if(!confirm('Hapus '+fmt(tot)+' baris data simulasi (tanggal sebelum '+st.from+') dari '+L.length+' kategori?\n\nMaster karyawan, vendor, ekspedisi, bin, norm, role, layout, dan Saldo Awal TIDAK dihapus.\nTidak bisa dibatalkan. File arsip CSV berisi semua baris ini akan diunduh lebih dulu. Pastikan semua perangkat sudah terkirim (tidak ada antrean).'))return;
+  if(!confirm('Hapus '+fmt(tot)+' baris data simulasi (tanggal sebelum '+st.from+') dari '+L.length+' kategori?\n\nMaster karyawan, vendor, ekspedisi, bin, norm, role, dan layout TIDAK dihapus.'+(st.sa?'\nPERHATIAN: baris SALDO AWAL (opening stok) IKUT DIHAPUS, stok menjadi nol.':'\nSaldo Awal TIDAK dihapus.')+'\n\nTidak bisa dibatalkan. File arsip CSV berisi semua baris ini akan diunduh lebih dulu. Pastikan semua perangkat sudah terkirim (tidak ada antrean).'))return;
   if(prompt('Ketik HAPUS untuk melanjutkan:')!=='HAPUS'){st.msg='Dibatalkan.';draw();return}
   st.busy=true;st.msg='';let done=0,fail=[];
   try{await arsip(L)}catch(e){st.busy=false;st.prog='';st.msg='Arsip gagal ('+(e&&e.message||e)+'). Penghapusan dibatalkan; tidak ada data yang dihapus.';draw();return}
-  for(const c of L){for(const t of c.tabs){const n=(st.res[t]&&st.res[t].hapus)||0;if(!n)continue;st.prog='Menghapus '+t+' ('+fmt(n)+' baris)…';draw();let r;try{r=await post(c.src,{action:'purge',tab:t,before:st.from,konfirmasi:'HAPUS'})}catch(e){r={ok:false,error:String(e&&e.message||e)}}if(r.ok)done+=r.hapus;else fail.push(t+': '+(r.error||'gagal'))}}
+  for(const c of L){for(const t of c.tabs){const n=(st.res[t]&&st.res[t].hapus)||0;if(!n)continue;st.prog='Menghapus '+t+' ('+fmt(n)+' baris)…';draw();let r;try{r=await post(c.src,Object.assign({action:'purge',tab:t,before:st.from,konfirmasi:'HAPUS'},st.sa&&t==='STOK_BIN'?{semua:true}:{}))}catch(e){r={ok:false,error:String(e&&e.message||e)}}if(r.ok)done+=r.hapus;else fail.push(t+': '+(r.error||'gagal'))}}
   st.busy=false;st.prog='';st.msg='Selesai: '+fmt(done)+' baris dihapus.'+(fail.length?' Gagal: '+fail.join('; '):'')+' Perangkat lain membersihkan salinan lokalnya otomatis dalam beberapa menit.';await hitung()}
+ // antrean kirim di perangkat ini: operasi yang belum terkirim ke Google (bila berisi data simulasi, hidupkan lagi setelah dibersihkan)
+ const qRead=k=>{try{const a=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}};
+ function qBox(){const g=qRead('wos-gd-queue-v1'),o=qRead('wos-sync-queue-v1');if(!g.length&&!o.length)return '<p class="sub" style="margin-top:8px">Antrean kirim di perangkat ini kosong.</p>';
+  const by=a=>{const m={};a.forEach(x=>{const t=x.tab||x.a||'?';m[t]=(m[t]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([t,n])=>t+' '+fmt(n)).join(', ')};
+  return '<div class="note" style="margin-top:8px"><b>Antrean kirim di perangkat ini:</b> gudang '+fmt(g.length)+(g.length?' ('+esc(by(g))+')':'')+' · operasional '+fmt(o.length)+(o.length?' ('+esc(by(o))+')':'')+'<div class="sub">Operasi yang belum terkirim akan terkirim lagi nanti. Kalau isinya data simulasi, buang dulu supaya tidak muncul lagi setelah dibersihkan. Jangan dibuang bila berisi impor opening stok yang belum selesai terkirim.</div><div class="ob-actions" style="margin-top:6px"><button class="button secondary" data-pgq="gd" type="button">Buang antrean gudang</button> <button class="button secondary" data-pgq="ops" type="button">Buang antrean operasional</button></div></div>'}
  function html(){
   const r=st.res,rows=CATS.map(c=>{const n=c.tabs.reduce((a,t)=>a+((r&&r[t]&&r[t].hapus)||0),0),keep=c.tabs.reduce((a,t)=>a+((r&&r[t]&&r[t].sisa)||0),0),err=r&&c.tabs.some(t=>r[t]&&r[t].err);
    return '<tr><td><input type="checkbox" data-pg="'+c.id+'"'+(st.sel.has(c.id)?' checked':'')+'></td><td><strong>'+esc(c.name)+'</strong>'+(c.note?'<div class="sub">'+esc(c.note)+'</div>':'')+'</td><td>'+(r?(err?'<span class="tag amber">sebagian belum bisa dihitung</span><div class="sub">'+esc(c.tabs.filter(t=>r[t]&&r[t].err).map(t=>t+': '+r[t].err).join('; ').slice(0,120))+'</div>':'<strong>'+fmt(n)+'</strong>'):'-')+'</td><td>'+(r&&!err?fmt(keep):'-')+'</td></tr>'}).join('');
@@ -5316,14 +5323,15 @@ init();
    '<div class="form-grid" style="margin-top:10px"><div class="field"><label for="pg-from">Hapus data bertanggal SEBELUM</label><input id="pg-from" type="date" value="'+esc(st.from)+'"></div></div>'+
    '<div class="ob-actions"><button class="button" data-pgcount="1" type="button"'+(st.busy?' disabled':'')+'>Hitung dulu (tidak menghapus)</button></div>'+
    '<div style="overflow:auto;margin-top:8px"><table><thead><tr><th></th><th>Kategori</th><th>Akan dihapus (baris)</th><th>Tetap ada</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+   '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" data-pgsa="1"'+(st.sa?' checked':'')+'><span><b>Nolkan seluruh stok</b>: sertakan juga baris SALDO AWAL (hasil impor opening stok) pada kategori Mutasi stok. Biarkan kosong bila opening stok sudah benar dan hanya mutasi simulasi yang dibersihkan.</span></label>'+qBox()+
    '<div class="ob-actions"><button class="button" data-pgdel="1" type="button" style="background:#b3261e"'+(st.busy||!r?' disabled':'')+'>Hapus kategori terpilih</button></div>'+
    (st.prog?'<p class="sub">'+esc(st.prog)+'</p>':'')+(st.msg?'<p class="note">'+esc(st.msg)+'</p>':'')}
  function draw(){const host=$('wos-purge');if(!host)return;const h=html();if(host.dataset.sig===h)return;host.dataset.sig=h;const ae=document.activeElement;host.innerHTML=h}
  function mount(){
   const pg=$('master');if(!pg||!isSpv())return;let host=$('wos-purge');
   if(!host){host=document.createElement('section');host.id='wos-purge';host.className='card';host.style.marginTop='18px';pg.appendChild(host);
-   host.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.pgcount)hitung();else if(b.dataset.pgdel)hapus()});
-   host.addEventListener('change',e=>{const t=e.target;if(t.id==='pg-from'){st.from=t.value;st.res=null;draw()}else if(t.dataset&&t.dataset.pg){t.checked?st.sel.add(t.dataset.pg):st.sel.delete(t.dataset.pg);draw()}})}
+   host.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.pgcount)hitung();else if(b.dataset.pgdel)hapus();else if(b.dataset.pgq){const k=b.dataset.pgq==='gd'?'wos-gd-queue-v1':'wos-sync-queue-v1',n=qRead(k).length;if(!n)return;if(!confirm('Buang '+n+' operasi yang belum terkirim di perangkat ini?\n\nTidak bisa dibatalkan. Hanya lakukan bila isinya data simulasi.'))return;try{localStorage.removeItem(k)}catch(e){}host.dataset.sig='';draw()}});
+   host.addEventListener('change',e=>{const t=e.target;if(t.id==='pg-from'){st.from=t.value;st.res=null;draw()}else if(t.dataset&&t.dataset.pgsa!==undefined){st.sa=t.checked;st.res=null;draw()}else if(t.dataset&&t.dataset.pg){t.checked?st.sel.add(t.dataset.pg):st.sel.delete(t.dataset.pg);draw()}})}
   draw()}
  setInterval(()=>{try{if(document.getElementById('master')&&document.getElementById('master').classList.contains('active'))mount()}catch(e){}},1500);
 })();
