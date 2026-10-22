@@ -2191,7 +2191,7 @@ init();
   try{const f60=back(60),q=['UNLOADING_SESI:'+back(7)+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','GR_ASSIGN:'+f60+':'+to].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error==='aksi tidak dikenal'?'Skrip Google perlu dipasang ulang (versi terbaru)':r.error);
    const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   D.sesi=g('UNLOADING_SESI',back(7),to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
+   D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
    if(state!=='err')state='ok'}catch(e){state='err';err=String(e&&e.message||e);pullErr=err}
   paintState();render()}
  function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antre)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
@@ -3012,8 +3012,9 @@ init();
    if(sum!==num(c.qty_actual))return say('Jumlah bin untuk "'+c.item+'" ('+sum+') belum sama dengan qty actual ('+c.qty_actual+').',true);
    for(const r of rows){const b=U(r.bin);if(!b||!(num(r.qty)>0))return say('Lengkapi bin dan qty untuk "'+c.item+'".',true);if(master.size&&!master.has(b))return say('Bin "'+r.bin+'" tidak ada di master bin.',true);if(A.binLocked(b))return say('Bin '+b+' sedang dikunci (cycle count / stok opname), tidak bisa dipakai put away. Pilih bin lain.',true);out.push({c,bin:b,qty:num(r.qty)})}}
   const old=view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k));old.forEach(p=>{enqDel('PUTAWAY',p.id);enqDel('STOK_BIN','SB|'+p.id)});
+  const kr=view('KOLI').find(x=>poKey(x.po)===po&&Number(x.no_koli)===Number(k)),rd=kr&&kr.tanggal&&kr.tanggal<today()?kr.tanggal:'';
   out.forEach(o=>{const id=po+'|'+k+'|'+o.c.seq+'|'+o.bin;enq('PUTAWAY',{id,tanggal:today(),po,no_koli:String(k),seq:String(o.c.seq),item:o.c.item,bin:o.bin,qty:String(o.qty),operator:code(),jam_wita:nowHM()});
-   enq('STOK_BIN',{id:'SB|'+id,tanggal:today(),jenis:'PUTAWAY',bin:o.bin,sku:U(o.c.item),item:o.c.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:po+' koli '+k,pic_kode:code(),catatan:''})});
+   enq('STOK_BIN',Object.assign({id:'SB|'+id,tanggal:rd||today(),jenis:'PUTAWAY',bin:o.bin,sku:U(o.c.item),item:o.c.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:po+' koli '+k,pic_kode:code(),catatan:rd?'umur stok mengikuti tanggal terima '+rd:''},rd?{waktu_server:rd+' 08:00:00'}:{}))});
   if(a){enq('GR_ASSIGN',Object.assign({},a,{status:'Selesai',selesai:stIso()}));taskMaybeDone(a);deTask(po,a)}
   pu={};cur=null;tabName='Put Away';say('Put away koli '+k+' PO '+po+' tersimpan ('+out.length+' lokasi).')}
 
@@ -4205,13 +4206,13 @@ init();
  function drawSaldo(){
   if(!canAdmin())return '<p class="note">Saldo awal hanya untuk Admin atau SPV.</p>';
   return '<div class="card"><h3 style="margin:0">Impor saldo awal stok</h3><p class="sub">File Excel/CSV dengan kolom <strong>Bin</strong>, <strong>Item</strong> (atau SKU), <strong>Qty</strong>, dan opsional <strong>Tanggal Masuk</strong> (dasar FIFO). Isi sebaiknya saldo bersih per bin dan item (opening stok setelah SO ditambah inbound dikurangi outbound), bukan seluruh riwayat transaksi, supaya sistem tetap ringan. Tiap baris menjadi satu mutasi SALDO AWAL.</p><input id="lc-safile" type="file" accept=".xlsx,.xls,.csv">'+
-  (sa?'<p class="sub" style="margin-top:8px">'+esc(sa.info)+'</p>'+(sa.cands&&sa.cands.length>1?'<div class="field" style="max-width:420px"><label>Kolom jumlah yang dipakai</label><select data-lcsapick="1"><option value="">- pilih kolom -</option>'+sa.cands.map(c=>'<option value="'+c.i+'"'+(sa.pick===c.i?' selected':'')+'>'+esc(c.name)+' (total '+Math.round(c.total).toLocaleString('id-ID')+' pcs)</option>').join('')+'</select></div>':'')+(sa.bad.length?'<p class="note" style="color:#b3261e">'+sa.bad.length+' baris bermasalah (contoh: '+esc(sa.bad.slice(0,5).join('; '))+'). Baris itu tidak diimpor.</p>':'')+'<div class="ob-actions"><button class="button" data-lcsago="1" type="button"'+(sa.rows.length?'':' disabled')+'>Impor '+sa.rows.length+' baris</button></div>':'')+'</div>'}
+  (sa?'<p class="sub" style="margin-top:8px">'+esc(sa.info)+'</p><div class="field" style="max-width:420px"><label>Tanggal masuk stok (dasar umur stok) untuk baris tanpa tanggal</label><input type="date" data-lcsadate="1" value="'+esc(sa.defDate||'')+'"><p class="sub" style="margin:4px 0 0">Kosong = tanggal impor, sehingga umur stok dihitung mulai hari ini. Isi tanggal stok opname terakhir bila ingin umur stok mengikuti tanggal itu.</p></div>'+(sa.cands&&sa.cands.length>1?'<div class="field" style="max-width:420px"><label>Kolom jumlah yang dipakai</label><select data-lcsapick="1"><option value="">- pilih kolom -</option>'+sa.cands.map(c=>'<option value="'+c.i+'"'+(sa.pick===c.i?' selected':'')+'>'+esc(c.name)+' (total '+Math.round(c.total).toLocaleString('id-ID')+' pcs)</option>').join('')+'</select></div>':'')+(sa.bad.length?'<p class="note" style="color:#b3261e">'+sa.bad.length+' baris bermasalah (contoh: '+esc(sa.bad.slice(0,5).join('; '))+'). Baris itu tidak diimpor.</p>':'')+'<div class="ob-actions"><button class="button" data-lcsago="1" type="button"'+(sa.rows.length?'':' disabled')+'>Impor '+sa.rows.length+' baris</button></div>':'')+'</div>'}
  let saCtx=null;
  function buildSaldo(iQ){
   const c=saCtx,mb=new Set(masterBins().map(b=>U(b.id))),out=new Map(),bad=[];
   c.rows.slice(c.hi+1).forEach((r,n)=>{const bin=U(r[c.iB]),item=String(r[c.iI]||'').trim(),q=num(r[iQ]);if(!bin&&!item)return;if(!bin||!item){if(bin||item)bad.push('baris '+(c.hi+n+2)+' tidak lengkap');return}if(!(q>0))return;if(mb.size&&!mb.has(bin)){bad.push(bin+' tidak ada di master bin');return}
    const k=bin+'|'+U(item),o=out.get(k)||{bin,item,qty:0,tgl:''};o.qty+=q;const t=c.iT>=0?String(r[c.iT]||'').trim():'';if(t&&(!o.tgl||t<o.tgl))o.tgl=t;out.set(k,o)});
-  sa={rows:[...out.values()],bad,cands:c.cands,pick:iQ,info:'Memakai kolom "'+(c.cands.find(x=>x.i===iQ)||{name:'?'}).name+'": '+out.size+' kombinasi bin dan item · total '+[...out.values()].reduce((a,o)=>a+o.qty,0)+' pcs (baris dengan qty 0 dilewati)'};draw()}
+  sa={defDate:(sa&&sa.defDate)||'',rows:[...out.values()],bad,cands:c.cands,pick:iQ,info:'Memakai kolom "'+(c.cands.find(x=>x.i===iQ)||{name:'?'}).name+'": '+out.size+' kombinasi bin dan item · total '+[...out.values()].reduce((a,o)=>a+o.qty,0)+' pcs (baris dengan qty 0 dilewati)'};draw()}
  async function readSaldo(file){
   try{const rows=await G.readRows(file),hi=rows.findIndex(r=>r.some(c=>/^BIN$|^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Bin / Location tidak ditemukan.');
    const h=rows[hi].map(c=>U(c)),iB=h.findIndex(c=>c==='BIN'||c==='LOCATION'),iI=h.findIndex(c=>/^(ITEM|ITEMS NAME|ITEM NAME|SKU|NAMA ITEM)$/.test(c)),iT=h.findIndex(c=>/TANGGAL/.test(c));
@@ -4224,7 +4225,7 @@ init();
   const rows=sa.rows;if(!confirm('Impor '+rows.length+' baris saldo awal? Proses berjalan di latar belakang.'))return;
   const iso=t=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(t)||/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(t);if(!m)return '';return m[1].length===4?m[1]+'-'+m[2]+'-'+m[3]+' 00:00:00':m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0')+' 00:00:00'};
   const total=rows.length;say('Mengirim saldo awal… 0 / '+total);
-  for(let i=0;i<total;i+=300){rows.slice(i,i+300).forEach(o=>{const w=iso(o.tgl);enq('STOK_BIN',Object.assign({id:'SA|'+o.bin+'|'+U(o.item),tanggal:today(),jenis:'SALDO AWAL',bin:o.bin,sku:U(o.item),item:o.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:'Saldo awal',pic_kode:code(),catatan:'impor saldo awal'},w?{waktu_server:w}:{}))});
+  for(let i=0;i<total;i+=300){rows.slice(i,i+300).forEach(o=>{const w=iso(o.tgl)||iso(sa&&sa.defDate||'');enq('STOK_BIN',Object.assign({id:'SA|'+o.bin+'|'+U(o.item),tanggal:today(),jenis:'SALDO AWAL',bin:o.bin,sku:U(o.item),item:o.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:'Saldo awal',pic_kode:code(),catatan:'impor saldo awal'},w?{waktu_server:w}:{}))});
    msg='Mengirim saldo awal… '+Math.min(i+300,total)+' / '+total;draw();
    for(let t=0;t<600&&A.queueLen&&A.queueLen()>100;t++)await new Promise(r=>setTimeout(r,500))}
   sa=null;say('Saldo awal dikirim ('+total+' baris). Setelah selesai tersambung, muat ulang halaman untuk melihat stok.')}
@@ -4272,6 +4273,7 @@ init();
   if(t.id==='lc-son'){soN=Math.max(1,num(t.value));draw();return}
   if(t.id==='lc-recn'){recN=Math.max(1,num(t.value));draw();return}
   if(t.id==='lc-safile'&&t.files[0]){readSaldo(t.files[0]);return}
+  if(d.lcsadate!==undefined){if(sa)sa.defDate=t.value;return}
   if(d.lcsapick!==undefined){if(t.value!==''&&saCtx)buildSaldo(Number(t.value));else if(saCtx){sa={rows:[],bad:[],cands:saCtx.cands,pick:'',info:'File punya lebih dari satu kolom jumlah. Pilih kolom yang dipakai sebagai stok awal.'};draw()}return}
   if(d.lcmv){mv[d.lcmv]=t.value;if(d.lcmv==='from')mv.sku='';draw();return}
   if(d.lcaf){adjForm[d.lcaf]=t.value;if(d.lcaf==='bin')adjForm.sku='';draw();return}
@@ -5281,6 +5283,17 @@ init();
  const cfgOf=s=>{try{return s==='ops'?window.WOSStore.config():window.WOSGudang.config()}catch(e){return null}};
  async function post(s,body){const c=cfgOf(s);if(!c||!c.url)throw new Error('alamat skrip Google belum diatur');const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body))});return r.json()}
  const fmt=n=>Number(n||0).toLocaleString('id-ID');
+ // arsip: unduh semua baris yang akan dihapus (satu file CSV berisi bagian per tab) sebelum penghapusan
+ const DATEC={PO_INFO:'diperbarui',PO_DOK:'sj_waktu',PENGAJUAN:'waktu'};
+ async function getAll(src,tab){const c=cfgOf(src);if(!c||!c.url)throw new Error('alamat skrip Google belum diatur');const r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab}));const j=await r.json();if(!j.ok)throw new Error(tab+': '+(j.error||'gagal membaca'));return j.rows||[]}
+ const q2=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+ async function arsip(L){
+  let out='';
+  for(const c of L)for(const t of c.tabs){if(!((st.res[t]&&st.res[t].hapus)||0))continue;st.prog='Mengarsipkan '+t+'…';draw();
+   const col=DATEC[t]||'tanggal',rows=(await getAll(c.src,t)).filter(r=>{const d=String(r[col]||'').slice(0,10);return d&&d<st.from&&!(t==='STOK_BIN'&&r.jenis==='SALDO AWAL')});
+   if(!rows.length)continue;const cols=[...rows.reduce((a,r)=>{Object.keys(r).forEach(k=>a.add(k));return a},new Set())];
+   out+='#TAB,'+t+',baris,'+rows.length+'\r\n'+cols.map(q2).join(',')+'\r\n'+rows.map(r=>cols.map(k=>q2(r[k])).join(',')).join('\r\n')+'\r\n\r\n'}
+  if(!out)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+out],{type:'text/csv;charset=utf-8'}));a.download='arsip-simulasi-sebelum-'+st.from+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
  async function hitung(){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(st.from)){st.msg='Isi tanggal batas.';draw();return}
   st.busy=true;st.msg='';st.res={};
@@ -5289,9 +5302,10 @@ init();
  async function hapus(){
   const L=CATS.filter(c=>st.sel.has(c.id)),tot=L.reduce((a,c)=>a+c.tabs.reduce((b,t)=>b+((st.res&&st.res[t]&&st.res[t].hapus)||0),0),0);
   if(!tot){st.msg='Tidak ada baris yang perlu dihapus pada kategori terpilih.';draw();return}
-  if(!confirm('Hapus '+fmt(tot)+' baris data simulasi (tanggal sebelum '+st.from+') dari '+L.length+' kategori?\n\nMaster karyawan, vendor, ekspedisi, bin, norm, role, layout, dan Saldo Awal TIDAK dihapus.\nTidak bisa dibatalkan. Pastikan semua perangkat sudah terkirim (tidak ada antrean).'))return;
+  if(!confirm('Hapus '+fmt(tot)+' baris data simulasi (tanggal sebelum '+st.from+') dari '+L.length+' kategori?\n\nMaster karyawan, vendor, ekspedisi, bin, norm, role, layout, dan Saldo Awal TIDAK dihapus.\nTidak bisa dibatalkan. File arsip CSV berisi semua baris ini akan diunduh lebih dulu. Pastikan semua perangkat sudah terkirim (tidak ada antrean).'))return;
   if(prompt('Ketik HAPUS untuk melanjutkan:')!=='HAPUS'){st.msg='Dibatalkan.';draw();return}
   st.busy=true;st.msg='';let done=0,fail=[];
+  try{await arsip(L)}catch(e){st.busy=false;st.prog='';st.msg='Arsip gagal ('+(e&&e.message||e)+'). Penghapusan dibatalkan; tidak ada data yang dihapus.';draw();return}
   for(const c of L){for(const t of c.tabs){const n=(st.res[t]&&st.res[t].hapus)||0;if(!n)continue;st.prog='Menghapus '+t+' ('+fmt(n)+' baris)…';draw();let r;try{r=await post(c.src,{action:'purge',tab:t,before:st.from,konfirmasi:'HAPUS'})}catch(e){r={ok:false,error:String(e&&e.message||e)}}if(r.ok)done+=r.hapus;else fail.push(t+': '+(r.error||'gagal'))}}
   st.busy=false;st.prog='';st.msg='Selesai: '+fmt(done)+' baris dihapus.'+(fail.length?' Gagal: '+fail.join('; '):'')+' Perangkat lain membersihkan salinan lokalnya otomatis dalam beberapa menit.';await hitung()}
  function html(){
