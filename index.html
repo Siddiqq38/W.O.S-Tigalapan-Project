@@ -4166,15 +4166,20 @@ init();
  function drawSaldo(){
   if(!canAdmin())return '<p class="note">Saldo awal hanya untuk Admin atau SPV.</p>';
   return '<div class="card"><h3 style="margin:0">Impor saldo awal stok</h3><p class="sub">File Excel/CSV dengan kolom <strong>Bin</strong>, <strong>Item</strong> (atau SKU), <strong>Qty</strong>, dan opsional <strong>Tanggal Masuk</strong> (dasar FIFO). Isi sebaiknya saldo bersih per bin dan item (opening stok setelah SO ditambah inbound dikurangi outbound), bukan seluruh riwayat transaksi, supaya sistem tetap ringan. Tiap baris menjadi satu mutasi SALDO AWAL.</p><input id="lc-safile" type="file" accept=".xlsx,.xls,.csv">'+
-  (sa?'<p class="sub" style="margin-top:8px">'+esc(sa.info)+'</p>'+(sa.bad.length?'<p class="note" style="color:#b3261e">'+sa.bad.length+' baris bermasalah (contoh: '+esc(sa.bad.slice(0,5).join('; '))+'). Baris itu tidak diimpor.</p>':'')+'<div class="ob-actions"><button class="button" data-lcsago="1" type="button"'+(sa.rows.length?'':' disabled')+'>Impor '+sa.rows.length+' baris</button></div>':'')+'</div>'}
+  (sa?'<p class="sub" style="margin-top:8px">'+esc(sa.info)+'</p>'+(sa.cands&&sa.cands.length>1?'<div class="field" style="max-width:420px"><label>Kolom jumlah yang dipakai</label><select data-lcsapick="1"><option value="">- pilih kolom -</option>'+sa.cands.map(c=>'<option value="'+c.i+'"'+(sa.pick===c.i?' selected':'')+'>'+esc(c.name)+' (total '+Math.round(c.total).toLocaleString('id-ID')+' pcs)</option>').join('')+'</select></div>':'')+(sa.bad.length?'<p class="note" style="color:#b3261e">'+sa.bad.length+' baris bermasalah (contoh: '+esc(sa.bad.slice(0,5).join('; '))+'). Baris itu tidak diimpor.</p>':'')+'<div class="ob-actions"><button class="button" data-lcsago="1" type="button"'+(sa.rows.length?'':' disabled')+'>Impor '+sa.rows.length+' baris</button></div>':'')+'</div>'}
+ let saCtx=null;
+ function buildSaldo(iQ){
+  const c=saCtx,mb=new Set(masterBins().map(b=>U(b.id))),out=new Map(),bad=[];
+  c.rows.slice(c.hi+1).forEach((r,n)=>{const bin=U(r[c.iB]),item=String(r[c.iI]||'').trim(),q=num(r[iQ]);if(!bin&&!item)return;if(!bin||!item){if(bin||item)bad.push('baris '+(c.hi+n+2)+' tidak lengkap');return}if(!(q>0))return;if(mb.size&&!mb.has(bin)){bad.push(bin+' tidak ada di master bin');return}
+   const k=bin+'|'+U(item),o=out.get(k)||{bin,item,qty:0,tgl:''};o.qty+=q;const t=c.iT>=0?String(r[c.iT]||'').trim():'';if(t&&(!o.tgl||t<o.tgl))o.tgl=t;out.set(k,o)});
+  sa={rows:[...out.values()],bad,cands:c.cands,pick:iQ,info:'Memakai kolom "'+(c.cands.find(x=>x.i===iQ)||{name:'?'}).name+'": '+out.size+' kombinasi bin dan item · total '+[...out.values()].reduce((a,o)=>a+o.qty,0)+' pcs (baris dengan qty 0 dilewati)'};draw()}
  async function readSaldo(file){
-  try{const rows=await G.readRows(file),hi=rows.findIndex(r=>r.some(c=>/^BIN$|^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Bin tidak ditemukan.');
-   const h=rows[hi].map(c=>U(c)),iB=h.findIndex(c=>c==='BIN'||c==='LOCATION'),iI=h.findIndex(c=>/^(ITEM|ITEMS NAME|ITEM NAME|SKU|NAMA ITEM)$/.test(c)),iQ=h.findIndex(c=>/^(QTY|ON HAND|SALDO|STOK|JUMLAH)$/.test(c)),iT=h.findIndex(c=>/TANGGAL/.test(c));
-   if(iI<0||iQ<0)throw new Error('Kolom Item dan Qty tidak ditemukan.');
-   const mb=new Set(masterBins().map(b=>U(b.id))),out=new Map(),bad=[];
-   rows.slice(hi+1).forEach((r,n)=>{const bin=U(r[iB]),item=String(r[iI]||'').trim(),q=num(r[iQ]);if(!bin&&!item)return;if(!bin||!item||!(q>0)){bad.push('baris '+(hi+n+2)+' tidak lengkap');return}if(mb.size&&!mb.has(bin)){bad.push(bin+' tidak ada di master bin');return}
-    const k=bin+'|'+U(item),o=out.get(k)||{bin,item,qty:0,tgl:''};o.qty+=q;const t=iT>=0?String(r[iT]||'').trim():'';if(t&&(!o.tgl||t<o.tgl))o.tgl=t;out.set(k,o)});
-   sa={rows:[...out.values()],bad,info:out.size+' kombinasi bin dan item · total '+[...out.values()].reduce((a,o)=>a+o.qty,0)+' pcs'};draw()}catch(e){sa=null;say('Gagal membaca file: '+(e&&e.message||e),true)}}
+  try{const rows=await G.readRows(file),hi=rows.findIndex(r=>r.some(c=>/^BIN$|^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Bin / Location tidak ditemukan.');
+   const h=rows[hi].map(c=>U(c)),iB=h.findIndex(c=>c==='BIN'||c==='LOCATION'),iI=h.findIndex(c=>/^(ITEM|ITEMS NAME|ITEM NAME|SKU|NAMA ITEM)$/.test(c)),iT=h.findIndex(c=>/TANGGAL/.test(c));
+   const cands=[];h.forEach((c,i)=>{if(/^(QTY|ON HAND|SALDO|STOK|JUMLAH|OPENING STOK|OPENING STOCK|SALDO AWAL|BALANCE)$/.test(c)){let t=0;rows.slice(hi+1).forEach(r=>{const q=num(r[i]);if(q>0)t+=q});cands.push({name:String(rows[hi][i]).trim(),i,total:t})}});
+   if(iI<0||!cands.length)throw new Error('Kolom Item/SKU dan jumlah (Qty, Opening Stok, Balance) tidak ditemukan.');
+   saCtx={rows,hi,iB,iI,iT,cands};
+   if(cands.length===1)buildSaldo(cands[0].i);else{sa={rows:[],bad:[],cands,pick:'',info:'File punya lebih dari satu kolom jumlah. Pilih kolom yang dipakai sebagai stok awal.'};draw()}}catch(e){sa=null;say('Gagal membaca file: '+(e&&e.message||e),true)}}
  async function importSaldo(){
   const rows=sa.rows;if(!confirm('Impor '+rows.length+' baris saldo awal? Proses berjalan di latar belakang.'))return;
   const iso=t=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(t)||/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(t);if(!m)return '';return m[1].length===4?m[1]+'-'+m[2]+'-'+m[3]+' 00:00:00':m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0')+' 00:00:00'};
@@ -4227,6 +4232,7 @@ init();
   if(t.id==='lc-son'){soN=Math.max(1,num(t.value));draw();return}
   if(t.id==='lc-recn'){recN=Math.max(1,num(t.value));draw();return}
   if(t.id==='lc-safile'&&t.files[0]){readSaldo(t.files[0]);return}
+  if(d.lcsapick!==undefined){if(t.value!==''&&saCtx)buildSaldo(Number(t.value));else if(saCtx){sa={rows:[],bad:[],cands:saCtx.cands,pick:'',info:'File punya lebih dari satu kolom jumlah. Pilih kolom yang dipakai sebagai stok awal.'};draw()}return}
   if(d.lcmv){mv[d.lcmv]=t.value;if(d.lcmv==='from')mv.sku='';draw();return}
   if(d.lcaf){adjForm[d.lcaf]=t.value;if(d.lcaf==='bin')adjForm.sku='';draw();return}
   if(d.lcpickitem!=null){pickItems=new Set([...body.querySelectorAll('[data-lcpickitem]:checked')].map(x=>x.dataset.lcpickitem));pickTouched=true;return}
