@@ -1052,7 +1052,7 @@ function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),d
 
 function navVisibility(){
  const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN')return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');return o};
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas','kaskecil','trip',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas',...(roleIdsToday().includes('driver')?['trip']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -5277,9 +5277,11 @@ init();
  const prevP=p=>{const y=+p.slice(0,4),m=+p.slice(5,7);return +p.slice(8,10)===11?mk(y,m-1,25):mk(y,m,11)};
  const plabel=p=>dl(p)+' – '+dl(endOf(p));
  const LIMIT0=2000000;
- const staff=()=>{try{return Object.entries(staffMaster).filter(([,p])=>!p.out).sort((a,b)=>a[1].name.localeCompare(b[1].name))}catch(e){return[]}};
+ const staff=()=>{try{return Object.entries(staffMaster).filter(([,p])=>!p.out&&(p.role==='Admin'||p.role==='Supervisor'||p.mgr)).sort((a,b)=>a[1].name.localeCompare(b[1].name))}catch(e){return[]}};
  const st={p:periodOf(today()),tab:'',msg:'',bad:false,f:{uraian:'',qty:'',satuan:'pcs',onhand:'',cat:''},ed:{},nota:{},ready:null,err:'',busy:false,limit:null};
  const lv=()=>level(),isSpv=()=>lv()==='supervisor',isAdm=()=>lv()==='admin',full=()=>isSpv()||isAdm();
+ // Kas Kecil hanya untuk Admin, SPV, dan Manager (driver dan operator lain tidak)
+ const okKas=()=>full();
  const all=()=>view('KAS_KECIL');
  const saldoRow=()=>all().find(r=>r.id==='KKS-'+st.p);
  const reqs=()=>all().filter(r=>r.jenis==='PENGAJUAN'&&r.periode===st.p).sort((a,b)=>String(a.waktu).localeCompare(String(b.waktu)));
@@ -5291,6 +5293,7 @@ init();
  const rid=()=>'KK-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
  const tagC={Menunggu:'amber',Disetujui:'',Dibeli:'green',Ditolak:'red',Batal:'red'};
  async function load(s){
+  if(!okKas())return draw(s);
   st.busy=true;try{const r=await call({action:'list',tab:'KAS_KECIL'},true);if(r.ok){st.ready=true;st.err='';setData('KAS_KECIL',r.rows||[])}else{st.ready=false;st.err=r.error||'gagal memuat'}}
   catch(e){st.ready=false;st.err=String(e&&e.message||e)}
   st.busy=false;draw(s)}
@@ -5337,6 +5340,7 @@ init();
   w.document.open();w.document.write(h);w.document.close()}
  function draw(s){
   const b=s.querySelector('.v3-b');if(!b)return;
+  if(!okKas()){s._sig='';b.innerHTML='<p class="note" style="color:#b3261e">Kas Kecil hanya untuk Admin, SPV, dan Manager.</p>';return}
   if(!st.tab)st.tab=full()?'Pengajuan':'Realisasi';
   const tabs=full()?['Pengajuan','Realisasi','LPJ']:['Realisasi'];
   let h;
@@ -5437,6 +5441,8 @@ init();
  const dur=m=>{m=Math.round(m);return m>=60?Math.floor(m/60)+' j '+(m%60)+' m':m+' m'};
  const st={tab:'Perjalanan',ready:null,err:'',msg:'',bad:false,route:null,f:{odo:'',veh:'Kendaraan DC',cat:'',add:''},arr:{},bb:{odo:'',liter:'',harga:'',spbu:'',cat:''},sel:''};
  const lv=()=>level(),viewAll=()=>lv()==='supervisor'||lv()==='admin';
+ const isDriver=()=>{try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null'),d=new Date(Date.now()+8*3600e3).toISOString().slice(0,10);return((r&&r.plans&&r.plans[d]||{})[code()]||[]).some(x=>x.roleId==='driver')}catch(e){return false}};
+ const okTrip=()=>viewAll()||(lv()==='operator'&&isDriver());
  const trips=()=>view('TRIP').slice().sort((a,b)=>String(b.waktu_mulai).localeCompare(String(a.waktu_mulai)));
  const pts=id=>view('TRIP_TITIK').filter(x=>x.trip===id).sort((a,b)=>num(a.urut)-num(b.urut));
  const bbmAll=()=>view('BBM_LOG').slice().sort((a,b)=>num(a.odo)-num(b.odo));
@@ -5454,6 +5460,7 @@ init();
   P.forEach(p=>{if(p.odo===''||p.odo==null||!p.waktu)return;const km=num(p.odo)-po,mn=(new Date(p.waktu)-new Date(pw))/60000;out.push({dari:pn,ke:p.titik,km,mn,v:mn>0?km/(mn/60):0,w:p.waktu});po=num(p.odo);pw=p.waktu;pn=p.titik});return out}
  function stats(t){const L=legs(t),km=L.reduce((a,l)=>a+l.km,0),mn=L.reduce((a,l)=>a+l.mn,0),r=bbmStats().ratio;return{L,km,mn,v:mn>0?km/(mn/60):0,lt:r?km/r:0}}
  async function load(s){
+  if(!okTrip())return draw(s);
   try{const r=await Promise.all([call({action:'list',tab:'TRIP'},true),call({action:'list',tab:'TRIP_TITIK'},true),call({action:'list',tab:'BBM_LOG'},true)]);
    if(r.every(x=>x.ok)){st.ready=true;st.err='';setData('TRIP',r[0].rows||[]);setData('TRIP_TITIK',r[1].rows||[]);setData('BBM_LOG',r[2].rows||[])}else{st.ready=false;st.err=(r.find(x=>!x.ok)||{}).error||'gagal memuat'}}
   catch(e){st.ready=false;st.err=String(e&&e.message||e)}
@@ -5486,6 +5493,7 @@ init();
   return h}
  function draw(s){
   const b=s.querySelector('.v3-b');if(!b)return;let h;
+  if(!okTrip()){s._sig='';b.innerHTML='<p class="note" style="color:#b3261e">Perjalanan hanya untuk Admin, SPV, Manager, dan driver yang berperan Driver hari ini.</p>';return}
   if(st.ready===false)h='<p class="note" style="color:#b3261e">Tab perjalanan belum bisa dibaca: '+esc(st.err)+'. Pasang skrip Google gudang versi terbaru (tab TRIP, TRIP_TITIK, BBM_LOG), jalankan setup, lalu deploy versi baru.</p>';
   else{const tabs=['Perjalanan','Isi BBM','Laporan'];
    h='<div class="filters" style="margin-bottom:10px">'+tabs.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-trtab="'+t+'" type="button">'+t+'</button>').join('')+'</div>'+(st.msg?'<p class="note" style="color:'+(st.bad?'#b3261e':'#1b7a46')+'">'+esc(st.msg)+'</p>':'')+(st.ready===null?'<p class="sub">Memuat…</p>':st.tab==='Perjalanan'?vJalan():st.tab==='Isi BBM'?vBbm():vLaporan())}
