@@ -405,6 +405,10 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  window.__wosDrmApply=async list=>{if(busy||!db||!list||!list.length)return false;const need=list.filter(x=>{const r=(state.days||[]).find(d=>d.id===x.id);return !r||r.drm!==x.drm});if(!need.length)return false;
   return mutate(s=>{need.forEach(x=>{let row=s.days.find(r=>r.id===x.id);if(!row){const profile=window.getFiveRProfile?.(x.code);row={id:x.id,day:x.day,code:x.code,area:profile?.area||'Belum ditetapkan',team:profile?.ket||'Belum ditetapkan',fiveRRequired:window.fiveRRequiredOn?.(profile,x.day)||false,drm:'unknown',device:'unknown',exempt:false,reason:'',report:null};s.days.push(row)}row.drm=x.drm;
    const eid='DRM:'+x.id,ex=s.events.find(e=>e.id===eid);if(x.drm==='no'){if(ex){ex.status='valid';ex.resolved=false}else s.events.push({id:eid,day:x.day,code:x.code,type:'DRM',detail:'Tidak ikut DRM menurut checklist '+(x.by||'SPV'),status:'valid',source:'Daftar check-in',actor:x.by||'SPV',createdAt:Date.now(),resolved:false})}else if(ex){ex.status='batal';ex.review='Checklist dikoreksi: ikut DRM'}})})};
+ // data dari perangkat lain: petugas/area, checklist device, pengecualian, dan kejadian
+ window.__wosCpApply=async x=>{if(busy||!db||!x)return false;const D=x.days||[],E=x.events||[];if(!D.length&&!E.length)return false;
+  return mutate(s=>{D.forEach(d=>{let row=s.days.find(r=>r.id===d.id);const f=d.f||[];if(!row){row={id:d.id,day:d.day,code:d.code,drm:'unknown',report:null};s.days.push(row)}row.area=f[0]||row.area||'Belum ditetapkan';row.team=f[1]||row.team||'Belum ditetapkan';row.fiveRRequired=!!f[2];row.device=f[3]||'unknown';row.exempt=!!f[4];row.reason=f[5]||''});
+   E.forEach(ev=>{const i=s.events.findIndex(e=>e.id===ev.id);if(i>=0)s.events[i]=ev;else s.events.push(ev)})})};
  window.__wosGetFile=id=>new Promise(res=>{try{const rq=db.transaction('files').objectStore('files').get(id);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>res(null)}catch(e){res(null)}});
  window.__wosApplyReports=async list=>{if(busy||!db||!list||!list.length)return false;
   const rank=a=>(a==='approved'||a==='partial')?3:a==='rejected'?2:1;
@@ -457,7 +461,7 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
     req.onsuccess=()=>{try{result=req.result||{days:[],events:[],audit:[]};fn(result);if(reconcileCompliance(result))audit(result,'Pemeriksaan batas waktu 5R');store.put(result,'state');if(file)tx.objectStore('files').put(file.blob,file.id);}catch(e){reject(e);tx.abort();}};
     tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Penyimpanan dibatalkan'));
    });
-   state=next;kpiReady=true;render();window.dispatchEvent(new Event('kpi-source-updated'));try{window.__wosDrmSaved&&window.__wosDrmSaved(state.days)}catch(e){}return true;
+   state=next;kpiReady=true;render();window.dispatchEvent(new Event('kpi-source-updated'));try{window.__wosDrmSaved&&window.__wosDrmSaved(state.days)}catch(e){}try{window.__wosCpSaved&&window.__wosCpSaved(state)}catch(e){}return true;
   }catch(e){notice('Gagal menyimpan: '+e.message+'. Data belum dinyatakan terkirim. Periksa kapasitas / izin penyimpanan browser.',true);return false;}
   finally{busy=false;}
  }
@@ -1817,7 +1821,7 @@ init();
    r.rows.forEach(x=>{if(x.foto_id&&apm[x.id]!==x.foto_id){apm[x.id]=x.foto_id;apmCh=true}const row={code:x.kode_staf,action:x.aksi,day:x.tanggal,at:x.waktu_iso};if(x.simulasi==='hapus'){const i=local.findIndex(l=>rkey(l)===rkey(row));if(i>=0){local.splice(i,1);add++}have.delete(rkey(row));seen.add(rkey(row));return}if(row.code&&row.action&&row.day&&!have.has(rkey(row))){if(x.simulasi==='ya')row.sim=true;local.push(row);have.add(rkey(row));seen.add(rkey(row));add++}});
    if(apmCh){try{raw.call(localStorage,'wos-att-photo-v1',JSON.stringify(apm))}catch(e){}window.dispatchEvent(new Event('storage'))}
    if(add){merging=true;try{raw.call(localStorage,AK,JSON.stringify(local))}finally{merging=false}window.dispatchEvent(new Event('storage'));if(window.__renderDrm)try{window.__renderDrm()}catch(e){}}
-   for(const f of [pullPengajuan,pullMore,pullRelease,pullR5,pullStatus,pullSpl]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}window.__mc=null;if(state!=='err')state='ok'}catch(e){window.__mc=null;state='err';lastErr=String(e&&e.message||e)}paint()}
+   for(const f of [epochCheck,pullPengajuan,pullMore,pullRelease,pullR5,pullStatus,pullSpl,pullCp]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}window.__mc=null;if(state!=='err')state='ok'}catch(e){window.__mc=null;state='err';lastErr=String(e&&e.message||e)}paint()}
  // ---- Attendance: koreksi master (hapus = tanda hapus di sheet, perangkat lain ikut menghapus)
  function attDelete(code,day,action){const k=code+'|'+day+'|'+action;merging=true;try{const l=rj(AK,[]),i=l.findIndex(r=>rkey(r)===k);if(i>=0){l.splice(i,1);raw.call(localStorage,AK,JSON.stringify(l))}}finally{merging=false}seen.add(k);
   enq('append','ATTENDANCE',{id:rid({code,day,action}),tanggal:day,kode_staf:code,nama:nm(code),aksi:action,simulasi:'hapus',perangkat:'dihapus oleh '+(sessionStorage.getItem('wos-session-code')||'master')});window.dispatchEvent(new Event('storage'))}
@@ -1870,6 +1874,39 @@ init();
  try{if(!document.getElementById('att-decisions')){const d=document.createElement('div');d.id='att-decisions';d.className='card';d.style.margin='14px 0';d.style.display='none';approvalCard.after(d)}}catch(e){}
  try{renderUnifiedApproval()}catch(e){}
  setTimeout(()=>{try{syncOut()}catch(e){}},5000);
+ // ---- Compliance: petugas/area, checklist device, pengecualian, dan kejadian SOP/komplain dibagikan ke semua perangkat
+ let cpSeen={},cpFirst=true,cpReady=false;
+ const cpDaySig=r=>JSON.stringify([r.area||'',r.team||'',!!r.fiveRRequired,r.device||'',!!r.exempt,r.reason||'']),cpEvJ=e=>JSON.stringify(e),cpCut=()=>dayWita(new Date(Date.now()-864e5*35));
+ window.__wosCpSaved=st=>{if(!on()||merging||!st||!cpReady)return;const cut=cpCut(),iso=new Date().toISOString();
+  (st.days||[]).forEach(r=>{if(!r.id||!r.day||r.day<cut)return;const sig=cpDaySig(r);if(cpSeen['d:'+r.id]!==sig){cpSeen['d:'+r.id]=sig;enq('append','COMPLIANCE_HARI',{id:r.id,tanggal:r.day,kode_staf:r.code,nama:nm(r.code),json:sig,waktu:iso})}});
+  (st.events||[]).forEach(e=>{if(!e.id||!e.day||e.day<cut)return;const j=cpEvJ(e);if(cpSeen['e:'+e.id]!==j){cpSeen['e:'+e.id]=j;enq('append','COMPLIANCE_EVENT',{id:e.id,tanggal:e.day,kode_staf:e.code,jenis:e.type,status:e.status,json:j,waktu:iso})}})};
+ let epochAt=0;
+ async function epochCheck(){
+  if(Date.now()-epochAt<300000)return;epochAt=Date.now();
+  const pg=await call({action:'ping'},true);if(!pg||!pg.ok||!pg.epoch)return;
+  let seen='';try{seen=localStorage.getItem('wos-ops-epoch')||''}catch(e){}if(seen===pg.epoch)return;
+  // SPV membersihkan data simulasi di server: hapus salinan lokal data operasional (antrean kirim tidak disentuh)
+  ['wos-attendance-kpi-v1','wos-tasks-v1','wos-attendance-release-v1','wos-pengajuan-applied-v1','wos-photo-map-v1','wos-att-photo-v1','wos-5r-drive-v1','wos-spl-v1','wos-op-role-v1'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  try{Object.keys(localStorage).forEach(k=>{if(k.indexOf('wos-task-seen-v1-')===0)localStorage.removeItem(k)})}catch(e){}
+  try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null');if(r){r.plans={};raw.call(localStorage,'wos-roles-v1',JSON.stringify(r))}}catch(e){}
+  try{indexedDB.deleteDatabase('wos-compliance-v1')}catch(e){}
+  try{raw.call(localStorage,'wos-ops-epoch',pg.epoch)}catch(e){}
+  setTimeout(()=>location.reload(),800)}
+ async function pullCp(){
+  if(!window.__complianceSnapshot||!window.__wosCpApply)return;
+  if(!cpReady){const pg=await call({action:'ping'},true);cpReady=!!(pg&&pg.ok&&(pg.tabs||[]).includes('COMPLIANCE_HARI'));if(!cpReady)return}
+  if(pending('COMPLIANCE_HARI')||pending('COMPLIANCE_EVENT'))return;
+  const from=cpCut(),to=today(),a=await call({action:'list',tab:'COMPLIANCE_HARI',from,to},true),b=await call({action:'list',tab:'COMPLIANCE_EVENT',from,to},true);
+  if(!a.ok||!b.ok)return;
+  const snap=window.__complianceSnapshot(),dm=new Map((snap.days||[]).map(r=>[r.id,r])),em=new Map((snap.events||[]).map(e=>[e.id,e])),days=[],events=[];
+  a.rows.forEach(x=>{let f;try{f=JSON.parse(x.json)}catch(e){return}if(!Array.isArray(f))return;const loc=dm.get(x.id);
+   if(!loc){days.push({id:x.id,day:x.tanggal,code:x.kode_staf,f});return}
+   const ls=cpDaySig(loc);if(ls===x.json){cpSeen['d:'+x.id]=x.json;return}if(cpSeen['d:'+x.id]===ls)days.push({id:x.id,day:x.tanggal,code:x.kode_staf,f})});
+  b.rows.forEach(x=>{let ev;try{ev=JSON.parse(x.json)}catch(e){return}if(!ev||!ev.id)return;const loc=em.get(ev.id);
+   if(!loc){events.push(ev);return}const lj=cpEvJ(loc);if(lj===x.json){cpSeen['e:'+ev.id]=x.json;return}if(cpSeen['e:'+ev.id]===lj)events.push(ev)});
+  if(days.length||events.length){merging=true;try{await window.__wosCpApply({days,events})}finally{merging=false}
+   days.forEach(d=>{cpSeen['d:'+d.id]=JSON.stringify(d.f)});events.forEach(e=>{cpSeen['e:'+e.id]=cpEvJ(e)})}
+  if(cpFirst){cpFirst=false;try{window.__wosCpSaved(window.__complianceSnapshot())}catch(e){}}}
  // ---- SPL (surat perintah lembur): dibagikan ke semua perangkat supaya HRD melihat semuanya
  const SPK='wos-spl-v1';let splSeen={};const splId=l=>(l.no||'')+'|'+(l.code||'')+'|'+(l.date||'');
  function splDelete(l){const id=splId(l);splSeen[id]=undefined;enq('delete','SPL',null,id)}
@@ -5109,6 +5146,59 @@ init();
   });
  }
  setInterval(()=>{try{sweep()}catch(e){}},900);
+})();
+</script>
+<script>
+// PEMBERSIHAN DATA SIMULASI (khusus SPV): hitung dulu, pilih kategori, hapus data sebelum tanggal batas. Master dan Saldo Awal tidak ikut terhapus.
+(()=>{
+ const $=id=>document.getElementById(id),esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const CATS=[
+  {id:'att',name:'Presensi dan role harian',note:'Attendance, role harian, DRM, kompensasi pulang',src:'ops',tabs:['ATTENDANCE','ROLE_HARIAN','DRM','KOMPENSASI_OUT']},
+  {id:'tsk',name:'Task, pengajuan, SPL, evaluasi',note:'',src:'ops',tabs:['TASK','PENGAJUAN','SPL','EVALUASI']},
+  {id:'cpl',name:'Compliance dan 5R',note:'Foto/video di Google Drive tidak ikut terhapus',src:'ops',tabs:['LAPORAN_5R','COMPLIANCE_HARI','COMPLIANCE_EVENT']},
+  {id:'rcv',name:'Receiving dan Incoming',note:'Sesi unloading, STTB, koli, info PO',src:'wms',tabs:['UNLOADING_SESI','UNLOADING_RESI','KOLI','PO_INFO']},
+  {id:'gr',name:'Good Receipt',note:'Surat jalan, HPP, penugasan, counting, put away, data entry',src:'wms',tabs:['PO_DOK','SJ_ITEM','HPP_ITEM','GR_ASSIGN','GR_COUNT','PUTAWAY','DATA_ENTRY']},
+  {id:'ob',name:'Outbound',note:'SOQ, koli, picking, GR outlet',src:'wms',tabs:['PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR']},
+  {id:'stk',name:'Mutasi stok hasil simulasi',note:'Baris SALDO AWAL tidak ikut terhapus',src:'wms',tabs:['STOK_BIN']},
+  {id:'lc',name:'Location Control',note:'Task opname / cycle count, hasil hitung, adjustment',src:'wms',tabs:['LC_TASK','LC_COUNT','ADJUSTMENT']},
+  {id:'prj',name:'Project',note:'',src:'wms',tabs:['PROJECT','PROJECT_LOG']},
+  {id:'kas',name:'Kas kecil dan perjalanan driver',note:'Hanya bila ada data uji',src:'wms',tabs:['KAS_KECIL','TRIP','TRIP_TITIK','BBM_LOG']}];
+ const st={from:'2026-10-23',res:null,busy:false,msg:'',sel:new Set(CATS.map(c=>c.id)),prog:''};
+ const isSpv=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'}catch(e){return false}};
+ const cfgOf=s=>{try{return s==='ops'?window.WOSStore.config():window.WOSGudang.config()}catch(e){return null}};
+ async function post(s,body){const c=cfgOf(s);if(!c||!c.url)throw new Error('alamat skrip Google belum diatur');const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body))});return r.json()}
+ const fmt=n=>Number(n||0).toLocaleString('id-ID');
+ async function hitung(){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(st.from)){st.msg='Isi tanggal batas.';draw();return}
+  st.busy=true;st.msg='';st.res={};
+  for(const c of CATS){for(const t of c.tabs){st.prog='Menghitung '+t+'…';draw();let r;try{r=await post(c.src,{action:'purge',tab:t,before:st.from,dry:true})}catch(e){r={ok:false,error:String(e&&e.message||e)}}st.res[t]=r.ok?{hapus:r.hapus,sisa:r.sisa,total:r.total}:{err:r.error||'gagal'}}}
+  st.busy=false;st.prog='';draw()}
+ async function hapus(){
+  const L=CATS.filter(c=>st.sel.has(c.id)),tot=L.reduce((a,c)=>a+c.tabs.reduce((b,t)=>b+((st.res&&st.res[t]&&st.res[t].hapus)||0),0),0);
+  if(!tot){st.msg='Tidak ada baris yang perlu dihapus pada kategori terpilih.';draw();return}
+  if(!confirm('Hapus '+fmt(tot)+' baris data simulasi (tanggal sebelum '+st.from+') dari '+L.length+' kategori?\n\nMaster karyawan, vendor, ekspedisi, bin, norm, role, layout, dan Saldo Awal TIDAK dihapus.\nTidak bisa dibatalkan. Pastikan semua perangkat sudah terkirim (tidak ada antrean).'))return;
+  if(prompt('Ketik HAPUS untuk melanjutkan:')!=='HAPUS'){st.msg='Dibatalkan.';draw();return}
+  st.busy=true;st.msg='';let done=0,fail=[];
+  for(const c of L){for(const t of c.tabs){const n=(st.res[t]&&st.res[t].hapus)||0;if(!n)continue;st.prog='Menghapus '+t+' ('+fmt(n)+' baris)…';draw();let r;try{r=await post(c.src,{action:'purge',tab:t,before:st.from,konfirmasi:'HAPUS'})}catch(e){r={ok:false,error:String(e&&e.message||e)}}if(r.ok)done+=r.hapus;else fail.push(t+': '+(r.error||'gagal'))}}
+  st.busy=false;st.prog='';st.msg='Selesai: '+fmt(done)+' baris dihapus.'+(fail.length?' Gagal: '+fail.join('; '):'')+' Perangkat lain membersihkan salinan lokalnya otomatis dalam beberapa menit.';await hitung()}
+ function html(){
+  const r=st.res,rows=CATS.map(c=>{const n=c.tabs.reduce((a,t)=>a+((r&&r[t]&&r[t].hapus)||0),0),keep=c.tabs.reduce((a,t)=>a+((r&&r[t]&&r[t].sisa)||0),0),err=r&&c.tabs.some(t=>r[t]&&r[t].err);
+   return '<tr><td><input type="checkbox" data-pg="'+c.id+'"'+(st.sel.has(c.id)?' checked':'')+'></td><td><strong>'+esc(c.name)+'</strong>'+(c.note?'<div class="sub">'+esc(c.note)+'</div>':'')+'</td><td>'+(r?(err?'<span class="tag amber">sebagian belum bisa dihitung</span><div class="sub">'+esc(c.tabs.filter(t=>r[t]&&r[t].err).map(t=>t+': '+r[t].err).join('; ').slice(0,120))+'</div>':'<strong>'+fmt(n)+'</strong>'):'-')+'</td><td>'+(r&&!err?fmt(keep):'-')+'</td></tr>'}).join('');
+  return '<div class="card-head"><div><h2>Pembersihan data simulasi</h2><span class="sub">Khusus SPV. Hapus data transaksi simulasi sebelum tanggal batas; data master dan Saldo Awal tidak tersentuh.</span></div></div>'+
+   '<div class="note">Dilindungi dan tidak bisa dihapus lewat panel ini: data karyawan dan status, master vendor / ekspedisi / area / bin / HPP / MOKA, master norm dan role, layout, serta baris <b>SALDO AWAL</b>. Foto dan video di Google Drive tidak ikut terhapus. Sebelum membersihkan, pastikan semua perangkat sudah terkirim (chip "Sheets: tersambung" tanpa antrean).</div>'+
+   '<div class="form-grid" style="margin-top:10px"><div class="field"><label for="pg-from">Hapus data bertanggal SEBELUM</label><input id="pg-from" type="date" value="'+esc(st.from)+'"></div></div>'+
+   '<div class="ob-actions"><button class="button" data-pgcount="1" type="button"'+(st.busy?' disabled':'')+'>Hitung dulu (tidak menghapus)</button></div>'+
+   '<div style="overflow:auto;margin-top:8px"><table><thead><tr><th></th><th>Kategori</th><th>Akan dihapus (baris)</th><th>Tetap ada</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+   '<div class="ob-actions"><button class="button" data-pgdel="1" type="button" style="background:#b3261e"'+(st.busy||!r?' disabled':'')+'>Hapus kategori terpilih</button></div>'+
+   (st.prog?'<p class="sub">'+esc(st.prog)+'</p>':'')+(st.msg?'<p class="note">'+esc(st.msg)+'</p>':'')}
+ function draw(){const host=$('wos-purge');if(!host)return;const h=html();if(host.dataset.sig===h)return;host.dataset.sig=h;const ae=document.activeElement;host.innerHTML=h}
+ function mount(){
+  const pg=$('master');if(!pg||!isSpv())return;let host=$('wos-purge');
+  if(!host){host=document.createElement('section');host.id='wos-purge';host.className='card';host.style.marginTop='18px';pg.appendChild(host);
+   host.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.pgcount)hitung();else if(b.dataset.pgdel)hapus()});
+   host.addEventListener('change',e=>{const t=e.target;if(t.id==='pg-from'){st.from=t.value;st.res=null;draw()}else if(t.dataset&&t.dataset.pg){t.checked?st.sel.add(t.dataset.pg):st.sel.delete(t.dataset.pg);draw()}})}
+  draw()}
+ setInterval(()=>{try{if(document.getElementById('master')&&document.getElementById('master').classList.contains('active'))mount()}catch(e){}},1500);
 })();
 </script>
 </body></html>

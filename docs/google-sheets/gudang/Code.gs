@@ -40,6 +40,10 @@ const TABS = {
   ADJUSTMENT: ['id','tanggal','bin','sku','item','qty_sistem','qty_fisik','selisih','alasan','sumber','status','diminta_oleh','diminta_jam','disetujui_oleh','disetujui_jam','catatan'],
   PICK_ITEM: ['id','tanggal','dok','outlet','item','sku','kategori','soq','ket','koli','bin','qty','status','bin_actual','qty_actual','ket_pick','foto_id','picker','jam_pick','vp','vp_ket','vp_oleh','vp_jam'],
   LAYOUT: ['id','data','catatan'],
+  KAS_KECIL: ['id','periode','jenis','tanggal','uraian','qty_req','satuan','on_hand','qty_apv','vendor','harga','total','status','pengaju','pic','disetujui_oleh','tgl_belanja','nota','catatan','waktu'],
+  TRIP: ['id','tanggal','driver','driver_nama','kendaraan','rute','status','odo_awal','odo_akhir','waktu_mulai','waktu_selesai','catatan'],
+  TRIP_TITIK: ['id','trip','tanggal','urut','titik','odo','waktu','jarak','menit','catatan'],
+  BBM_LOG: ['id','tanggal','driver','driver_nama','odo','liter','harga','total','spbu','trip','catatan','waktu'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 
@@ -102,6 +106,10 @@ function runOp_(op) {
   if (op.action === 'append') return upsert_(op.tab, op.row);
   if (op.action === 'delete') return remove_(op.tab, op.id);
   if (op.action === 'photo') return photo_(op);
+  if (op.action === 'purge') {
+    if (!op.dry && op.konfirmasi !== 'HAPUS') throw new Error('konfirmasi HAPUS diperlukan');
+    return purge_(op.tab, op.before, op.dry);
+  }
   throw new Error('aksi tidak dikenal: ' + op.action);
 }
 
@@ -191,6 +199,43 @@ function remove_(tab, id) {
     if (String(ids[i][0]) === String(id)) { sh.deleteRow(i + 2); return { removed: true }; }
   }
   return { removed: false };
+}
+
+const PURGEABLE = {
+  UNLOADING_SESI: { date: 'tanggal' }, UNLOADING_RESI: { date: 'tanggal' }, KOLI: { date: 'tanggal' },
+  PO_INFO: { date: 'diperbarui' }, PO_DOK: { date: 'sj_waktu' }, SJ_ITEM: { date: 'tanggal' }, HPP_ITEM: { date: 'tanggal' },
+  GR_ASSIGN: { date: 'tanggal' }, GR_COUNT: { date: 'tanggal' }, PUTAWAY: { date: 'tanggal' }, DATA_ENTRY: { date: 'tanggal' },
+  STOK_BIN: { date: 'tanggal', keepCol: 'jenis', keepVal: ['SALDO AWAL'] },
+  PICK_DOK: { date: 'tanggal' }, PICK_KOLI: { date: 'tanggal' }, PICK_ITEM: { date: 'tanggal' }, PICK_GR: { date: 'tanggal' },
+  LC_TASK: { date: 'tanggal' }, LC_COUNT: { date: 'tanggal' }, ADJUSTMENT: { date: 'tanggal' },
+  PROJECT: { date: 'tanggal' }, PROJECT_LOG: { date: 'tanggal' },
+  KAS_KECIL: { date: 'tanggal' }, TRIP: { date: 'tanggal' }, TRIP_TITIK: { date: 'tanggal' }, BBM_LOG: { date: 'tanggal' }
+};
+
+/* ============ Pembersihan data simulasi (dipanggil panel Pembersihan Data WOS, khusus SPV) ============
+   Hanya tab di PURGEABLE yang boleh dibersihkan, dan hanya baris dengan tanggal SEBELUM tanggal batas.
+   Tab master (karyawan, vendor, bin, norm, dll) tidak ada di daftar ini sehingga tidak bisa terhapus. */
+function purge_(tab, before, dry) {
+  const cfg = PURGEABLE[tab];
+  if (!cfg) throw new Error('tab tidak boleh dibersihkan: ' + tab);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(before || ''))) throw new Error('tanggal batas tidak valid');
+  const sh = sheet_(tab), headers = TABS[tab], last = sh.getLastRow();
+  if (last < 2) return { total: 0, hapus: 0, sisa: 0, dry: !!dry };
+  const dc = headers.indexOf(cfg.date), kc = cfg.keepCol ? headers.indexOf(cfg.keepCol) : -1;
+  if (dc < 0) throw new Error('kolom tanggal tidak ada: ' + tab);
+  const range = sh.getRange(2, 1, last - 1, headers.length), vals = range.getValues();
+  const keep = []; let del = 0;
+  vals.forEach(function (r) {
+    if (String(r[0]) === '') return;
+    const d = String(r[dc] || '').slice(0, 10);
+    const prot = kc >= 0 && (cfg.keepVal || []).indexOf(String(r[kc])) >= 0;
+    if (d && d < before && !prot) del++; else keep.push(r);
+  });
+  if (!dry && del) {
+    range.clearContent();
+    if (keep.length) sh.getRange(2, 1, keep.length, headers.length).setValues(keep);
+  }
+  return { total: vals.length, hapus: del, sisa: keep.length, dry: !!dry };
 }
 
 /* ============ Foto / bukti ke Google Drive ============ */

@@ -24,6 +24,8 @@ const TABS = {
   EVALUASI: ['id', 'tanggal', 'kode_staf', 'nama', 'evaluator_kode', 'evaluator_nama', 'periode', 'skor_rata', 'status', 'audio_id', 'audio_menit', 'json', 'dibuat_oleh', 'waktu'],
   PENGAJUAN: ['id','waktu','kode_staf','nama','jenis','tanggal_mulai','tanggal_selesai','alasan','pengganti','status','approver','catatan'],
   LAPORAN_5R: ['id','tanggal','kode_staf','nama','area','file_id','jenis_file','kiriman_ke','status','catatan_spv','waktu'],
+  COMPLIANCE_HARI: ['id','tanggal','kode_staf','nama','json','waktu'],
+  COMPLIANCE_EVENT: ['id','tanggal','kode_staf','jenis','status','json','waktu'],
   TASK: ['id','waktu','tanggal','tujuan','judul','qty','status','diterima_oleh','waktu_terima','waktu_selesai'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
@@ -56,7 +58,7 @@ function doGet(e) {
   try {
     const p = e.parameter || {};
     if (p.token !== TOKEN) return json_({ ok: false, error: 'token salah' });
-    if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString(), tabs: Object.keys(TABS) });
+    if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString(), tabs: Object.keys(TABS), epoch: PropertiesService.getScriptProperties().getProperty('EPOCH') || '' });
     if (p.action === 'list') return json_({ ok: true, rows: list_(p.tab, p.from, p.to) });
     if (p.action === 'multi') return json_({ ok: true, data: multi_(p.q) });
     return json_({ ok: false, error: 'aksi tidak dikenal' });
@@ -83,6 +85,12 @@ function runOp_(op) {
   if (op.action === 'append') return upsert_(op.tab, op.row);
   if (op.action === 'delete') return remove_(op.tab, op.id);
   if (op.action === 'photo') return photo_(op);
+  if (op.action === 'purge') {
+    if (!op.dry && op.konfirmasi !== 'HAPUS') throw new Error('konfirmasi HAPUS diperlukan');
+    const pr = purge_(op.tab, op.before, op.dry);
+    if (!op.dry && pr.hapus > 0) PropertiesService.getScriptProperties().setProperty('EPOCH', new Date().toISOString());   // perangkat lain membersihkan salinan lokal saat melihat tanda ini
+    return pr;
+  }
   throw new Error('aksi tidak dikenal: ' + op.action);
 }
 
@@ -175,6 +183,39 @@ function remove_(tab, id) {
     if (String(ids[i][0]) === String(id)) { sh.deleteRow(i + 2); return { removed: true }; }
   }
   return { removed: false };
+}
+
+const PURGEABLE = {
+  ATTENDANCE: { date: 'tanggal' }, ROLE_HARIAN: { date: 'tanggal' }, DRM: { date: 'tanggal' },
+  KOMPENSASI_OUT: { date: 'tanggal' }, SPL: { date: 'tanggal' }, EVALUASI: { date: 'tanggal' },
+  PENGAJUAN: { date: 'waktu' }, LAPORAN_5R: { date: 'tanggal' }, TASK: { date: 'tanggal' },
+  COMPLIANCE_HARI: { date: 'tanggal' }, COMPLIANCE_EVENT: { date: 'tanggal' }
+};
+
+/* ============ Pembersihan data simulasi (dipanggil panel Pembersihan Data WOS, khusus SPV) ============
+   Hanya tab di PURGEABLE yang boleh dibersihkan, dan hanya baris dengan tanggal SEBELUM tanggal batas.
+   Tab master (karyawan, vendor, bin, norm, dll) tidak ada di daftar ini sehingga tidak bisa terhapus. */
+function purge_(tab, before, dry) {
+  const cfg = PURGEABLE[tab];
+  if (!cfg) throw new Error('tab tidak boleh dibersihkan: ' + tab);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(before || ''))) throw new Error('tanggal batas tidak valid');
+  const sh = sheet_(tab), headers = TABS[tab], last = sh.getLastRow();
+  if (last < 2) return { total: 0, hapus: 0, sisa: 0, dry: !!dry };
+  const dc = headers.indexOf(cfg.date), kc = cfg.keepCol ? headers.indexOf(cfg.keepCol) : -1;
+  if (dc < 0) throw new Error('kolom tanggal tidak ada: ' + tab);
+  const range = sh.getRange(2, 1, last - 1, headers.length), vals = range.getValues();
+  const keep = []; let del = 0;
+  vals.forEach(function (r) {
+    if (String(r[0]) === '') return;
+    const d = String(r[dc] || '').slice(0, 10);
+    const prot = kc >= 0 && (cfg.keepVal || []).indexOf(String(r[kc])) >= 0;
+    if (d && d < before && !prot) del++; else keep.push(r);
+  });
+  if (!dry && del) {
+    range.clearContent();
+    if (keep.length) sh.getRange(2, 1, keep.length, headers.length).setValues(keep);
+  }
+  return { total: vals.length, hapus: del, sisa: keep.length, dry: !!dry };
 }
 
 /* ============ Foto / bukti ke Google Drive ============ */
