@@ -3826,7 +3826,7 @@ init();
   for(let i=0;i<11;i++)cells.push({id:'LP3.'+(13+i),x:85+Math.round(i*32.4),y:287,w:28,h:23,g:'LP3'});run(seq('LP3.',1,12),85,316,m1b,23,'LP3');run(seq('LP4.',12,22),508,287,m2,23,'LP4');run(seq('LP4.',1,11),508,316,m2,23,'LP4');
   const e1=[36,36,36,36,35,36,35,36,36,35],f1=[36,35,36,35,36,35,36,35,35,36];
   run(seq('E',1,10),85,393,e1,27,'E');run(seq('E',11,20),85,423,e1,26,'E');run(seq('F',1,10),508,393,f1,27,'F');run(seq('F',11,20),508,423,f1,26,'F');
-  dk(seq('LP5.',1,10),84,502,38,38,'LP5a');dk(seq('LP5.',11,20),506,501,38,38,'LP5b');
+  dk(seq('LP5.',1,10),84,502,38,38,'LP5a');dk(seq('LP6.',1,10),506,501,38,38,'LP6');
   // ---- area depan (operasional): area berwarna hanya tampil saat kursor diarahkan, palet staging hanya bernomor
   const fx=x=>x-392,Z=(label,x,y,w,h,color)=>cells.push({id:'',t:'z',label,x:fx(x),y,w,h,color}),K=(label,x,y,w,h,color)=>cells.push({id:'',t:'k',label,x:fx(x),y,w,h,color});
   Z('Area Good Receipt',158,8,227,100,'#9fdcae');Z('Staging 1',198,143,187,67,'#9fdcae');Z('Staging 2',198,252,187,68,'#9fdcae');Z('Staging 3',198,353,187,67,'#9fdcae');
@@ -4211,10 +4211,11 @@ init();
   (sa?'<p class="sub" style="margin-top:8px">'+esc(sa.info)+'</p><div class="field" style="max-width:420px"><label>Tanggal masuk stok (dasar umur stok) untuk baris tanpa tanggal</label><input type="date" data-lcsadate="1" value="'+esc(sa.defDate||'')+'"><p class="sub" style="margin:4px 0 0">Kosong = tanggal impor, sehingga umur stok dihitung mulai hari ini. Isi tanggal stok opname terakhir bila ingin umur stok mengikuti tanggal itu.</p></div>'+(sa.cands&&sa.cands.length>1?'<div class="field" style="max-width:420px"><label>Kolom jumlah yang dipakai</label><select data-lcsapick="1"><option value="">- pilih kolom -</option>'+sa.cands.map(c=>'<option value="'+c.i+'"'+(sa.pick===c.i?' selected':'')+'>'+esc(c.name)+' (total '+Math.round(c.total).toLocaleString('id-ID')+' pcs)</option>').join('')+'</select></div>':'')+(sa.bad.length?'<p class="note" style="color:#b3261e">'+sa.bad.length+' baris bermasalah (contoh: '+esc(sa.bad.slice(0,5).join('; '))+'). Baris itu tidak diimpor.</p>':'')+'<div class="ob-actions"><button class="button" data-lcsago="1" type="button"'+(sa.rows.length?'':' disabled')+'>Impor '+sa.rows.length+' baris</button></div>':'')+'</div>'}
  let saCtx=null;
  function buildSaldo(iQ){
-  const c=saCtx,mb=new Set(masterBins().map(b=>U(b.id))),out=new Map(),bad=[];
-  c.rows.slice(c.hi+1).forEach((r,n)=>{const bin=U(r[c.iB]),item=String(r[c.iI]||'').trim(),q=num(r[iQ]);if(!bin&&!item)return;if(!bin||!item){if(bin||item)bad.push('baris '+(c.hi+n+2)+' tidak lengkap');return}if(!(q>0))return;if(mb.size&&!mb.has(bin)){bad.push(bin+' tidak ada di master bin');return}
+  const c=saCtx,mb=new Set(masterBins().map(b=>U(b.id))),out=new Map(),bad=[],fixes=[];
+  c.rows.slice(c.hi+1).forEach((r,n)=>{let bin=U(r[c.iB]);const item=String(r[c.iI]||'').trim(),q=num(r[iQ]);
+   if(bin&&mb.size&&!mb.has(bin)){const fx=bin.replace(/^LLP/,'LP').replace(/[,\s?]+/g,'.');if(fx!==bin&&mb.has(fx)){fixes.push(bin+' → '+fx);bin=fx}}if(!bin&&!item)return;if(!bin||!item){if(bin||item)bad.push('baris '+(c.hi+n+2)+' tidak lengkap');return}if(!(q>0))return;if(mb.size&&!mb.has(bin)){bad.push(bin+' tidak ada di master bin');return}
    const k=bin+'|'+U(item),o=out.get(k)||{bin,item,qty:0,tgl:''};o.qty+=q;const t=c.iT>=0?String(r[c.iT]||'').trim():'';if(t&&(!o.tgl||t<o.tgl))o.tgl=t;out.set(k,o)});
-  sa={defDate:(sa&&sa.defDate)||'',rows:[...out.values()],bad,cands:c.cands,pick:iQ,info:'Memakai kolom "'+(c.cands.find(x=>x.i===iQ)||{name:'?'}).name+'": '+out.size+' kombinasi bin dan item · total '+[...out.values()].reduce((a,o)=>a+o.qty,0)+' pcs (baris dengan qty 0 dilewati)'};draw()}
+  sa={defDate:(sa&&sa.defDate)||'',rows:[...out.values()],bad,cands:c.cands,pick:iQ,info:(fixes.length?fixes.length+' nama bin diperbaiki otomatis ('+fixes.slice(0,6).join('; ')+'). ':'')+'Memakai kolom "'+(c.cands.find(x=>x.i===iQ)||{name:'?'}).name+'": '+out.size+' kombinasi bin dan item · total '+[...out.values()].reduce((a,o)=>a+o.qty,0)+' pcs (baris dengan qty 0 dilewati)'};draw()}
  async function readSaldo(file){
   try{const rows=await G.readRows(file),hi=rows.findIndex(r=>r.some(c=>/^BIN$|^LOCATION$/i.test(String(c).trim())));if(hi<0)throw new Error('Kolom Bin / Location tidak ditemukan.');
    const h=rows[hi].map(c=>U(c)),iB=h.findIndex(c=>c==='BIN'||c==='LOCATION'),iI=h.findIndex(c=>/^(ITEM|ITEMS NAME|ITEM NAME|SKU|NAMA ITEM)$/.test(c)),iT=h.findIndex(c=>/TANGGAL/.test(c));
@@ -5771,6 +5772,53 @@ init();
    if(d.pff){const p=Object.assign({},st.per);p[d.pff]=t.value;if(p.from&&p.to&&p.from>p.to){const x=p.from;p.from=p.to;p.to=x}st.per=p;st.sel='';draw(s);loadPer(s)}
    else if(d.pfhk){st.hk[keyOf(st.per)]=Number(t.value)||'';try{localStorage.setItem('wos-perf-hk',JSON.stringify(st.hk))}catch(x){}s._sig='';draw(s)}});
   s._draw=()=>draw(s);s._show=()=>{if(st.tab==='Tahunan')loadYear(s);else loadPer(s)}});
+})();
+</script>
+<script>
+// UBAH NAMA BIN DI MASTER (khusus SPV): memindahkan rentang bin ke nama baru, mis. LP5.11-LP5.20 menjadi LP6.1-LP6.10.
+// Hanya dipakai saat bin belum berisi stok. Baris lama dihapus dan baris baru dibuat lewat antrean kirim biasa.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api;if(!A)return;
+ const $=id=>document.getElementById(id),esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const isSpv=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'}catch(e){return false}};
+ const st={f:{op:'LP5.',a:'11',b:'20',np:'LP6.',ns:'1'},plan:null,busy:false,msg:'',bad:false};
+ function parts(id){const m=/^([A-Za-z]+)(\d+)\.(\w+)$/.exec(id);return m?{g:m[1],rack:m[2],n:m[3]}:null}
+ async function preview(){
+  st.busy=true;st.msg='Membaca master bin dan stok…';st.bad=false;st.plan=null;draw();
+  try{const f=st.f,a=Number(f.a),b=Number(f.b),ns=Number(f.ns);
+   if(!f.op||!f.np||!(a>=1)||!(b>=a)||!(ns>=1))throw new Error('Isi awalan lama/baru dan nomor dengan benar.');
+   const [mb,sk]=await Promise.all([A.call({action:'list',tab:'MASTER_BIN'},true),A.call({action:'list',tab:'STOK_BIN'},true)]);
+   if(!mb.ok)throw new Error('MASTER_BIN: '+(mb.error||'gagal'));if(!sk.ok)throw new Error('STOK_BIN: '+(sk.error||'gagal'));
+   const have=new Map(mb.rows.map(r=>[String(r.id).toUpperCase(),r])),withStock=new Set((sk.rows||[]).map(r=>String(r.bin).toUpperCase())),plan=[],err=[];
+   for(let n=a;n<=b;n++){const oldId=(f.op+n).toUpperCase(),row=have.get(oldId),newId=(f.np+(ns+n-a)).toUpperCase();
+    if(!row){err.push(oldId+' tidak ada di master');continue}
+    if(have.has(newId)){err.push(newId+' sudah ada di master');continue}
+    if(withStock.has(oldId)){err.push(oldId+' sudah punya mutasi stok');continue}
+    const p=parts(newId);plan.push({oldId,newId,row,np:p})}
+   st.plan={items:plan,err};st.msg=err.length?'Ada bin yang tidak bisa diubah, lihat daftar di bawah.':plan.length+' bin siap diubah. Periksa lalu klik Terapkan.';st.bad=err.length>0}
+  catch(e){st.msg='Gagal: '+(e&&e.message||e);st.bad=true}
+  st.busy=false;draw()}
+ function apply(){
+  const p=st.plan;if(!p||!p.items.length||p.err.length)return;
+  if(!confirm('Ubah nama '+p.items.length+' bin di master ('+p.items[0].oldId+' … '+p.items[p.items.length-1].oldId+' menjadi '+p.items[0].newId+' … '+p.items[p.items.length-1].newId+')?\n\nBaris lama dihapus dan baris baru dibuat dengan data yang sama. Pastikan belum ada stok di bin itu.'))return;
+  if(prompt('Ketik UBAH untuk melanjutkan:')!=='UBAH'){st.msg='Dibatalkan.';st.bad=false;draw();return}
+  p.items.forEach(x=>{A.enqDel('MASTER_BIN',x.row.id);A.enq('MASTER_BIN',Object.assign({},x.row,{id:x.newId,no_rak:x.np?x.np.rack:x.row.no_rak,bin:x.np?x.np.n:x.row.bin}))});
+  st.msg=p.items.length+' bin diubah. Tunggu antrean terkirim, lalu muat ulang halaman. Layout bawaan mengikuti nama baru setelah versi aplikasi terbaru termuat.';st.bad=false;st.plan=null;draw()}
+ function html(){
+  const f=st.f,inp=(k,l,w)=>'<label class="sub">'+l+'<input data-brf="'+k+'" value="'+esc(f[k])+'" style="display:block;width:'+(w||110)+'px"></label>';
+  const p=st.plan;
+  return '<div class="card-head"><div><h2>Ubah nama bin di master</h2><span class="sub">Khusus SPV. Untuk koreksi penamaan, mis. LP5.11–LP5.20 menjadi LP6.1–LP6.10. Hanya untuk bin yang belum punya stok.</span></div></div>'+
+   '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">'+inp('op','Awalan lama')+inp('a','Dari no',80)+inp('b','Sampai no',80)+inp('np','Awalan baru')+inp('ns','Nomor baru mulai',100)+'<button class="button secondary" data-brp="1" type="button"'+(st.busy?' disabled':'')+'>Lihat perubahan</button><button class="button" data-bra="1" type="button"'+(st.busy||!p||!p.items.length||p.err.length?' disabled':'')+'>Terapkan</button></div>'+
+   (p?(p.items.length?'<div style="overflow:auto;margin-top:8px"><table><thead><tr><th>Nama lama</th><th>Nama baru</th><th>Rak / bin baru</th></tr></thead><tbody>'+p.items.map(x=>'<tr><td>'+esc(x.oldId)+'</td><td><b>'+esc(x.newId)+'</b></td><td>'+esc(x.np?x.np.rack+' / '+x.np.n:'-')+'</td></tr>').join('')+'</tbody></table></div>':'')+(p.err.length?'<p class="note" style="color:#b3261e">'+esc(p.err.join('; '))+'</p>':''):'')+
+   (st.msg?'<p class="note" style="'+(st.bad?'color:#b3261e':'')+'">'+esc(st.msg)+'</p>':'')}
+ function draw(){const h=$('wos-binrename');if(!h)return;const x=html();if(h.dataset.sig===x)return;h.dataset.sig=x;const ae=document.activeElement,k=ae&&ae.dataset&&ae.dataset.brf,pos=ae&&ae.selectionStart;h.innerHTML=x;if(k){const e=h.querySelector('[data-brf="'+k+'"]');if(e){e.focus();try{e.setSelectionRange(pos,pos)}catch(z){}}}}
+ function mount(){
+  const pg=$('master');if(!pg||!isSpv())return;let h=$('wos-binrename');
+  if(!h){h=document.createElement('section');h.id='wos-binrename';h.className='card';h.style.marginTop='18px';pg.appendChild(h);
+   h.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.brp)preview();else if(b.dataset.bra)apply()});
+   h.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.brf;if(k){st.f[k]=e.target.value;st.plan=null}})}
+  draw()}
+ setInterval(()=>{try{if($('master')&&$('master').classList.contains('active'))mount()}catch(e){}},1500);
 })();
 </script>
 </body></html>
