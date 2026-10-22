@@ -211,7 +211,8 @@ function purge_(tab, before, dry) {
   const keep = []; let del = 0;
   vals.forEach(function (r) {
     if (String(r[0]) === '') return;
-    const d = String(r[dc] || '').slice(0, 10);
+    // sel tanggal yang terbaca Google sebagai tanggal (bukan teks) diubah ke yyyy-MM-dd agar ikut terhitung
+    const d = r[dc] instanceof Date ? Utilities.formatDate(r[dc], 'Asia/Makassar', 'yyyy-MM-dd') : String(r[dc] || '').slice(0, 10);
     const prot = kc >= 0 && (cfg.keepVal || []).indexOf(String(r[kc])) >= 0;
     if (d && d < before && !prot) del++; else keep.push(r);
   });
