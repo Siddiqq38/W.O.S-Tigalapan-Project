@@ -1029,11 +1029,11 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','project','kaskecil','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
+const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','project','kaskecil','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['analysis','tracking','wms-inbound','wms-outbound']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','compliance','coaching','project','master','evaluasi'],PROD:['wms-inbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['analysis','tracking','wms-inbound','wms-outbound']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
 const $=id=>document.getElementById(id);
 const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
@@ -1052,7 +1052,7 @@ function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),d
 
 function navVisibility(){
  const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN')return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');return o};
- const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas','kaskecil',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
+ const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas','kaskecil','trip',...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
  let vis=false;for(let i=navs.length-1;i>=0;i--){const e=navs[i];if(e.classList.contains('nav-group')){e.classList.toggle('wos-hide',!vis);vis=false}else{const ok=allowed.has(e.dataset.page);e.classList.toggle('wos-hide',!ok);if(ok)vis=true}}
@@ -2125,8 +2125,8 @@ init();
 
  // ---- koneksi dan antrean (dikirim bertahap, tahan sinyal putus)
  let state='',err='',busy=false,busyAt=0;
- const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog',KAS_KECIL:'kas'};
- let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[],kas:[]};let dv=0;
+ const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog',KAS_KECIL:'kas',TRIP:'trip',TRIP_TITIK:'trpt',BBM_LOG:'bbm'};
+ let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[],kas:[],trip:[],trpt:[],bbm:[]};let dv=0;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
  async function call(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
@@ -5383,6 +5383,141 @@ init();
    if(d.kkap){const p=d.kkap.split('|');(st.ed[p[0]]=st.ed[p[0]]||{})[p[1]]=t.value}
    if(d.kked)draw(s)});
   s._draw=()=>draw(s);s._show=()=>{st.p=st.p||periodOf(today());load(s)}});
+})();
+</script>
+<script>
+// PULIHKAN STOK DARI PICKING YANG DIBATALKAN (khusus SPV): picking SOQ yang dokumennya sudah dihapus tetap memotong stok bin.
+// Alat ini tidak menghapus apa pun: untuk setiap potongan dibuat baris KOREKSI (masuk) yang mengembalikan stok, lengkap dengan catatan.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api;if(!A)return;
+ const $=id=>document.getElementById(id),esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const isSpv=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'}catch(e){return false}};
+ const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0},fmt=n=>Number(n||0).toLocaleString('id-ID');
+ const st={rows:null,groups:[],busy:false,msg:'',bad:false};
+ async function load(){
+  st.busy=true;st.msg='';draw();
+  try{const [s,d]=await Promise.all([A.call({action:'list',tab:'STOK_BIN'},true),A.call({action:'list',tab:'PICK_DOK'},true)]);
+   if(!s.ok)throw new Error(s.error||'STOK_BIN tidak terbaca');if(!d.ok)throw new Error(d.error||'PICK_DOK tidak terbaca');
+   const rows=s.rows||[],rev=new Set(rows.filter(r=>String(r.id).indexOf('SB|REV|')===0).map(r=>String(r.id).slice(7))),dok=new Set((d.rows||[]).map(r=>String(r.id)).concat((d.rows||[]).map(r=>String(r.dok||''))));
+   const g={};
+   rows.forEach(r=>{if(r.jenis!=='PICKING'||rev.has(String(r.id)))return;const key=String(r.referensi||'').replace(/ koli.*$/,'');const o=g[key]||(g[key]={key,rows:[],qty:0,tgl:r.tanggal,aktif:dok.has(key)});o.rows.push(r);o.qty+=num(r.qty_keluar)});
+   st.groups=Object.values(g);st.rows=rows}
+  catch(e){st.msg='Gagal membaca data: '+(e&&e.message||e);st.bad=true}
+  st.busy=false;draw()}
+ function pulihkan(key){
+  const g=st.groups.find(x=>x.key===key);if(!g)return;
+  if(g.aktif){st.msg='SOQ ini masih ada di Outbound, jadi potongan stoknya sah. Batalkan SOQ-nya dulu bila perlu.';st.bad=true;draw();return}
+  if(!confirm('Kembalikan stok '+fmt(g.qty)+' pcs dari '+g.rows.length+' potongan picking untuk:\n'+key+'\n\nDibuat '+g.rows.length+' baris KOREKSI (tidak ada data yang dihapus). Lanjutkan?'))return;
+  if(prompt('Ketik PULIHKAN untuk melanjutkan:')!=='PULIHKAN'){st.msg='Dibatalkan.';st.bad=false;draw();return}
+  g.rows.forEach(r=>A.enq('STOK_BIN',{id:'SB|REV|'+r.id,tanggal:A.today(),jenis:'KOREKSI',bin:r.bin,sku:r.sku,item:r.item,qty_masuk:String(num(r.qty_keluar)),qty_keluar:'0',referensi:'Pembatalan picking '+key,pic_kode:A.code(),catatan:'Koreksi stok: SOQ simulasi sudah dihapus'}));
+  st.msg='Dibuat '+g.rows.length+' baris koreksi (+'+fmt(g.qty)+' pcs). Tunggu antrean terkirim, lalu cek Inventory.';st.bad=false;st.groups=st.groups.filter(x=>x.key!==key);draw();setTimeout(load,6000)}
+ function html(){
+  return '<div class="card-head"><div><h2>Pulihkan stok dari picking yang dibatalkan</h2><span class="sub">Khusus SPV. Untuk SOQ simulasi yang sudah dihapus tetapi potongan stok binnya masih tersisa. Tidak menghapus data: stok dikembalikan lewat baris KOREKSI.</span></div></div>'+
+  '<div class="ob-actions"><button class="button secondary" data-srload="1" type="button"'+(st.busy?' disabled':'')+'>'+(st.rows?'Muat ulang':'Cek potongan picking')+'</button></div>'+
+  (st.rows?(st.groups.length?'<div style="overflow:auto;margin-top:8px"><table><thead><tr><th>SOQ / Outlet</th><th>Tanggal</th><th>Potongan</th><th>Total pcs</th><th>Status</th><th></th></tr></thead><tbody>'+st.groups.map(g=>'<tr><td>'+esc(g.key)+'</td><td>'+esc(g.tgl)+'</td><td>'+g.rows.length+'</td><td>'+fmt(g.qty)+'</td><td>'+(g.aktif?'<span class="tag amber">SOQ masih ada</span>':'<span class="tag">SOQ sudah dihapus</span>')+'</td><td><button class="button" data-srfix="'+esc(g.key)+'" type="button"'+(g.aktif?' disabled':'')+'>Kembalikan stok</button></td></tr>').join('')+'</tbody></table></div>':'<p class="sub" style="margin-top:8px">Tidak ada potongan picking yang tersisa.</p>'):'')+
+  (st.msg?'<p class="note" style="'+(st.bad?'color:#b3261e':'')+'">'+esc(st.msg)+'</p>':'')}
+ function draw(){const h=$('wos-restock');if(!h)return;const x=html();if(h.dataset.sig===x)return;h.dataset.sig=x;h.innerHTML=x}
+ function mount(){
+  const pg=$('master');if(!pg||!isSpv())return;let h=$('wos-restock');
+  if(!h){h=document.createElement('section');h.id='wos-restock';h.className='card';h.style.marginTop='18px';pg.appendChild(h);
+   h.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.srload)load();else if(b.dataset.srfix)pulihkan(b.dataset.srfix)})}
+  draw()}
+ setInterval(()=>{try{if($('master')&&$('master').classList.contains('active'))mount()}catch(e){}},1500);
+})();
+</script>
+<script>
+// PERJALANAN DRIVER: satu kendaraan, dua driver. Odometer saat berangkat, di tiap titik antar (rute dari Shipping), dan tiap isi BBM.
+// Hasil: jarak, waktu antar titik, kecepatan pengantaran (jarak / waktu antar titik, bukan GPS), rasio BBM (km/liter), estimasi BBM per leg.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3||!V3.mkPage)return;
+ const {esc,view,enq,call,code,level,nameOf,today,setData}=A;
+ const num=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0};
+ const f1=n=>(Math.round(n*10)/10).toLocaleString('id-ID'),f2=n=>(Math.round(n*100)/100).toLocaleString('id-ID');
+ const hm=iso=>{const d=new Date(new Date(iso).getTime()+8*3600e3);return isNaN(d)?'-':d.toISOString().slice(11,16)};
+ const dur=m=>{m=Math.round(m);return m>=60?Math.floor(m/60)+' j '+(m%60)+' m':m+' m'};
+ const st={tab:'Perjalanan',ready:null,err:'',msg:'',bad:false,route:null,f:{odo:'',veh:'Kendaraan DC',cat:'',add:''},arr:{},bb:{odo:'',liter:'',harga:'',spbu:'',cat:''},sel:''};
+ const lv=()=>level(),viewAll=()=>lv()==='supervisor'||lv()==='admin';
+ const trips=()=>view('TRIP').slice().sort((a,b)=>String(b.waktu_mulai).localeCompare(String(a.waktu_mulai)));
+ const pts=id=>view('TRIP_TITIK').filter(x=>x.trip===id).sort((a,b)=>num(a.urut)-num(b.urut));
+ const bbmAll=()=>view('BBM_LOG').slice().sort((a,b)=>num(a.odo)-num(b.odo));
+ const myActive=()=>trips().find(t=>t.driver===code()&&t.status==='Berjalan');
+ const visible=()=>trips().filter(t=>viewAll()||t.driver===code());
+ const rid=p=>p+'-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
+ // rute dari Shipping: outlet yang punya koli berstatus Shipping
+ function shipRoute(){const m=new Map();view('PICK_KOLI').filter(k=>k.status==='Shipping').forEach(k=>{const p=String(k.dok||'').split('|'),c=p[0];if(!c)return;const o=m.get(c)||{c,n:p[1]||'',k:0};o.k++;m.set(c,o)});
+  return [...m.values()].sort((a,b)=>a.c.localeCompare(b.c)).map(o=>o.c+(o.n?' · '+o.n:''))}
+ // rasio BBM: dari isi penuh ke isi penuh, km = selisih odometer, liter = liter pada pengisian berikutnya
+ function bbmStats(){const L=bbmAll().filter(x=>num(x.odo)>0&&num(x.liter)>0),pairs=[];
+  for(let i=1;i<L.length;i++){const km=num(L[i].odo)-num(L[i-1].odo),lt=num(L[i].liter);if(km>0&&lt>0)pairs.push({a:L[i-1],b:L[i],km,lt,r:km/lt})}
+  const km=pairs.reduce((a,p)=>a+p.km,0),lt=pairs.reduce((a,p)=>a+p.lt,0);return{pairs,ratio:lt?km/lt:0,km,lt}}
+ function legs(t){const P=pts(t.id),out=[];let po=num(t.odo_awal),pw=t.waktu_mulai,pn='Berangkat dari DC';
+  P.forEach(p=>{if(p.odo===''||p.odo==null||!p.waktu)return;const km=num(p.odo)-po,mn=(new Date(p.waktu)-new Date(pw))/60000;out.push({dari:pn,ke:p.titik,km,mn,v:mn>0?km/(mn/60):0,w:p.waktu});po=num(p.odo);pw=p.waktu;pn=p.titik});return out}
+ function stats(t){const L=legs(t),km=L.reduce((a,l)=>a+l.km,0),mn=L.reduce((a,l)=>a+l.mn,0),r=bbmStats().ratio;return{L,km,mn,v:mn>0?km/(mn/60):0,lt:r?km/r:0}}
+ async function load(s){
+  try{const r=await Promise.all([call({action:'list',tab:'TRIP'},true),call({action:'list',tab:'TRIP_TITIK'},true),call({action:'list',tab:'BBM_LOG'},true)]);
+   if(r.every(x=>x.ok)){st.ready=true;st.err='';setData('TRIP',r[0].rows||[]);setData('TRIP_TITIK',r[1].rows||[]);setData('BBM_LOG',r[2].rows||[])}else{st.ready=false;st.err=(r.find(x=>!x.ok)||{}).error||'gagal memuat'}}
+  catch(e){st.ready=false;st.err=String(e&&e.message||e)}
+  draw(s)}
+ const say=(s,t,b)=>{st.msg=t;st.bad=!!b;draw(s)};
+ function vJalan(){
+  const a=myActive();let h='';
+  if(!a){
+   if(!st.route)st.route=shipRoute();
+   h+='<div class="card"><h3 style="margin:0">Mulai perjalanan</h3><p class="sub">Rute diisi otomatis dari koli berstatus <b>Shipping</b>. Anda bisa menghapus atau menambah titik. Perjalanan selalu berangkat dan kembali ke DC.</p>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0"><span class="tag">DC (berangkat)</span>'+st.route.map((x,i)=>'<span class="tag amber">'+(i+1)+'. '+esc(x)+' <a href="#" data-trdel="'+i+'" style="text-decoration:none;color:#b3261e">&times;</a></span>').join('')+'<span class="tag">DC (kembali)</span></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><label class="sub">Tambah titik<input data-trf="add" value="'+esc(st.f.add)+'" placeholder="Contoh: UPG-01" style="display:block"></label><button class="button secondary" data-tradd="1" type="button">Tambah</button><button class="button secondary" data-trreload="1" type="button">Isi ulang dari Shipping</button></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px"><label class="sub">Odometer berangkat (km)<input data-trf="odo" type="number" min="0" value="'+esc(st.f.odo)+'" style="display:block;width:100%"></label><label class="sub">Kendaraan<input data-trf="veh" value="'+esc(st.f.veh)+'" style="display:block;width:100%"></label><label class="sub">Catatan<input data-trf="cat" value="'+esc(st.f.cat)+'" style="display:block;width:100%"></label></div><div class="ob-actions" style="margin-top:10px"><button class="button" data-trstart="1" type="button">Mulai perjalanan</button></div></div>';
+   return h}
+  const P=pts(a.id),nx=P.find(p=>p.odo===''||p.odo==null),S=stats(a);
+  h+='<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Perjalanan berjalan</h3><span class="tag amber">Berangkat '+esc(hm(a.waktu_mulai))+' · odo '+esc(a.odo_awal)+' km</span></div><p class="sub">'+esc(a.kendaraan)+' · '+esc(a.driver_nama)+'</p>'+
+   '<ol style="margin:6px 0 0 18px">'+P.map(p=>'<li>'+esc(p.titik)+(p.odo!==''&&p.odo!=null?' — tiba '+esc(hm(p.waktu))+' · odo '+esc(p.odo)+' km · '+f1(num(p.jarak))+' km · '+dur(num(p.menit)):' <span class="sub">(belum)</span>')+'</li>').join('')+'</ol>';
+  if(nx)h+='<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label class="sub">Odometer saat tiba di <b>'+esc(nx.titik)+'</b><input data-trarr="'+esc(nx.id)+'" type="number" min="0" value="'+esc(st.arr[nx.id]||'')+'" style="display:block"></label><button class="button" data-trtiba="'+esc(nx.id)+'" type="button">Tiba di titik ini</button></div>';
+  h+='<p class="sub" style="margin:8px 0 0">Sejauh ini: '+f1(S.km)+' km · '+dur(S.mn)+(S.v?' · kecepatan antar '+f1(S.v)+' km/jam':'')+'</p></div>';
+  return h}
+ function vBbm(){
+  const b=st.bb,S=bbmStats(),L=bbmAll().slice().reverse().slice(0,15);
+  return '<div class="card"><h3 style="margin:0">Isi BBM</h3><p class="sub">Catat setiap pengisian: odometer saat mengisi dan jumlah liter. Isi sampai penuh agar rasio akurat.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><label class="sub">Odometer (km)<input data-trb="odo" type="number" min="0" value="'+esc(b.odo)+'" style="display:block;width:100%"></label><label class="sub">Liter<input data-trb="liter" type="number" min="0" step="0.01" value="'+esc(b.liter)+'" style="display:block;width:100%"></label><label class="sub">Harga per liter (opsional)<input data-trb="harga" type="number" min="0" value="'+esc(b.harga)+'" style="display:block;width:100%"></label><label class="sub">SPBU (opsional)<input data-trb="spbu" value="'+esc(b.spbu)+'" style="display:block;width:100%"></label></div><div class="ob-actions" style="margin-top:10px"><button class="button" data-trbbm="1" type="button">Simpan isi BBM</button></div></div>'+
+   '<div class="card" style="margin-top:12px"><h3 style="margin:0">Rasio BBM</h3><p class="sub">'+(S.ratio?'Rata-rata <b>'+f2(S.ratio)+' km/liter</b> ('+f1(S.km)+' km dari '+f1(S.lt)+' liter).':'Belum cukup data: butuh minimal dua kali isi BBM.')+'</p>'+(L.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>Tanggal</th><th>Driver</th><th>Odometer</th><th>Liter</th><th>Harga</th><th>km/liter sejak isi sebelumnya</th></tr></thead><tbody>'+L.map(x=>{const p=S.pairs.find(q=>q.b.id===x.id);return '<tr><td>'+esc(x.tanggal)+'</td><td>'+esc(x.driver_nama)+'</td><td>'+esc(x.odo)+'</td><td>'+esc(x.liter)+'</td><td>'+(num(x.total)?'Rp '+Math.round(num(x.total)).toLocaleString('id-ID'):'-')+'</td><td>'+(p?f2(p.r):'-')+'</td></tr>'}).join('')+'</tbody></table></div>':'')+'</div>'}
+ function vLaporan(){
+  const T=visible();if(!T.length)return '<p class="sub">Belum ada perjalanan.</p>';
+  const A2=T.filter(t=>t.status==='Selesai').map(t=>({t,s:stats(t)})),km=A2.reduce((a,x)=>a+x.s.km,0),mn=A2.reduce((a,x)=>a+x.s.mn,0),r=bbmStats().ratio;
+  let h='<div class="an-kpi"><div class="an-k"><small>Perjalanan selesai</small><b>'+A2.length+'</b></div><div class="an-k"><small>Total jarak</small><b>'+f1(km)+' km</b></div><div class="an-k"><small>Kecepatan pengantaran rata-rata</small><b>'+(mn>0?f1(km/(mn/60)):'-')+' km/jam</b></div><div class="an-k"><small>Rasio BBM</small><b>'+(r?f2(r)+' km/l':'-')+'</b></div></div>';
+  h+='<div class="an-wrap" style="margin-top:12px"><table class="an-t"><thead><tr><th>Tanggal</th><th>Driver</th><th>Rute</th><th>Jarak</th><th>Waktu</th><th>Kecepatan antar</th><th>Estimasi BBM</th><th>Status</th><th></th></tr></thead><tbody>'+T.map(t=>{const s=stats(t);return '<tr><td>'+esc(t.tanggal)+'</td><td>'+esc(t.driver_nama)+'</td><td>'+esc(t.rute)+'</td><td>'+f1(s.km)+' km</td><td>'+dur(s.mn)+'</td><td>'+(s.v?f1(s.v)+' km/jam':'-')+'</td><td>'+(s.lt?f2(s.lt)+' l':'-')+'</td><td>'+esc(t.status)+'</td><td><button class="button secondary" data-trsel="'+esc(t.id)+'" type="button" style="padding:4px 10px">'+(st.sel===t.id?'Tutup':'Detail')+'</button></td></tr>'+(st.sel===t.id?'<tr><td colspan="9"><table><thead><tr><th>Dari</th><th>Ke</th><th>Tiba</th><th>Jarak</th><th>Waktu</th><th>Kecepatan antar</th><th>Estimasi BBM</th></tr></thead><tbody>'+s.L.map(l=>'<tr><td>'+esc(l.dari)+'</td><td>'+esc(l.ke)+'</td><td>'+esc(hm(l.w))+'</td><td>'+f1(l.km)+' km</td><td>'+dur(l.mn)+'</td><td>'+(l.v?f1(l.v)+' km/jam':'-')+'</td><td>'+(r?f2(l.km/r)+' l':'-')+'</td></tr>').join('')+'</tbody></table><p class="sub" style="margin:6px 0 0">Odometer '+esc(t.odo_awal)+' → '+esc(t.odo_akhir||'-')+' km. Kecepatan antar = jarak dibagi waktu antar titik (termasuk bongkar), bukan kecepatan GPS.</p></td></tr>':'')}).join('')+'</tbody></table></div>';
+  return h}
+ function draw(s){
+  const b=s.querySelector('.v3-b');if(!b)return;let h;
+  if(st.ready===false)h='<p class="note" style="color:#b3261e">Tab perjalanan belum bisa dibaca: '+esc(st.err)+'. Pasang skrip Google gudang versi terbaru (tab TRIP, TRIP_TITIK, BBM_LOG), jalankan setup, lalu deploy versi baru.</p>';
+  else{const tabs=['Perjalanan','Isi BBM','Laporan'];
+   h='<div class="filters" style="margin-bottom:10px">'+tabs.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-trtab="'+t+'" type="button">'+t+'</button>').join('')+'</div>'+(st.msg?'<p class="note" style="color:'+(st.bad?'#b3261e':'#1b7a46')+'">'+esc(st.msg)+'</p>':'')+(st.ready===null?'<p class="sub">Memuat…</p>':st.tab==='Perjalanan'?vJalan():st.tab==='Isi BBM'?vBbm():vLaporan())}
+  if(s._sig!==h){s._sig=h;const ae=document.activeElement,d=ae&&ae.dataset||{},att=d.trf?'trf':d.trb?'trb':d.trarr?'trarr':'',k=att?d[att]:'',pos=ae&&ae.selectionStart;
+   b.style.minHeight=b.offsetHeight+'px';b.innerHTML=h;requestAnimationFrame(()=>{b.style.minHeight=''});
+   if(att){const el=b.querySelector('[data-'+att+'="'+k+'"]');if(el){el.focus({preventScroll:true});try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(x){}}}}}
+ V3.mkPage('trip','Perjalanan','Perjalanan Driver','Odometer, titik antar, BBM, dan kecepatan pengantaran','kaskecil',s=>{
+  s.innerHTML='<div class="toolbar"><div><h2>Perjalanan driver</h2><span class="sub">Odometer, titik antar, BBM, dan kecepatan pengantaran</span></div></div><div class="v3-b"></div>';
+  s.addEventListener('click',e=>{const b=e.target.closest('button,a[data-trdel]');if(!b)return;const d=b.dataset;
+   if(d.trdel!==undefined){e.preventDefault();st.route.splice(+d.trdel,1);draw(s);return}
+   if(d.trtab){st.tab=d.trtab;st.msg='';draw(s);return}
+   if(d.trsel!==undefined){st.sel=st.sel===d.trsel?'':d.trsel;draw(s);return}
+   if(d.tradd){const v=st.f.add.trim();if(v){st.route.push(v);st.f.add=''}draw(s);return}
+   if(d.trreload){st.route=shipRoute();draw(s);return}
+   if(d.trstart){const o=num(st.f.odo);if(!(o>0))return say(s,'Isi odometer saat berangkat.',true);if(!st.route.length)return say(s,'Rute kosong. Tambahkan minimal satu titik antar.',true);
+    const id=rid('TR'),iso=new Date().toISOString(),stops=st.route.concat(['DC (kembali)']);
+    enq('TRIP',{id,tanggal:today(),driver:code(),driver_nama:nameOf(code()),kendaraan:st.f.veh||'Kendaraan DC',rute:['DC'].concat(st.route.map(x=>x.split(' · ')[0])).concat(['DC']).join(' → '),status:'Berjalan',odo_awal:String(o),odo_akhir:'',waktu_mulai:iso,waktu_selesai:'',catatan:st.f.cat||''});
+    stops.forEach((x,i)=>enq('TRIP_TITIK',{id:id+'|'+(i+1),trip:id,tanggal:today(),urut:String(i+1),titik:x,odo:'',waktu:'',jarak:'',menit:'',catatan:''}));
+    st.f.odo='';st.route=null;return say(s,'Perjalanan dimulai. Isi odometer setiap tiba di titik.')}
+   if(d.trtiba){const a=myActive()||trips().find(t=>t.status==='Berjalan'&&viewAll());if(!a)return;const p=pts(a.id),x=p.find(q=>q.id===d.trtiba);if(!x)return;
+    const o=num(st.arr[x.id]);let po=num(a.odo_awal),pw=a.waktu_mulai;for(const q of p){if(q.id===x.id)break;if(q.odo!==''&&q.odo!=null){po=num(q.odo);pw=q.waktu}}
+    if(!(o>0))return say(s,'Isi odometer saat tiba.',true);if(o<po)return say(s,'Odometer ('+o+') lebih kecil dari titik sebelumnya ('+po+').',true);
+    const iso=new Date().toISOString(),mn=Math.max(0,Math.round((new Date(iso)-new Date(pw))/60000));
+    enq('TRIP_TITIK',Object.assign({},x,{odo:String(o),waktu:iso,jarak:String(o-po),menit:String(mn)}));
+    if(p[p.length-1].id===x.id)enq('TRIP',Object.assign({},a,{status:'Selesai',odo_akhir:String(o),waktu_selesai:iso}));
+    delete st.arr[x.id];return say(s,p[p.length-1].id===x.id?'Perjalanan selesai. Terima kasih.':'Tercatat: '+(o-po)+' km dalam '+mn+' menit.')}
+   if(d.trbbm){const o=num(st.bb.odo),l=num(st.bb.liter);if(!(o>0))return say(s,'Isi odometer saat mengisi BBM.',true);if(!(l>0))return say(s,'Isi jumlah liter.',true);
+    const a=myActive(),hg=num(st.bb.harga);
+    enq('BBM_LOG',{id:rid('BB'),tanggal:today(),driver:code(),driver_nama:nameOf(code()),odo:String(o),liter:String(l),harga:hg?String(hg):'',total:hg?String(Math.round(hg*l)):'',spbu:st.bb.spbu||'',trip:a?a.id:'',catatan:'',waktu:new Date().toISOString()});
+    st.bb={odo:'',liter:'',harga:'',spbu:'',cat:''};return say(s,'Isi BBM tersimpan.')}});
+  s.addEventListener('input',e=>{const t=e.target,d=t.dataset;if(d.trf)st.f[d.trf]=t.value;else if(d.trb)st.bb[d.trb]=t.value;else if(d.trarr)st.arr[d.trarr]=t.value});
+  s._draw=()=>draw(s);s._show=()=>{try{V3.load(false,7)}catch(e){}load(s)}});
 })();
 </script>
 </body></html>
