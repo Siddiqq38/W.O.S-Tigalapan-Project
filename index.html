@@ -2197,7 +2197,7 @@ init();
  const view=(tab)=>{const q=qpeek(),key=dv+'|'+qSig,c=vcache[tab];if(c&&c.key===key&&c.base===D[TABKEY[tab]])return c.out;const m=new Map();D[TABKEY[tab]].forEach(r=>m.set(r.id,r));q.forEach(x=>{if(x.tab!==tab)return;if(x.a==='append')m.set(x.row.id,Object.assign({},m.get(x.row.id)||{},x.row));else if(x.a==='delete')m.delete(x.id)});const out=[...m.values()];vcache[tab]={key,base:D[TABKEY[tab]],out};return out};
  let from=back(29),to=today(),pullErr='',lastPull=0;
  async function pull(force){if(document.hidden||(!force&&!sec.classList.contains('active')))return;
-  try{const f60=back(60),q=['UNLOADING_SESI:'+back(7)+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','GR_ASSIGN:'+f60+':'+to].join(',');
+  try{const f60=back(60),q=['UNLOADING_SESI:'+f60+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','GR_ASSIGN:'+f60+':'+to].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error==='aksi tidak dikenal'?'Skrip Google perlu dipasang ulang (versi terbaru)':r.error);
    const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
    D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
