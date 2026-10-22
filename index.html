@@ -4317,7 +4317,7 @@ init();
     '<p class="sub">'+esc(d.jumlah_item)+' item · '+esc(d.total_qty)+' pcs · '+n+' koli'+(d.ekspedisi?' · '+esc(d.metode==='Direct'?'driver ':'ekspedisi ')+'<strong>'+esc(d.ekspedisi)+'</strong>'+(d.kategori?' ('+esc(d.kategori)+')':''):'')+(d.eta?' · estimasi tiba <strong>'+esc(d.eta)+'</strong>':'')+(first?' · berangkat '+esc(wita(first.load_waktu)):'')+'</p>'+
     (n?'<div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap">'+stepHtml+'</div><div class="kl">'+ks.map(k=>'<div class="kb" style="cursor:default;font-size:13px">Koli '+esc(k.koli)+'<small>'+esc(SLBL[k.status]||k.status)+'</small>'+(RCV.includes(k.status)&&k.rcv_waktu?'<small>'+esc(wita(k.rcv_waktu))+'</small>':'')+'</div>').join('')+'</div>':'<p class="note">SOQ sudah diterima DC. Koli dan picker sedang disiapkan.</p>')+
     (salah?'<p class="note" style="color:#b3261e">'+salah+' item tercatat miss-picking. DC 38 sedang menindaklanjuti.</p>':'')+'</div>'}).join('');
-  if(s._sig!==h){s._sig=h;s.querySelector('.v3-b').innerHTML=h}}
+  if(s._sig!==h){s._sig=h;const b=s.querySelector('.v3-b'),p=s.parentElement,sc=p?p.scrollTop:0,wy=window.scrollY;b.style.minHeight=b.offsetHeight+'px';b.innerHTML=h;if(p)p.scrollTop=sc;if(window.scrollY!==wy)window.scrollTo(window.scrollX,wy);requestAnimationFrame(()=>{b.style.minHeight=''})}}
  const RCV=['Diterima','Diterima-Masalah','GR Selesai'];
  V3.mkPage('tracking','Tracking SOQ','Tracking SOQ','Posisi pesanan dari SOQ sampai di toko','wms-outbound',s=>{
   s.innerHTML='<div class="toolbar"><div><h2>Tracking SOQ</h2><span class="sub">Posisi pesanan dari SOQ sampai di toko</span></div></div><div class="v3-b"></div>';
@@ -4657,7 +4657,7 @@ init();
   const m=rkCompute(),R2=m.rows;let h=tabsRow();
   h+='<div class="an-bar"><div class="an-rng"><button data-rkq="ini" type="button">Periode 23–22 ini</button><button data-rkq="lalu" type="button">Periode lalu</button><button data-rkq="bulan" type="button">Bulan kalender ini</button></div><label class="sub" style="margin:0">Dari <input type="date" data-rkf="f" value="'+rk.f+'"></label><label class="sub" style="margin:0">Sampai <input type="date" data-rkf="t" value="'+rk.t+'"></label><label class="sub" style="margin:0">Batas masuk <input type="time" data-rkf="late" value="'+rk.late+'" style="width:100px"></label><button class="button secondary" data-rkcsv="rekap" type="button">Unduh rekap (Excel)</button><button class="button secondary" data-rkcsv="harian" type="button">Unduh detail harian (Excel)</button></div>';
   if(RK.err)h+='<p class="note" style="color:#b3261e">Data presensi belum bisa dimuat: '+esc(RK.err)+'</p>';
-  if(RK.busy&&RK.key!==rk.f+'|'+rk.t)h+='<p class="sub">Memuat data presensi dan pengajuan…</p>';
+  if(RK.busy&&RK.key!==rk.f+'|'+rk.t)h+='<p class="sub" style="margin:0 0 6px;min-height:18px">Memuat data presensi dan pengajuan…</p>';
   else{
    const T=k=>sum(R2.map(o=>o[k]));
    h+='<div class="an-kpi">'+kpi('Karyawan',R2.length,'terdaftar aktif')+kpi('Total hadir',T('hadir')+' hari','rata-rata '+(R2.length?Math.round(10*T('hadir')/R2.length)/10:0)+' hari/orang')+kpi('Terlambat',T('telat')+' kali',T('mnt')+' menit total',T('telat')?'o':'g')+kpi('Sakit',T('S')+' hari','disetujui')+kpi('Change Off + Cuti',(T('CO')+T('C'))+' hari','disetujui')+'</div>';
@@ -4680,8 +4680,8 @@ init();
   if(syncRng())anLoad(false);
   let h=bar();
   if(AN.err)h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(AN.err)+'. Pastikan skrip Google gudang versi terbaru sudah dipasang.</p>';
-  if(!AN.from)h+='<p class="sub">Memuat data…</p>';else{const m=compute(),B=buckets(st.from,st.to,st.group);h+=(AN.busy?'<p class="sub">Memperbarui data…</p>':'')+BODY[st.tab](m,B)+'<p class="sub" style="margin-top:12px">Sumber: WOS Data Gudang dan Data Operasional. Setiap tab membaca sampai ribuan baris terbaru; rentang di luar itu tidak ikut terhitung.</p>'}
-  if(s._sig!==h){s._sig=h;const sc=s.parentElement&&s.parentElement.scrollTop;s.querySelector('.v3-b').innerHTML=h}}
+  if(!AN.from)h+='<p class="sub">Memuat data…</p>';else{const m=compute(),B=buckets(st.from,st.to,st.group);h+='<p class="sub" style="margin:0 0 6px;min-height:18px;visibility:'+(AN.busy?'visible':'hidden')+'">Memperbarui data…</p>'+BODY[st.tab](m,B)+'<p class="sub" style="margin-top:12px">Sumber: WOS Data Gudang dan Data Operasional. Setiap tab membaca sampai ribuan baris terbaru; rentang di luar itu tidak ikut terhitung.</p>'}
+  if(s._sig!==h){s._sig=h;const b=s.querySelector('.v3-b'),p=s.parentElement,sc=p?p.scrollTop:0,wy=window.scrollY,hh=b.offsetHeight;b.style.minHeight=hh+'px';b.innerHTML=h;if(p)p.scrollTop=sc;if(window.scrollY!==wy)window.scrollTo(window.scrollX,wy);requestAnimationFrame(()=>{b.style.minHeight=''})}}
  V3.mkPage('analysis','Analysis','Analysis','Chart inbound vs outbound, vendor, supply toko, item, utilisasi, tim, ekspedisi, kehadiran','reports',s=>{
   s.innerHTML='<div class="toolbar"><div><h2>Analysis</h2><span class="sub">Inbound vs outbound, vendor, supply toko, item, utilisasi, tim, ekspedisi, kehadiran</span></div><button class="button secondary" data-anrefresh="1" type="button">Muat ulang data</button></div><div class="v3-b"></div>';
   s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
