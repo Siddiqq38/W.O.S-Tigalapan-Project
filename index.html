@@ -1088,7 +1088,7 @@ function attendanceState(){let rows=[];try{rows=JSON.parse(localStorage.getItem(
 function pickerCount(){try{const s=JSON.parse(localStorage.getItem(OBS)||'{}'),day=todayWita(),keys=new Set();Object.values(s.archive||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.date===day&&r.picker===account.code)keys.add(r.source+'|'+r.koli)}));return keys.size}catch(e){return 0}}
 
 function navVisibility(){
- const wmsFor=()=>{const c=roleCats(),o=[];if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN')return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');return o};
+ const wmsFor=()=>{const c=roleCats(),o=[];try{const tk=JSON.parse(localStorage.getItem('wos-tasks-v1')||'[]'),dn=todayWita();tk.forEach(t=>{if(t&&t.to===account.code&&t.day===dn&&t.status!=='selesai'&&t.status!=='batal'){if(t.kind==='gr'&&!c.includes('inbound'))c.push('inbound');if(t.kind==='picking'&&!c.includes('outbound'))c.push('outbound')}})}catch(e){}if(c.includes('inbound'))o.push('wms-inbound');if(c.includes('storage'))o.push('wms-location');if(c.includes('outbound'))o.push('wms-outbound');if(account.level==='ADMIN')return['wms-inbound','wms-location','wms-outbound','wms-inventory'];if(o.length&&!o.includes('wms-inventory')&&(account.level==='ADMIN'||c.includes('storage')))o.push('wms-inventory');return o};
  const allowed=new Set((account.level==='OPERATOR'?['attendance','compliance','project','tugas',...(roleIdsToday().includes('driver')?['trip']:[]),...wmsFor()]:[...PAGES[account.level],...(account.level==='ADMIN'?wmsFor():[])]).filter(p=>!HOLD_PAGES.includes(p)));
  let groupHasVisible=null;const navs=[...document.querySelectorAll('.sidebar .nav-group, .sidebar .nav')];
  // evaluate groups from the bottom so each group knows whether any later nav belongs to it
@@ -1365,7 +1365,7 @@ const DEF=[
 ];
 const GROUPS=['Admin','Operator','Driver'];
 let R=load();
-function load(){try{const r=JSON.parse(localStorage.getItem(KEY)||'null');if(r&&Array.isArray(r.master)){if(!r.master.some(x=>x.id==='unload'))r.master.push({id:'unload',name:'Unloading (Receiving)',groups:['Admin','Operator'],active:true});return{master:r.master,plans:r.plans||{}}}}catch(e){}return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:{}}}
+function load(){try{const r=JSON.parse(localStorage.getItem(KEY)||'null');if(r&&Array.isArray(r.master)){if(!r.master.some(x=>x.id==='unload'))r.master.push({id:'unload',name:'Unloading (Receiving)',groups:['Admin','Operator'],active:true});return{master:r.master,plans:r.plans||{}}}if(r&&r.plans)return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:r.plans}}catch(e){}return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:{}}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(R))}catch(e){}}
 const roleById=id=>R.master.find(r=>r.id===id);
 const eligible=c=>R.master.filter(r=>r.active&&r.groups.includes(grp(c)));
@@ -1847,7 +1847,7 @@ init();
  const pending=tab=>queue().some(x=>x.tab===tab);
  async function pullMore(){const d=today();
   if(!pending('ROLE_HARIAN')){const r=await call({action:'list',tab:'ROLE_HARIAN',from:d,to:d},true);if(r.ok){const R=rj(RK,{master:[],plans:{}});const plans={};const dupK=new Set();r.rows.forEach(x=>{const k=[x.kode_staf,x.role_id,hh(x.jam_mulai),hh(x.jam_selesai),x.keterangan].join('|');if(dupK.has(k)){enq('delete','ROLE_HARIAN',null,x.id);return}dupK.add(k);(plans[x.kode_staf]=plans[x.kode_staf]||[]).push({id:x.id,roleId:x.role_id,label:x.keterangan,from:hh(x.jam_mulai),to:hh(x.jam_selesai),by:x.dipilih_oleh,at:x.waktu})});
-    const sig=o=>JSON.stringify(Object.keys(o).sort().map(c=>[c,o[c].map(s=>s.id).sort()]));if(R.master&&R.master.length&&sig(plans)!==sig((R.plans||{})[d]||{})){R.plans=R.plans||{};R.plans[d]=plans;merging=true;try{raw.call(localStorage,RK,JSON.stringify(R))}finally{merging=false}
+    const sig=o=>JSON.stringify(Object.keys(o).sort().map(c=>[c,o[c].map(s=>s.id).sort()]));if(sig(plans)!==sig((R.plans||{})[d]||{})){R.plans=R.plans||{};R.plans[d]=plans;if(!(R.master&&R.master.length))delete R.master;merging=true;try{raw.call(localStorage,RK,JSON.stringify(R))}finally{merging=false}
      rolesSeen={};Object.keys(slotRows()).forEach(id=>rolesSeen[id]=JSON.stringify(slotRows()[id]));window.dispatchEvent(new Event('storage'))}}}
   if(!pending('TASK')){const r=await call({action:'list',tab:'TASK',from:d,to:d},true);if(r.ok){const rank={baru:0,diterima:1,selesai:2,batal:3},local=rj(TK,[]);let ch=false;
     r.rows.forEach(x=>{let t;try{t=JSON.parse(x.judul)}catch(e){return}if(!t||!t.id)return;const i=local.findIndex(l=>l.id===t.id);if(i<0){local.push(t);ch=true}else if((rank[t.status]||0)>(rank[local[i].status]||0)){local[i]=t;ch=true}tasksSeen[t.id]=JSON.stringify(t)});
