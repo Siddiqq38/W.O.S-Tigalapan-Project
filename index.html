@@ -6123,5 +6123,23 @@ init();
  setInterval(()=>{try{if($('master')&&$('master').classList.contains('active'))mount()}catch(e){}},1500);
 })();
 </script>
+<script>
+// Video dan bukti dari Google Drive diputar langsung di aplikasi (jendela pemutar), seperti bukti 5R, tanpa pindah ke halaman Drive
+(()=>{
+ const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ function open(id,title){
+  const old=document.getElementById('wos-vplayer');if(old)old.remove();
+  const o=document.createElement('div');o.id='wos-vplayer';o.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99997;background:rgba(10,20,30,.72);display:flex;align-items:center;justify-content:center;padding:12px';
+  o.innerHTML='<div style="background:#fff;border-radius:14px;width:min(960px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden"><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #dbe5ed"><strong style="flex:1;color:#18334b">'+esc(title||'Bukti')+'</strong><button type="button" id="wos-vp-x" class="button secondary">Tutup</button></div><iframe src="https://drive.google.com/file/d/'+encodeURIComponent(id)+'/preview" allow="autoplay; fullscreen" allowfullscreen style="border:0;width:100%;height:min(70vh,540px);background:#000"></iframe><p style="margin:0;padding:8px 14px;font-size:12px;color:#63788b">Bila video belum bisa diputar, Google masih memproses file baru. Tunggu sebentar lalu buka lagi.</p></div>';
+  document.body.appendChild(o);
+  const close=()=>{const f=o.querySelector('iframe');if(f)f.src='about:blank';o.remove();document.removeEventListener('keydown',kd)},kd=e=>{if(e.key==='Escape')close()};
+  o.querySelector('#wos-vp-x').onclick=close;o.addEventListener('click',e=>{if(e.target===o)close()});document.addEventListener('keydown',kd)}
+ window.wosPlayVideo=open;
+ document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('a[href*="drive.google.com/file/d/"]');if(!a||/Buka di Google Drive/i.test(a.textContent))return;
+  const m=/\/file\/d\/([^/?#]+)/.exec(a.getAttribute('href')||'');if(!m)return;
+  e.preventDefault();e.stopPropagation();open(m[1],(a.textContent||'').trim().replace(/^video$/i,'Video bukti'))},true)
+})();
+</script>
 </body></html>
 
