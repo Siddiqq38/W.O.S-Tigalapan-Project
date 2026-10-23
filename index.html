@@ -3345,11 +3345,15 @@ init();
  (()=>{if(document.getElementById('wms-tab-colors'))return;const C=['#2f7bd6','#e0782b','#2e9b5a','#8e4ec6','#d1362b','#0e9aa7','#c9a227','#d6459b','#5b6bd6','#7a8b2e'];let css='.kb.lk{opacity:.5}';['#wms-inbound','#wms-outbound','#wms-inventory','#wms-location','#analysis','#project'].forEach(p=>C.forEach((c,i)=>{const q=p+' .filters .filter:nth-child('+(i+1)+')';css+=q+'{border:2px solid '+c+'44;border-bottom:4px solid '+c+'}'+q+'.active{background:'+c+';border-color:'+c+';color:#fff}'+q+':hover{background:'+c+'22}'}));const st=document.createElement('style');st.id='wms-tab-colors';st.textContent=css;document.head.appendChild(st)})();
  // ---- muat data outbound
 
+ let loadedDays=0,lastStokAt=0;
+ const narrowTab=()=>tabName==='Picking'||tabName==='Verification Pick';
+ const refreshBar=()=>'<div class="ob-actions" style="margin:0 0 8px;align-items:center;gap:10px"><span class="sub">'+(loading?'Memuat data…':(loadedAt?'Diperbarui '+new Date(loadedAt+288e5).toISOString().slice(11,19)+' WITA · otomatis tiap beberapa detik':'Belum dimuat'))+'</span><button class="button secondary" data-obrefresh="1" type="button">&#8635; Muat ulang sekarang</button></div>';
  async function pull(force){
-  if(loading||(!force&&Date.now()-loadedAt<20000))return;loading=true;
-  try{const f=back(30),to=back(-14),q=['PICK_DOK:'+f+':'+to,'PICK_KOLI:'+f+':'+to,'PICK_ITEM:'+f+':'+to,'PICK_GR:'+f+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).concat(view('MASTER_EKSPEDISI').length?[]:['MASTER_EKSPEDISI::']).join(',');
+  const dn=narrowTab()?7:30;
+  if(loading||(!force&&Date.now()-loadedAt<(narrowTab()?5000:20000)&&loadedDays>=dn))return;loading=true;
+  try{const f=back(dn),to=back(-14),q=['PICK_DOK:'+f+':'+to,'PICK_KOLI:'+f+':'+to,'PICK_ITEM:'+f+':'+to,'PICK_GR:'+f+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).concat(view('MASTER_EKSPEDISI').length?[]:['MASTER_EKSPEDISI::']).join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   setData('PICK_DOK',g('PICK_DOK',f,to));setData('PICK_KOLI',g('PICK_KOLI',f,to));setData('PICK_ITEM',g('PICK_ITEM',f,to));setData('PICK_GR',g('PICK_GR',f,to));if(r.data['MASTER_BIN||'])setData('MASTER_BIN',g('MASTER_BIN'));if(r.data['MASTER_EKSPEDISI||'])setData('MASTER_EKSPEDISI',g('MASTER_EKSPEDISI'));
+   setData('PICK_DOK',g('PICK_DOK',f,to));setData('PICK_KOLI',g('PICK_KOLI',f,to));setData('PICK_ITEM',g('PICK_ITEM',f,to));setData('PICK_GR',g('PICK_GR',f,to));loadedDays=dn;if(r.data['MASTER_BIN||'])setData('MASTER_BIN',g('MASTER_BIN'));if(r.data['MASTER_EKSPEDISI||'])setData('MASTER_EKSPEDISI',g('MASTER_EKSPEDISI'));
    loadedAt=Date.now();loadErr=''}catch(e){loadErr=String(e&&e.message||e)}
   loading=false;draw()}
 
@@ -3837,7 +3841,7 @@ init();
  let binAtOb=0;
  async function refreshBins(){if(Date.now()-binAtOb<20000)return;binAtOb=Date.now();try{const r=await call({action:'list',tab:'MASTER_BIN'},true);if(r.ok){setData('MASTER_BIN',r.rows);draw()}}catch(e){}}
  const lockTag=r=>r.status==='Menunggu'&&r.bin&&A.binLocked(String(r.bin).toUpperCase())?'<div><span class="tag red">🔒 Bin terkunci, belum bisa diambil</span></div>':'';
- async function refreshStok(){refreshBins();try{const r=await call({action:'stok'},true);if(r.ok){const m={};r.rows.forEach(x=>{m[x.bin+'|'+x.sku]=num(x.saldo)});stokMap=m;draw()}}catch(e){}loadLayers()}
+ async function refreshStok(force){if(!force&&Date.now()-lastStokAt<60000)return;lastStokAt=Date.now();refreshBins();try{const r=await call({action:'stok'},true);if(r.ok){const m={};r.rows.forEach(x=>{m[x.bin+'|'+x.sku]=num(x.saldo)});stokMap=m;draw()}}catch(e){}loadLayers()}
  // asal PO per bin (FIFO): lapisan stok tiap bin dan item dari riwayat STOK_BIN (masuk put away dengan referensi PO, keluar mengurangi dari yang tertua)
  let LY={at:0,busy:false,map:new Map(),pk:new Map()};
  async function loadLayers(){
@@ -3866,6 +3870,7 @@ init();
  function draw(){
   if(!body||!body.isConnected)return;
   let h=(loadErr?'<p class="note" style="color:#b3261e">Data outbound belum bisa dimuat: '+esc(loadErr)+'. Pastikan skrip Google gudang sudah diperbarui (jalankan setup dan deploy versi baru).</p>':'')+(msg?'<p class="note" style="color:'+(msgBad?'#b3261e':'#1b7a46')+'">'+esc(msg)+'</p>':'');
+  if(narrowTab()&&!cur)h+=refreshBar();
   if(tabName==='Picking List')h+=edit?drawEdit():drawList();
   else if(tabName==='Picking')h+=cur&&cur.mode==='pick'?drawPickScreen():listKoli('pick');
   else if(tabName==='Verification Pick')h+=cur&&cur.mode==='vp'?drawVpScreen():listKoli('vp');
@@ -3881,6 +3886,7 @@ init();
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='ob-binf'&&body&&body.contains(t)){binF=t.value;draw()}});
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
+  if(t.dataset.obrefresh){pull(true);return}
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
   if(t.dataset.obrebin){const k=koliById(t.dataset.obrebin);if(k)rebin(k);return}
   if(t.dataset.obreset){const k=koliById(t.dataset.obreset);if(k)resetPick(k);return}
@@ -3947,7 +3953,7 @@ init();
   if((t.id==='ob-capp'||t.id==='ob-capj')&&edit){edit.caps={p:Math.max(1,num($('ob-capp').value)),j:Math.max(1,num($('ob-capj').value))};try{localStorage.setItem(CAP2K,JSON.stringify(edit.caps))}catch(x){}return}
   if(t.dataset&&t.dataset.obpk2&&edit){const[id,i,f]=t.dataset.obpk2.split('||');const l=edit.lines.find(x=>x.id===id);if(l&&l.parts[Number(i)]){l.parts[Number(i)][f]=Math.max(0,Math.floor(num(t.value)));draw()}return}
   if(t.dataset&&t.dataset.obp&&edit){edit.pk[t.dataset.obp]=t.value;return}});
- setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!edit&&!(cur&&document.querySelector('.iv2-modal')))pull(false);if(cur&&cur.mode==='pick'&&!document.querySelector('.iv2-modal'))refreshStok()},25000);
+ setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!edit&&!(cur&&document.querySelector('.iv2-modal')))pull(false);if(cur&&cur.mode==='pick'&&!document.querySelector('.iv2-modal'))refreshStok()},8000);
  window.WOSOB={render,has:n=>NAMES.includes(n),pull};
 })();
 </script>
