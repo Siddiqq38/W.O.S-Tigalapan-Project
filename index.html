@@ -2911,8 +2911,14 @@ init();
   try{const f=back(60),to=today(),q=['SJ_ITEM:'+f+':'+to,'HPP_ITEM:'+f+':'+to,'GR_COUNT:'+f+':'+to,'PUTAWAY:'+f+':'+to,'MASTER_BIN::','GR_ASSIGN:'+f+':'+to,'PO_DOK::','DATA_ENTRY:'+f+':'+to].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error);const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
    setData('SJ_ITEM',g('SJ_ITEM',f,to));setData('HPP_ITEM',g('HPP_ITEM',f,to));setData('GR_COUNT',g('GR_COUNT',f,to));setData('PUTAWAY',g('PUTAWAY',f,to));setData('MASTER_BIN',g('MASTER_BIN'));setData('GR_ASSIGN',g('GR_ASSIGN',f,to));setData('PO_DOK',g('PO_DOK'));setData('DATA_ENTRY',g('DATA_ENTRY',f,to));
+   try{ensureMyTasks()}catch(e){}
    loadedAt=Date.now();loadErr=''}catch(e){loadErr=String(e&&e.message||e)}
   loading=false;draw();A.render()}
+ // penugasan GR atas nama saya yang belum punya task (task dari perangkat SPV belum sampai): buat di sini agar tampil di Task dan menu Inbound terbuka
+ function ensureMyTasks(){const me=code();if(!me||isViewer()||canAdmin())return;const mine=view('GR_ASSIGN').filter(a=>a.operator===me&&a.task_id&&a.status!=='Batal'&&a.status!=='Selesai');if(!mine.length)return;
+  let have=[];try{have=JSON.parse(localStorage.getItem('wos-tasks-v1')||'[]')}catch(e){}const ids=new Set(have.map(t=>t.id)),by={};mine.forEach(a=>{(by[a.task_id]=by[a.task_id]||[]).push(a)});
+  const miss=Object.keys(by).filter(id=>!ids.has(id));if(!miss.length)return;
+  taskEdit(arr=>{miss.forEach(id=>{if(arr.some(t=>t.id===id))return;const l=by[id],po=poKey(l[0].po),ks=l.map(a=>Number(a.no_koli)).sort((x,y)=>x-y);arr.push({id,day:today(),at:stIso(),title:'GR PO '+po+' koli '+compress(ks),qty:ks.length+' koli',by:l[0].ditugaskan_oleh||'',to:me,status:l.some(a=>a.status!=='Ditugaskan')?'diterima':'baru',kind:'gr'})})})}
 
  // ---- baca Excel / CSV (SheetJS dimuat saat dibutuhkan)
  function loadXLSX(){return new Promise((res,rej)=>{if(window.XLSX)return res(window.XLSX);const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>res(window.XLSX);s.onerror=()=>rej(new Error('Pembaca Excel gagal dimuat. Periksa koneksi internet.'));document.head.appendChild(s)})}
