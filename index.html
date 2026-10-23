@@ -4936,6 +4936,20 @@ init();
   const ship=pk.filter(k=>k.status==='Shipping').length,miss=pg.filter(g=>g.status==='Salah'&&!g.resolusi).length,adjW=ad.filter(a=>a.status==='Menunggu SPV').length,evN=DS.ev.filter(e=>e.status!=='batal').length;
   const pc=(a,b)=>b?a/b*100:0,grDen=grDone+grOpen,cnt=(arr,st)=>arr.filter(k=>st.includes(k.status)).length;
   const steps=[['Unloading',koli.filter(k=>k.tanggal===t&&k.status!=='Batal').length,'wms-inbound|Receiving'],['Counting',cnt(ga,['Ditugaskan','Counting']),'wms-inbound|Good Receipt|Counting'],['Put away',cnt(ga,['Siap put away']),'wms-inbound|Good Receipt|Put Away'],['Picking',cnt(pk,['Ditugaskan','Picking']),'wms-outbound|Picking'],['Verifikasi',cnt(pk,['Siap verifikasi','Perbaikan']),'wms-outbound|Verification Pick'],['TFS',cnt(pk,['Siap TFS']),'wms-outbound|Transfer Stok (TFS ke MOKA)'],['Packing',cnt(pk,['Selesai TFS']),'wms-outbound|Packing & Staging'],['Loading',cnt(pk,['Staging','Dimuat']),'wms-outbound|Loading'],['Shipping',ship,'wms-outbound|Shipping']];
+  // pcs dipisah: pakaian dan item support (plastik, OPP, tote bag, goodie bag)
+  const K2=(p,n)=>String(p||'').toUpperCase().trim()+'|'+Number(n),nf=n=>Math.round(n).toLocaleString('id-ID');
+  const sup=nm=>{nm=String(nm||'');if(/plastik/i.test(nm))return 'Plastik';if(/\bopp\b/i.test(nm))return 'OPP';if(/tote/i.test(nm))return 'Tote bag';if(/goodie/i.test(nm))return 'Goodie bag';return catOf(nm)==='Support'?'Support lain':''};
+  const mk=()=>({cl:0,sp:{}}),addTo=(o,nm,q)=>{const t=sup(nm);if(t)o.sp[t]=(o.sp[t]||0)+q;else o.cl+=q},spSum=o=>Object.values(o.sp).reduce((x,y)=>x+y,0);
+  const mergeTo=(d,o)=>{d.cl+=o.cl;Object.keys(o.sp).forEach(k=>{d.sp[k]=(d.sp[k]||0)+o.sp[k]})};
+  const cntQ=new Map(),sjQ=new Map();
+  view('GR_COUNT').forEach(c=>{if(String(c.seq||'').charAt(0)==='R')return;const q=Number(c.qty_actual)||0;if(q>0){const k=K2(c.po,c.no_koli);addTo(cntQ.get(k)||cntQ.set(k,mk()).get(k),c.item,q)}});
+  view('SJ_ITEM').forEach(r=>{const q=Number(r.qty)||0;if(q>0){const k=K2(r.po,r.no_koli);addTo(sjQ.get(k)||sjQ.set(k,mk()).get(k),r.item,q)}});
+  const pcsA=a=>{const k=K2(a.po,a.no_koli),c=cntQ.get(k);return c&&(c.cl+spSum(c)>0)?c:(sjQ.get(k)||mk())};
+  const grDoneL=ga.filter(a=>a.status==='Selesai'&&toW(a.selesai).slice(0,10)===t),grOpenL=ga.filter(a=>a.status!=='Selesai'&&a.status!=='Batal');
+  const inDone=mk(),inAll=mk();grDoneL.forEach(a=>{const p=pcsA(a);mergeTo(inDone,p);mergeTo(inAll,p)});grOpenL.forEach(a=>mergeTo(inAll,pcsA(a)));
+  const kpcs=new Map();view('PICK_ITEM').forEach(r=>{if(r.kategori==='OTHER'||!actIds.has(r.dok))return;const q=Number(r.qty_actual)>0?Number(r.qty_actual):(Number(r.qty)||0),k=r.dok+'|'+Number(r.koli);addTo(kpcs.get(k)||kpcs.set(k,mk()).get(k),r.item,q)});
+  const outAll=mk(),outOk=mk();koliAct.forEach(k=>{const p=kpcs.get(k.dok+'|'+Number(k.koli));if(!p)return;mergeTo(outAll,p);if(PASSV.includes(k.status))mergeTo(outOk,p)});
+  const pcsLines=(d,a)=>'<p class="d3-s">Pakaian '+nf(d.cl)+' / '+nf(a.cl)+' pcs</p>'+(spSum(a)?'<p class="d3-s" title="'+esc(Object.keys(a.sp).map(k=>k+' '+nf(a.sp[k])).join(' · '))+'">Support '+nf(spSum(d))+' / '+nf(spSum(a))+' pcs · '+esc(Object.keys(a.sp).map(k=>k+' '+nf(a.sp[k])).join(' · '))+'</p>':'');
   const now=new Date(Date.now()+288e5),ds=now.toISOString().slice(0,10),hm=now.toISOString().slice(11,16).replace(':','.'),hari=new Date(ds+'T00:00:00Z').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
   let q=0;try{q=window.WOSStore.status().queued||0}catch(e){}
   const sync=DS.at?'Tersinkron '+hmOf(toW(new Date(DS.at).toISOString())):'Memuat…';
@@ -4966,8 +4980,8 @@ init();
    (V3.err()?'<p class="note" style="color:#b3261e;margin:0">Sebagian data belum termuat: '+esc(V3.err())+'. Angka di bawah bisa belum lengkap.</p>':'')+
    '<div class="d3-hero">'+
     '<div class="d3-card d3-go" data-go="attendance" title="Buka Attendance">'+ring(pc(hadir,staff),'#1D9E75','Attendance')+'<div><p class="d3-l">Attendance</p><b>'+hadir+'/'+staff+'</b><p class="d3-s '+(late?'d3-wr':'d3-ok')+'">'+late+' terlambat · lihat detail</p></div></div>'+
-    '<div class="d3-card d3-go" data-go="wms-inbound|Good Receipt" title="Buka Inbound">'+ring(pc(grDone,grDen),'#E07B39','GR selesai')+'<div><p class="d3-l">Inbound · GR selesai</p><b>'+grDone+'/'+grDen+'</b><p class="d3-s">'+grOpen+' koli masih berjalan · '+rcvToday+' diterima hari ini</p></div></div>'+
-    '<div class="d3-card d3-go" data-go="wms-outbound|Verification Pick" title="Buka Outbound">'+ring(pc(okAct,koliAct.length),'#378ADD','Outbound lolos verifikasi')+'<div><p class="d3-l">Outbound · lolos verifikasi</p><b>'+okAct+'/'+koliAct.length+'</b><p class="d3-s">'+dokAct.length+' SOQ aktif</p></div></div>'+
+    '<div class="d3-card d3-go" data-go="wms-inbound|Good Receipt" title="Buka Inbound">'+ring(pc(grDone,grDen),'#E07B39','GR selesai')+'<div><p class="d3-l">Inbound · GR selesai</p><b>'+grDone+'/'+grDen+'</b><p class="d3-s">'+grOpen+' koli masih berjalan · '+rcvToday+' diterima hari ini</p>'+pcsLines(inDone,inAll)+'</div></div>'+
+    '<div class="d3-card d3-go" data-go="wms-outbound|Verification Pick" title="Buka Outbound">'+ring(pc(okAct,koliAct.length),'#378ADD','Outbound lolos verifikasi')+'<div><p class="d3-l">Outbound · lolos verifikasi</p><b>'+okAct+'/'+koliAct.length+'</b><p class="d3-s">'+dokAct.length+' SOQ aktif</p>'+pcsLines(outOk,outAll)+'</div></div>'+
    '</div>'+
    '<div class="d3-card"><div class="d3-mini">'+
     '<div class="d3-go" data-go="wms-outbound|Shipping"><p class="d3-l">On delivery</p><b>'+ship+'</b><p class="d3-s">koli menuju toko</p></div>'+
