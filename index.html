@@ -2323,7 +2323,7 @@ init();
     h+='<div class="kl">'+t.U.map(n=>{const k=K.get(po+'|'+n),st=k&&k.status,mine=k&&k.sesi_id===s.id;let cls='',lab=String(n),sm='';
      if(k&&isFinal(st)){cls=st==='Diterima'?'ok':'bad';lab='✓ '+n;if(!mine){cls+=' lk';sm='<small>'+esc(String(k.tanggal||'').slice(5))+'</small>'}else if(st==='Bermasalah')sm='<small>⚠ temuan</small>';else if(k.resi&&k.resi!==r.resi)sm='<small>'+esc(k.resi)+'</small>'}
      else if(k&&mine&&st==='Datang'){cls='dt'}else if(k&&mine&&st==='Datang-Masalah'){cls='dtm';lab='⚠ '+n}
-     return '<button type="button" class="kb '+cls+'" data-k="'+n+'" title="'+esc(k&&k.keterangan||'')+'">'+lab+sm+(k&&mine&&isTent(st)&&isSpv()?'<span class="kx" data-kdel="'+n+'" title="Hapus nomor ini">×</span>':'')+'</button>'}).join('')+'</div>';
+     return '<button type="button" class="kb '+cls+'" data-k="'+n+'" title="'+esc(k&&k.keterangan||'')+'">'+lab+sm+(k&&mine&&(isTent(st)||isFinal(st))?'<span class="kx" data-kdel="'+n+'" title="Hapus nomor ini (salah input)">×</span>':'')+'</button>'}).join('')+'</div>';
     h+='<p class="sub"><span class="tag" style="background:#e9f6ee">hijau muda</span> In-Koli, belum divalidasi · <span class="tag green">✓</span> tervalidasi · <span class="tag red">✓</span> merah = tervalidasi dengan temuan (sobek dll, tercatat sebagai temuan), <span class="tag red">⚠</span> merah muda = belum divalidasi · <strong>pudar + tanggal</strong> = nomor koli ini sudah diterima di receiving pada tanggal itu (terkunci, tidak bisa diubah)</p>';
     if(!done&&!isFree(r))h+='<div class="ob-actions"><button class="button secondary" data-all="1" type="button">Tandai semua koli yang belum tercatat sebagai In-Koli</button></div>';
    }
@@ -2609,7 +2609,7 @@ init();
    else if(pfile)shrink(pfile,b64=>done(b64,'image/jpeg','.jpg'));else done(null)}};
  function koliBatch(s,filterFn,toStatus){const K=kmap(),out=[];view('UNLOADING_RESI').filter(r=>r.sesi_id===s.id).forEach(r=>universe(r).forEach(n=>{const k=K.get(poKey(r.po)+'|'+n);if(filterFn(k,n)&&!out.some(o=>o.po===poKey(r.po)&&o.n===n))out.push({po:poKey(r.po),n,r,k})}));return out}
  function onClick(e){
-  {const kx=e.target.closest('.kx');if(kx){e.stopPropagation();if(!isSpv()){setMsg('Hapus koli hanya untuk SPV.',true);return}const r=curR(),s=sesiNow();if(r&&s&&(s.status||'Berjalan')!=='Selesai'){setKoli(r,Number(kx.dataset.kdel),'Batal','');setMsg('Koli '+kx.dataset.kdel+' dihapus dari STTB ini.')}return}}
+  {const kx=e.target.closest('.kx');if(kx){e.stopPropagation();const r=curR(),s=sesiNow(),nn=Number(kx.dataset.kdel);if(r&&s&&(s.status||'Berjalan')!=='Selesai'){const k=kmap().get(poKey(r.po)+'|'+nn);if(k&&isFinal(k.status)){if(view('GR_ASSIGN').some(a=>poKey(a.po)===poKey(r.po)&&Number(a.no_koli)===nn&&a.status!=='Batal')){setMsg('Koli '+nn+' sudah di-assign GR. Batalkan assign GR-nya dulu (Good Receipt, Assign GR) sebelum menghapus.',true);return}if(!confirm('Hapus koli '+nn+' yang sudah tervalidasi dari STTB ini? Lakukan hanya bila salah input.'))return}setKoli(r,nn,'Batal','');setMsg('Koli '+nn+' dihapus dari STTB ini.')}return}}
   const b=e.target.closest('button,.rc');if(!b)return;
   if(b.dataset.f){sec.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('active',x===b));$('iv2-recv').hidden=b.dataset.f!=='recv';$('iv2-gr').hidden=b.dataset.f!=='gr';return}
   if(b.dataset.t){tab=b.dataset.t;render();return}
