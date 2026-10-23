@@ -1782,7 +1782,7 @@ init();
  const cfg=()=>{const o=rj(CK,null);const g=window.WOS_SHEETS||{};return{url:(o&&o.url)||g.url||DEF_URL,token:(o&&o.token)||g.token||DEF_TOKEN}};
  const on=()=>!!cfg().url;
  const raw=Storage.prototype.setItem;let merging=false,busy=false,busyAt=0,state='off',lastErr='';
- const queue=()=>rj(QK,[]),saveQ=q=>{try{raw.call(localStorage,QK,JSON.stringify(q.slice(-300)))}catch(e){}};
+ const queue=()=>rj(QK,[]),saveQ=q=>{try{raw.call(localStorage,QK,JSON.stringify(q.slice(-3000)))}catch(e){}};
  const dayWita=d=>new Date((d||new Date()).getTime()+WITA).toISOString().slice(0,10);
  const pdC={t:0,v:2};function pd(){if(window.__fullPull)return 7;if(Date.now()-pdC.t<5000)return pdC.v;pdC.t=Date.now();pdC.v=2;try{if(sessionStorage.getItem('wos-session-v1')==='hrd'&&Date.now()-(window.__wideAt||0)>600000){window.__wideAt=Date.now();pdC.v=40}}catch(e){}return pdC.v}
  const rid=r=>(r.code+'-'+r.day+'-'+r.action).replace(/\s+/g,'_');
@@ -1790,16 +1790,24 @@ init();
  const chip=document.createElement('div');chip.id='st-chip';chip.style.cursor='pointer';chip.title='Ketuk untuk memeriksa koneksi';document.body.append(chip);
  chip.onclick=async()=>{chip.textContent='Memeriksa koneksi…';let t='';try{t=await window.WOSStore.test()}catch(e){t='Gagal: '+e.message}window.__fullPull=1;try{await window.WOSStore.flush();await window.WOSStore.pull()}catch(e){}window.__fullPull=0;const s=window.WOSStore.status();alert('Koneksi Google Sheets: '+t+'\nAntrean kirim: '+s.queued+(s.lastErr?'\nKesalahan terakhir: '+s.lastErr:'')+'\nBila antrean tidak berkurang, periksa sinyal internet lalu muat ulang halaman.');paint()};
  function paint(){const n=queue().length;chip.className=on()&&sessionStorage.getItem('wos-session-code')?'on':'';chip.textContent=state==='err'?'Sheets: gagal ('+n+' antre)':n?'Sheets: mengirim '+n+'…':'Sheets: tersambung'}
-  async function call(body,get){const c=cfg();if(get&&body.action==='list'&&window.__mc){const k=body.tab+'|'+(body.from||'')+'|'+(body.to||'');if(window.__mc[k])return{ok:true,rows:window.__mc[k]}}const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
+  async function call(body,get){const c=cfg();if(get&&body.action==='list'&&window.__mc){const k=body.tab+'|'+(body.from||'')+'|'+(body.to||'');if(window.__mc[k])return{ok:true,rows:window.__mc[k]}}const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),body.action==='photo'?180000:30000);try{if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
  async function flush(){if(!on()||(busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paint();return}busy=true;busyAt=Date.now();
-  let rots=0;const rot=msg=>{q=queue();const b=q.shift();if(!b)return;b.tries=(b.tries||0)+1;lastErr=String(msg);if(b.tries<8||b.a!=='photo')q.push(b);saveQ(q);if(++rots>q.length)throw new Error(msg)};
-  try{while(q.length){const it=q[0];
+  let rots=0;const rot=(msg,idx)=>{q=queue();const b=q.splice(idx||0,1)[0];if(!b)return;b.tries=(b.tries||0)+1;lastErr=String(msg);if(b.tries<8||b.a!=='photo')q.push(b);saveQ(q);if(++rots>q.length+2)throw new Error(msg)};
+  const dropFirst=n=>{q=queue();let rem=n;q=q.filter(x=>{if(rem>0&&x.a!=='photo'){rem--;return false}return true});saveQ(q)};
+  try{while(q.length){
+    // presensi dan data biasa lebih dulu (maks 15 sekali kirim); foto/video diunggah sesudahnya agar tidak menahan check-in
+    const lead=[];for(let i=0;i<q.length&&lead.length<15;i++)if(q[i].a!=='photo')lead.push(i);
+    if(lead.length){
+     if(lead.length>1){let ok=false;try{const r=await call({action:'batch',ops:lead.map(i=>q[i]).map(x=>x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})});ok=!!(r&&r.ok)}catch(e){ok=false}
+      if(ok){dropFirst(lead.length);q=queue();continue}}
+     const idx=lead[0],it=q[idx];const r=await call({action:it.a,tab:it.tab,row:it.row,id:it.id});if(!r.ok){rot(r.error,idx);q=queue();continue}dropFirst(1);q=queue();continue}
+    const it=q[0];
     if(it.a==='photo'){const r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){rot(r.error);q=queue();continue}q=queue();q.shift();if(it.rowId&&!it.field){const apm2=rj('wos-att-photo-v1',{});apm2[it.rowId]=r.file_id;try{raw.call(localStorage,'wos-att-photo-v1',JSON.stringify(apm2))}catch(e){}}const url='https://drive.google.com/thumbnail?id='+r.file_id+'&sz=w800';if(it.field==='json:photo'){const pm=rj('wos-photo-map-v1',{});pm[it.rowId]=url;try{raw.call(localStorage,'wos-photo-map-v1',JSON.stringify(pm))}catch(e){}}let hit=false;q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId){hit=true;if(it.field==='json:photo'){try{const c=JSON.parse(x.row.catatan||'{}');c.photo=url;x.row.catatan=JSON.stringify(c)}catch(e){}}else x.row.foto_id=r.file_id}});if(!hit&&it.row&&!it.field)q.push({a:'append',tab:'ATTENDANCE',row:Object.assign({},it.row,{foto_id:r.file_id})});saveQ(q);}
-    else{const r=await call({action:it.a,tab:it.tab,row:it.row,id:it.id});if(!r.ok){rot(r.error);q=queue();continue}q=queue();q.shift();saveQ(q)}
     q=queue()}
    state='ok';lastErr=''}catch(e){state='err';lastErr=String(e&&e.message||e)}
   busy=false;paint()}
+
  function shrink(url,cb){const im=new Image();im.onload=()=>{const s=Math.min(1,720/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.72).split(',')[1])};im.onerror=()=>cb(null);im.src=url}
  function sendRow(r){
   const name=(typeof staffMaster!=='undefined'&&staffMaster[r.code]&&staffMaster[r.code].name)||'';
@@ -2183,7 +2191,7 @@ init();
    if(stokC.v&&Date.now()-stokC.at<45000)return stokC.v;if(stokC.p)return stokC.p;
    stokC.p=callRaw(body,get).then(r=>{if(r&&r.ok){stokC.v=r;stokC.at=Date.now()}stokC.p=null;return r},e=>{stokC.p=null;throw e});return stokC.p}
   return callRaw(body,get)}
- async function callRaw(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
+ async function callRaw(body,get){const c=cfg(),ac=new AbortController(),tm=setTimeout(()=>ac.abort(),body.action==='photo'?180000:30000);try{if(get){const r=await fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
  const JR=[];function replayJ(tab){const lim=Date.now()-180000;while(JR.length&&JR[0].t<lim)JR.shift();JR.forEach(j=>{if(tab&&j.x.tab!==tab)return;if(j.x.a==='delete')dropLocal(j.x.tab,j.x.id);else applyLocal(j.x.tab,j.x.row)})}
  let sbC={at:0,hadir:new Set(),roles:new Map()};
