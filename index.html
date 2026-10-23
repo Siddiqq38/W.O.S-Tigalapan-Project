@@ -2577,7 +2577,7 @@ init();
   '<p class="sub" id="iv2-pinfo">Belum ada bukti.</p>'+
   '<div class="ob-actions" style="margin-top:12px"><button class="button" id="iv2-psave" type="button">'+(fin?'Validasi dengan masalah':'Simpan masalah')+'</button>'+(has?'<button class="button secondary" id="iv2-pclear" type="button">Hapus tanda masalah</button>':'')+'<button class="button secondary" id="iv2-pcancel" type="button">Batal</button></div></div>';
   document.body.appendChild(m);
-  const q=s=>m.querySelector(s);let stream=null,rec=null,chunks=[],vblob=null,pfile=null,tick=null,t0=0;
+  const q=s=>m.querySelector(s);let stream=null,rec=null,chunks=[],vblob=null,pfile=null,tick=null,t0=0,got=0;
   const stopStream=()=>{try{clearInterval(tick)}catch(e){}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}};
   const close=()=>{try{if(rec&&rec.state==='recording')rec.stop()}catch(e){}stopStream();m.remove()};
   const info=t=>{q('#iv2-pinfo').textContent=t};
@@ -2588,7 +2588,7 @@ init();
   async function openCam(){
    q('#iv2-pbox').style.display='block';
    try{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}},audio:true})}catch(e){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}},audio:false})}
-    const v=q('#iv2-pv');v.srcObject=stream;v.muted=true;v.controls=false;await v.play();info('Kamera siap. Ketuk "Mulai rekam" (maksimal 15 detik).')}
+    const v=q('#iv2-pv');v.srcObject=stream;v.muted=true;v.controls=false;await v.play();info('Kamera siap. Ketuk "Mulai rekam". Tanpa batas waktu tetap, berhenti otomatis saat ukuran file penuh (sekitar 1,5 menit).')}
    catch(e){info('Kamera tidak bisa dibuka: '+(e&&e.message||e)+'. Gunakan "Ambil foto".');q('#iv2-pbox').style.display='none'}
   }
   q('#iv2-pvid').onclick=()=>{if(typeof MediaRecorder==='undefined'){info('Perekaman video belum didukung browser ini. Gunakan "Ambil foto".');return}pfile=null;vblob=null;openCam()};
@@ -2596,7 +2596,7 @@ init();
    try{rec=new MediaRecorder(stream,Object.assign({videoBitsPerSecond:280000,audioBitsPerSecond:24000},mt?{mimeType:mt}:{}))}catch(e){info('Perekaman gagal dimulai: '+e.message);return}
    rec.ondataavailable=ev=>{if(ev.data&&ev.data.size){chunks.push(ev.data);got+=ev.data.size;if(got>3.2*1048576&&rec.state==='recording')rec.stop()}};
    rec.onstop=()=>{clearInterval(tick);vblob=new Blob(chunks,{type:rec.mimeType||mt||'video/webm'});stopStream();const v=q('#iv2-pv');v.srcObject=null;v.src=URL.createObjectURL(vblob);v.muted=false;v.controls=true;q('#iv2-prec').hidden=true;q('#iv2-pstop').hidden=true;q('#iv2-pagain').hidden=false;
-    if(vblob.size>4.5*1024*1024){info('Video terlalu besar ('+(vblob.size/1048576).toFixed(1)+' MB). Ulangi dengan durasi lebih singkat.');vblob=null}else info('Video siap ('+(vblob.size/1048576).toFixed(1)+' MB). Ketuk "Simpan".')};
+    if(vblob.size>3.6*1024*1024){info('Video terlalu besar ('+(vblob.size/1048576).toFixed(1)+' MB). Ulangi dengan durasi lebih singkat.');vblob=null}else info('Video siap ('+(vblob.size/1048576).toFixed(1)+' MB). Ketuk "Simpan".')};
    rec.start(1000);t0=Date.now();q('#iv2-prec').hidden=true;q('#iv2-pstop').hidden=false;
    tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);info('Merekam… '+s+' detik ('+(got/1048576).toFixed(1)+' / 3,2 MB). Ketuk Selesai bila sudah cukup.')},300)};
   q('#iv2-pstop').onclick=()=>{if(rec&&rec.state==='recording')rec.stop()};
@@ -2998,11 +2998,11 @@ init();
   q('#gr-vopen').onclick=async()=>{if(typeof MediaRecorder==='undefined'){info('Perekaman video tidak didukung browser ini.');return}
    try{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}},audio:true})}catch(e){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}},audio:false})}
     const v=q('#gr-v');v.style.display='block';v.srcObject=stream;v.muted=true;await v.play();q('#gr-vopen').hidden=true;q('#gr-vrec').hidden=false;info('Kamera siap. Ketuk Mulai rekam.')}catch(e){info('Kamera tidak bisa dibuka: '+(e&&e.message||e))}};
-  q('#gr-vrec').onclick=()=>{if(!stream)return;const mt=['video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t));chunks=[];
-   try{rec=new MediaRecorder(stream,Object.assign({videoBitsPerSecond:500000,audioBitsPerSecond:32000},mt?{mimeType:mt}:{}))}catch(e){info('Gagal memulai: '+e.message);return}
-   rec.ondataavailable=ev=>{if(ev.data&&ev.data.size)chunks.push(ev.data)};
+  q('#gr-vrec').onclick=()=>{if(!stream)return;const mt=['video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t));chunks=[];got=0;
+   try{rec=new MediaRecorder(stream,Object.assign({videoBitsPerSecond:280000,audioBitsPerSecond:24000},mt?{mimeType:mt}:{}))}catch(e){info('Gagal memulai: '+e.message);return}
+   rec.ondataavailable=ev=>{if(ev.data&&ev.data.size){chunks.push(ev.data);got+=ev.data.size;if(got>3.2*1048576&&rec.state==='recording')rec.stop()}};
    rec.onstop=()=>{clearInterval(tick);blob=new Blob(chunks,{type:rec.mimeType||mt||'video/webm'});stopS();const v=q('#gr-v');v.srcObject=null;v.src=URL.createObjectURL(blob);v.muted=false;v.controls=true;q('#gr-vstop').hidden=true;q('#gr-vrec').hidden=true;q('#gr-vopen').hidden=false;q('#gr-vopen').textContent='Rekam ulang';if(blob.size>3.6*1048576){info('Video terlalu besar. Rekam ulang lebih singkat.');blob=null}else info('Video siap ('+Math.round((Date.now()-t0)/1000)+' detik, '+(blob.size/1048576).toFixed(1)+' MB).'+(got>3.2*1048576?' Batas ukuran tercapai, rekaman berhenti otomatis.':''))};
-   rec.start(1000);t0=Date.now();q('#gr-vrec').hidden=true;q('#gr-vstop').hidden=false;tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);info('Merekam… '+s+' / 15 detik');if(s>=15&&rec.state==='recording')rec.stop()},300)};
+   rec.start(1000);t0=Date.now();q('#gr-vrec').hidden=true;q('#gr-vstop').hidden=false;tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);info('Merekam… '+s+' detik ('+(got/1048576).toFixed(1)+' / 3,2 MB). Ketuk Selesai bila sudah cukup.')},300)};
   q('#gr-vstop').onclick=()=>{if(rec&&rec.state==='recording')rec.stop()};
   return{get:()=>blob,recording:()=>!!(rec&&rec.state==='recording'),close:()=>{try{if(rec&&rec.state==='recording')rec.stop()}catch(e){}stopS()}}}
  function blobB64(b){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).replace(/^[\s\S]*?;base64,/,''));fr.onerror=rej;fr.readAsDataURL(b)})}
