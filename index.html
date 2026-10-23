@@ -2283,10 +2283,12 @@ init();
  // ---- 2. sesi berjalan: penerimaan (hijau) lalu validasi (centang)
  const isFinal=st=>st==='Diterima'||st==='Bermasalah',isTent=st=>st==='Datang'||st==='Datang-Masalah';
  const totalOf=po=>{const i=view('PO_INFO').find(x=>x.id===poKey(po));return i&&Number(i.total_koli)||0};
- let fsort='masuk';
+ let fsort='masuk',dupAsk=0;
+ const isDupK=k=>String(k.id).indexOf('^')>0;
+ const nextSfx=(po,n)=>{let m=1;view('KOLI').forEach(k=>{if(poKey(k.po)===po&&isDupK(k)&&Number(k.no_koli)===n){const x=Number(String(k.id).split('^')[1])||1;if(x>m)m=x}});return m+1};
  {if(!document.getElementById('wn-style')){const st=document.createElement('style');st.id='wn-style';st.textContent='.kb .wn{position:absolute;top:-9px;left:-7px;font-size:20px;line-height:1;color:#d98a00;text-shadow:0 0 3px #fff,0 0 3px #fff;pointer-events:auto;cursor:help}';document.head.appendChild(st)}if(!document.getElementById('kx-style')){const st=document.createElement('style');st.id='kx-style';st.textContent='.kb{position:relative}.kb .kx{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#b3261e;color:#fff;font-size:12px;line-height:18px;text-align:center;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.35)}';document.head.appendChild(st)}}
  const isFree=r=>String((r&&r.koli_list)||'').charAt(0)==='*',freeExp=r=>Number(String((r&&r.koli_list)||'').slice(1))||0;
- function universe(r){if(isFree(r)){const po=poKey(r.po);const rows=view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===r.sesi_id&&k.resi===r.resi&&k.status!=='Batal');
+ function universe(r){if(isFree(r)){const po=poKey(r.po);const rows=view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===r.sesi_id&&k.resi===r.resi&&k.status!=='Batal'&&!isDupK(k));
   if(fsort==='kecil')rows.sort((a,b)=>Number(a.no_koli)-Number(b.no_koli));else if(fsort==='besar')rows.sort((a,b)=>Number(b.no_koli)-Number(a.no_koli));
   else rows.sort((a,b)=>String(a.waktu_server||'').localeCompare(String(b.waktu_server||''))||Number(a.no_koli)-Number(b.no_koli));
   return rows.map(k=>Number(k.no_koli))}const l=parseKoli(r.koli_list);if(l.length)return l;const t=totalOf(r.po);return t>0?Array.from({length:Math.min(t,2000)},(_,i)=>i+1):[]}
@@ -2324,9 +2326,12 @@ init();
      if(k&&isFinal(st)){cls=st==='Diterima'?'ok':'bad';lab='✓ '+n;if(!mine){cls+=' lk';sm='<small>'+esc(String(k.tanggal||'').slice(5))+'</small>'}else if(st==='Bermasalah')sm='<small>⚠ temuan</small>';else if(k.resi&&k.resi!==r.resi)sm='<small>'+esc(k.resi)+'</small>'}
      else if(k&&mine&&st==='Datang'){cls='dt'}else if(k&&mine&&st==='Datang-Masalah'){cls='dtm';lab='⚠ '+n}
      return '<button type="button" class="kb '+cls+'" data-k="'+n+'" title="'+esc(k&&k.keterangan||'')+'">'+lab+sm+(k&&mine&&(isTent(st)||isFinal(st))?'<span class="kx" data-kdel="'+n+'" title="Hapus nomor ini (salah input)">×</span>':'')+'</button>'}).join('')+'</div>';
+    if(dupAsk&&!done)h+='<div class="card" id="iv2-dup" style="margin:8px 0;border:2px solid #d98a00"><strong>Koli '+dupAsk+' sudah tercatat.</strong> Tambah koli '+dupAsk+'<sup>'+nextSfx(po,dupAsk)+'</sup> (nomor double)?<div class="ob-actions" style="margin-top:6px"><input id="iv2-dupn" placeholder="Catatan, mis. item kids / tunik lalu Enter" style="flex:1;min-width:200px"><button class="button" data-dupok="1" type="button">Tambah</button><button class="button secondary" data-dupno="1" type="button">Batal</button></div></div>';
+    {const dups=view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===s.id&&k.resi===r.resi&&k.status!=='Batal'&&isDupK(k)).sort((a,b)=>Number(a.no_koli)-Number(b.no_koli)||String(a.id).localeCompare(String(b.id),'en',{numeric:true}));
+     if(dups.length)h+='<p class="sub" style="margin:8px 0 2px"><strong>Koli double</strong> ('+dups.length+') · nomor sama dengan koli lain pada PO ini, dibedakan dengan catatan. Ketuk untuk validasi.</p><div class="kl">'+dups.map(k=>{const fin=isFinal(k.status),sf=String(k.id).split('^')[1];return '<button type="button" class="kb '+(fin?'ok':'dt')+'" data-kdup="'+esc(k.id)+'" title="'+esc(k.keterangan||'')+'">'+(fin?'✓ ':'')+esc(k.no_koli)+'<sup>'+esc(sf)+'</sup><small>'+esc(String(k.keterangan||'').replace(/^Koli \d+ ke-\d+ · /,'').slice(0,16))+'</small>'+(done?'':'<span class="kx" data-kdeld="'+esc(k.id)+'" title="Hapus koli double ini">×</span>')+'</button>'}).join('')+'</div>'}
     h+='<p class="sub"><span class="tag" style="background:#e9f6ee">hijau muda</span> In-Koli, belum divalidasi · <span class="tag green">✓</span> tervalidasi · <span class="tag red">✓</span> merah = tervalidasi dengan temuan (sobek dll, tercatat sebagai temuan), <span class="tag red">⚠</span> merah muda = belum divalidasi · <strong>pudar + tanggal</strong> = nomor koli ini sudah diterima di receiving pada tanggal itu (terkunci, tidak bisa diubah)</p>';
     {const dels=view('KOLI').filter(k=>poKey(k.po)===po&&k.sesi_id===s.id&&k.resi===r.resi&&k.status==='Batal'&&/^HAPUS#/.test(k.keterangan||'')).map(k=>{let p={};try{p=JSON.parse(k.keterangan.slice(6))}catch(e){}return{k,p}}).sort((a,b)=>String(b.k.waktu_wita||b.k.jam_wita).localeCompare(String(a.k.waktu_wita||a.k.jam_wita)));
-     if(dels.length)h+='<details class="card" style="margin-top:10px" open><summary style="cursor:pointer;font-weight:700">Riwayat koli dihapus ('+dels.length+')</summary><p class="sub">Ketuk ↶ untuk mengembalikan koli seperti semula (status dan keterangan sebelum dihapus).</p><div style="overflow:auto"><table><thead><tr><th>Koli</th><th>Status sebelumnya</th><th>Dihapus oleh</th><th>Jam</th><th></th></tr></thead><tbody>'+dels.map(x=>'<tr><td><strong>'+esc(x.k.no_koli)+'</strong></td><td>'+esc(x.p.s==='Diterima'?'Tervalidasi':x.p.s==='Bermasalah'?'Tervalidasi (temuan)':x.p.s==='Datang'?'In-Koli':x.p.s==='Datang-Masalah'?'Masalah, belum validasi':(x.p.s||'-'))+(x.p.k?' · '+esc(x.p.k):'')+'</td><td>'+esc(x.k.pic_kode||'')+'</td><td>'+esc(x.k.jam_wita||'')+'</td><td>'+(done?'':'<button class="button secondary" data-kundo="'+esc(x.k.no_koli)+'" type="button" title="Kembalikan koli ini" style="padding:2px 10px;font-size:18px">↶</button>')+'</td></tr>').join('')+'</tbody></table></div></details>'}
+     if(dels.length)h+='<details class="card" style="margin-top:10px" open><summary style="cursor:pointer;font-weight:700">Riwayat koli dihapus ('+dels.length+')</summary><p class="sub">Ketuk ↶ untuk mengembalikan koli seperti semula (status dan keterangan sebelum dihapus).</p><div style="overflow:auto"><table><thead><tr><th>Koli</th><th>Status sebelumnya</th><th>Dihapus oleh</th><th>Jam</th><th></th></tr></thead><tbody>'+dels.map(x=>'<tr><td><strong>'+esc(x.k.no_koli)+'</strong>'+(isDupK(x.k)?'<sup>'+esc(String(x.k.id).split('^')[1])+'</sup>':'')+'</td><td>'+esc(x.p.s==='Diterima'?'Tervalidasi':x.p.s==='Bermasalah'?'Tervalidasi (temuan)':x.p.s==='Datang'?'In-Koli':x.p.s==='Datang-Masalah'?'Masalah, belum validasi':(x.p.s||'-'))+(x.p.k?' · '+esc(x.p.k):'')+'</td><td>'+esc(x.k.pic_kode||'')+'</td><td>'+esc(x.k.jam_wita||'')+'</td><td>'+(done?'':'<button class="button secondary" data-kundo="'+esc(x.k.id)+'" type="button" title="Kembalikan koli ini" style="padding:2px 10px;font-size:18px">↶</button>')+'</td></tr>').join('')+'</tbody></table></div></details>'}
     if(!done&&!isFree(r))h+='<div class="ob-actions"><button class="button secondary" data-all="1" type="button">Tandai semua koli yang belum tercatat sebagai In-Koli</button></div>';
    }
    h+='</div>';
@@ -2611,8 +2616,9 @@ init();
    else if(pfile)shrink(pfile,b64=>done(b64,'image/jpeg','.jpg'));else done(null)}};
  function koliBatch(s,filterFn,toStatus){const K=kmap(),out=[];view('UNLOADING_RESI').filter(r=>r.sesi_id===s.id).forEach(r=>universe(r).forEach(n=>{const k=K.get(poKey(r.po)+'|'+n);if(filterFn(k,n)&&!out.some(o=>o.po===poKey(r.po)&&o.n===n))out.push({po:poKey(r.po),n,r,k})}));return out}
  function onClick(e){
-  {const ku=e.target.closest('[data-kundo]');if(ku){e.stopPropagation();const r=curR(),s=sesiNow(),nn=Number(ku.dataset.kundo);if(!r||!s||(s.status||'Berjalan')==='Selesai')return;const k=kmap().get(poKey(r.po)+'|'+nn);if(!k||k.status!=='Batal'||!/^HAPUS#/.test(k.keterangan||'')){setMsg('Koli '+nn+' tidak ada di riwayat hapus.',true);return}let p={};try{p=JSON.parse(k.keterangan.slice(6))}catch(x){}if(!p.s){setMsg('Data sebelum dihapus tidak terbaca.',true);return}
-   enq('KOLI',Object.assign(mkKoli(r,nn,p.s,p.k||''),{waktu_server:p.w||stampNow(),foto_id:p.f||''}));setMsg('Koli '+nn+' dikembalikan.');return}}
+  {const kd=e.target.closest('[data-kdeld]');if(kd){e.stopPropagation();const r=curR(),s=sesiNow(),id=kd.dataset.kdeld,k=kmap().get(id);if(r&&s&&k&&(s.status||'Berjalan')!=='Selesai'){enq('KOLI',Object.assign(mkKoli(r,Number(k.no_koli),'Batal','HAPUS#'+JSON.stringify({s:k.status,k:k.keterangan||'',w:k.waktu_server||'',f:''})),{id}));setMsg('Koli double dihapus. Bisa dikembalikan lewat Riwayat koli dihapus.')}return}}
+  {const ku=e.target.closest('[data-kundo]');if(ku){e.stopPropagation();const r=curR(),s=sesiNow(),kid=ku.dataset.kundo;if(!r||!s||(s.status||'Berjalan')==='Selesai')return;const k=kmap().get(kid),nn=k?Number(k.no_koli):0;if(!k||k.status!=='Batal'||!/^HAPUS#/.test(k.keterangan||'')){setMsg('Koli '+nn+' tidak ada di riwayat hapus.',true);return}let p={};try{p=JSON.parse(k.keterangan.slice(6))}catch(x){}if(!p.s){setMsg('Data sebelum dihapus tidak terbaca.',true);return}
+   enq('KOLI',Object.assign(mkKoli(r,nn,p.s,p.k||''),{id:kid,waktu_server:p.w||stampNow(),foto_id:p.f||''}));setMsg('Koli '+nn+' dikembalikan.');return}}
   {const kx=e.target.closest('.kx');if(kx){e.stopPropagation();const r=curR(),s=sesiNow(),nn=Number(kx.dataset.kdel);if(r&&s&&(s.status||'Berjalan')!=='Selesai'){const k=kmap().get(poKey(r.po)+'|'+nn);if(k&&isFinal(k.status)){if(view('GR_ASSIGN').some(a=>poKey(a.po)===poKey(r.po)&&Number(a.no_koli)===nn&&a.status!=='Batal')){setMsg('Koli '+nn+' sudah di-assign GR. Batalkan assign GR-nya dulu (Good Receipt, Assign GR) sebelum menghapus.',true);return}if(!confirm('Hapus koli '+nn+' yang sudah tervalidasi dari STTB ini? Lakukan hanya bila salah input.'))return}setKoli(r,nn,'Batal',k?'HAPUS#'+JSON.stringify({s:k.status,k:k.keterangan||'',w:k.waktu_server||'',f:k.foto_id||''}):'');setMsg('Koli '+nn+' dihapus dari STTB ini. Bisa dikembalikan lewat Riwayat koli dihapus.')}return}}
   const b=e.target.closest('button,.rc');if(!b)return;
   if(b.dataset.f){sec.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('active',x===b));$('iv2-recv').hidden=b.dataset.f!=='recv';$('iv2-gr').hidden=b.dataset.f!=='gr';return}
@@ -2634,6 +2640,9 @@ init();
   if(b.dataset.fsort){fsort=b.dataset.fsort;render();return}
   if(b.dataset.resi){curResi=b.dataset.resi;render();return}
   if(b.dataset.mode){mode=b.dataset.mode;render();return}
+  if(b.dataset.dupok){confirmDup();return}
+  if(b.dataset.dupno){dupAsk=0;render();return}
+  if(b.dataset.kdup){const k=kmap().get(b.dataset.kdup),r=curR();if(k&&r&&k.status==='Datang'){enq('KOLI',Object.assign(mkKoli(r,Number(k.no_koli),'Diterima',k.keterangan||''),{id:k.id,waktu_server:k.waktu_server||stampNow(),foto_id:k.foto_id||''}));setMsg('Koli '+k.no_koli+' (double) tervalidasi.')}return}
   if(b.dataset.k){koliTap(Number(b.dataset.k));return}
   if(b.dataset.all){const s=sesiNow(),r=curR();if(!s||!r)return;const todo=koliBatch(s,(k,n)=>!k||k.status==='Batal'||(isTent(k.status)&&k.sesi_id!==s.id)).filter(o=>poKey(o.r.po)===poKey(r.po));if(!todo.length)return setMsg('Semua koli sudah tercatat.');if(!confirm('Tandai '+todo.length+' koli yang belum tercatat sebagai In-Koli?'))return;todo.forEach(o=>setKoli(r,o.n,'Datang',''));return}
   if(b.dataset.ttb){ttbOut(b.dataset.ttb,false);return}
@@ -2702,6 +2711,10 @@ init();
   if(!other&&view('PO_INFO').some(x=>x.id===po))enqDel('PO_INFO',po);
   curResi='';setMsg('STTB '+r.resi+' dihapus.')}
  // nomor koli bebas: ketik nomor yang benar-benar datang pada STTB ini (tidak harus berurutan)
+ function confirmDup(){const r=curR(),s=sesiNow(),n=dupAsk,i=$('iv2-dupn'),note=i?i.value.trim():'';if(!r||!s||!n)return;if(!note){setMsg('Isi catatan dulu, mis. item kids atau tunik.',true);if(i)i.focus();return}
+  const po=poKey(r.po),sfx=nextSfx(po,n),ph=s.status||'Berjalan';
+  enq('KOLI',Object.assign(mkKoli(r,n,ph==='Berjalan'?'Datang':'Diterima',''),{id:po+'|'+n+'^'+sfx,waktu_server:stampNow(),foto_id:'',keterangan:'Koli '+n+' ke-'+sfx+' · '+note}));
+  dupAsk=0;setMsg('Koli '+n+' ke-'+sfx+' tercatat: '+note+'.');render();setTimeout(()=>{const q=$('iv2-qk');if(q)q.focus()},60)}
  function addFree(r,s,raw){
   const list=parseKoli(raw);if(!list.length)return setMsg('Ketik nomor koli, boleh banyak sekaligus: 1,2,30,50 atau 12-29.',true);
   const po=poKey(r.po),decl=view('UNLOADING_RESI').filter(x=>poKey(x.po)===po&&isFree(x)).reduce((a,x)=>a+freeExp(x),0),tot=Math.max(totalOf(po),decl),K=kmap(),ok=[],bad=[],vOk=[];let over=null;
@@ -2791,7 +2804,10 @@ init();
  function onKey(e){
   if(e.key!=='Enter')return;
   if(e.target.id==='iv2-trq'){runTrack(e.target.value);return}
-  if(e.target.id==='iv2-qk'){const raw=e.target.value,n=Number(raw);e.target.value='';const r=curR(),s=sesiNow();if(!r||!s)return;if(isFree(r)){addFree(r,s,raw);return}if(!n)return;
+  if(e.target.id==='iv2-dupn'){confirmDup();return}
+  if(e.target.id==='iv2-qk'){const raw=e.target.value,n=Number(raw);e.target.value='';const r=curR(),s=sesiNow();if(!r||!s)return;
+   {const pl=parseKoli(raw);if(pl.length===1&&/^\s*\d+\s*$/.test(raw)){const pn=pl[0],pk=kmap().get(poKey(r.po)+'|'+pn),ph=s.status||'Berjalan';if(pk&&pk.sesi_id===s.id&&((isFinal(pk.status))||(isTent(pk.status)&&ph==='Berjalan'))&&ph!=='Selesai'){dupAsk=pn;render();setTimeout(()=>{const i=$('iv2-dupn');if(i)i.focus()},60);return}}}
+   if(isFree(r)){addFree(r,s,raw);return}if(!n)return;
    if(!universe(r).includes(n)){setMsg('Koli '+n+' di luar total koli PO '+r.po+'.',true);return}
    const k=kmap().get(poKey(r.po)+'|'+n),mine=!!k&&k.sesi_id===s.id,st=k&&k.status,phase=s.status||'Berjalan';
    if(k&&isFinal(st)&&!mine){setMsg('Koli '+n+' sudah tercatat diterima pada '+k.tanggal+'.',true);return}
