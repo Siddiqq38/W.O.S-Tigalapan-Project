@@ -3593,7 +3593,7 @@ init();
    R.close();m.remove()}}
 
  // ---- daftar per SOQ untuk tahap setelah verifikasi
- const SETS={vp:['Siap verifikasi','Perbaikan','Siap TFS','Siap packing'],tfs:['Siap TFS','Siap packing','Selesai TFS'],pack:['Selesai TFS','Staging'],load:['Staging','Dimuat'],rcv:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],ship:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],gr:['Diterima','Diterima-Masalah','GR Selesai']};
+ const SETS={vp:['Siap verifikasi','Perbaikan','Siap TFS','Siap packing'],tfs:['Siap TFS','Siap packing','Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'],pack:['Selesai TFS','Staging'],load:['Staging','Dimuat'],rcv:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],ship:['Shipping','Diterima','Diterima-Masalah','GR Selesai'],gr:['Diterima','Diterima-Masalah','GR Selesai']};
  const RECEIVED=['Diterima','Diterima-Masalah','GR Selesai'];
  const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
  const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'tos','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm','GR Selesai':'ok'});
@@ -3626,8 +3626,14 @@ init();
  const printBtns=id=>'<span><button class="button secondary" data-obsj="'+esc(id)+'" type="button">🖨 Surat Jalan</button> <button class="button secondary" data-obsttb="'+esc(id)+'" type="button">🖨 STTB</button></span>';
 
  // ---- Transfer Stok (TFS ke MOKA)
+ // unduh hasil picking lengkap (semua koli, dengan bin) dalam satu file CSV yang dibuka di Excel
+ function dlPick(ids){const esc2=v=>{v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v},head=['SOQ','Outlet','Koli','Picker','Status koli','Bin SOQ','Bin diambil','Item','Qty SOQ','Qty diambil','Hasil','Keterangan','Verifikasi'],out=[head];
+  ids.forEach(id=>{const d=dokOf(id)||{},ks=koliOf(id).slice().sort((a,b)=>num(a.koli)-num(b.koli));ks.forEach(k=>{koliAll(k).slice().sort((a,b)=>String(a.bin||'').localeCompare(String(b.bin||''),'en',{numeric:true,sensitivity:'base'})).forEach(r=>out.push([d.kode,d.outlet,k.koli,k.picker_nama||k.picker,k.status,r.bin,r.bin_actual||r.bin,r.item,r.qty,r.qty_actual,r.status,r.ket_pick,r.vp||'']))})});
+  if(out.length<2){alert('Belum ada data picking untuk diunduh.');return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+out.map(r=>r.map(esc2).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const kd=ids.length===1?((dokOf(ids[0])||{}).kode||'SOQ'):'semua-SOQ';a.download='Hasil-Picking-'+String(kd).replace(/[^A-Za-z0-9]+/g,'_')+'-'+today()+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
  function drawTfsList(){const g=dokGroups(SETS.tfs);if(!g.length)return none('Belum ada koli yang lolos verifikasi.');
-  return g.map(x=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+''+'</div><p class="sub">Selesai TFS '+x.ks.filter(k=>k.status==='Selesai TFS').length+' dari '+x.ks.length+' koli yang siap.</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obopen')).join('')+'</div></div>').join('')}
+  const dlAll=canAdmin()?'<div class="ob-actions" style="margin-top:10px"><button class="button" data-obdlpick="*" type="button">⬇ Unduh semua hasil picking (Excel)</button></div>':'';
+  return dlAll+g.map(x=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+(canAdmin()?'<button class="button secondary" data-obdlpick="'+esc(x.d.id||x.ks[0].dok)+'" type="button">⬇ Unduh hasil picking</button>':'')+'</div><p class="sub">Selesai TFS '+x.ks.filter(k=>!['Siap TFS','Siap packing'].includes(k.status)).length+' dari '+x.ks.length+' koli yang siap.</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obopen')).join('')+'</div></div>').join('')}
  const cp=(t)=>!canAdmin()?'':'<button class="button secondary" data-obcp="'+esc(t)+'" type="button" title="Copy" style="padding:2px 8px">📋</button>';
  function drawTfsScreen(){
   const k=koliById(cur.id);if(!k){cur=null;return ''}const d=dokOf(k.dok),rows=koliRows(k).filter(r=>num(r.qty_actual)>0),oth=koliOthers(k),done=k.status==='Selesai TFS',viewOnly=!canAdmin(),locked=(PASTTFS.includes(k.status)&&!done)||viewOnly;
@@ -3771,6 +3777,7 @@ init();
  document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='ob-binf'&&body&&body.contains(t)){binF=t.value;draw()}});
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
+  if(t.dataset.obdlpick){if(!canAdmin())return;dlPick(t.dataset.obdlpick==='*'?dokGroups(SETS.tfs).map(x=>x.ks[0].dok):[t.dataset.obdlpick]);return}
   if(t.dataset.obbinsort){binSort=binSort===''?'asc':binSort==='asc'?'desc':'';draw();return}
   if(t.dataset.obwipe){const docs=view('PICK_DOK');if(!docs.length)return say('Tidak ada riwayat SOQ.');if(!confirm('Hapus SEMUA riwayat SOQ ('+docs.length+' dokumen) beserta koli, item, dan tugas pickernya? Ini tidak bisa dibatalkan.'))return;if(prompt('Ketik HAPUS untuk melanjutkan:')!=='HAPUS')return say('Dibatalkan.');docs.forEach(d=>dropTasks(d.id));['PICK_ITEM','PICK_KOLI','PICK_GR','PICK_DOK'].forEach(tb=>view(tb).forEach(r=>enqDel(tb,r.id)));say('Riwayat simulasi SOQ dihapus ('+docs.length+' dokumen).');return}
   if(t.dataset.obedit){const dk=t.dataset.obedit;if(tabName!=='Picking List'){const pg=body.closest('.page')||document,tb=[...pg.querySelectorAll('button')].find(b=>b.textContent.trim()==='Picking List'&&!b.dataset.obedit);if(tb){tb.click();setTimeout(()=>openEdit(dk),80);return}tabName='Picking List'}openEdit(dk);return}
