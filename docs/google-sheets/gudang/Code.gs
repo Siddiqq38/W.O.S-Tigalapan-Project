@@ -79,6 +79,7 @@ function doGet(e) {
     const p = e.parameter || {};
     if (p.token !== TOKEN) return json_({ ok: false, error: 'token salah' });
     if (p.action === 'ping') return json_({ ok: true, time: new Date().toISOString(), tabs: Object.keys(TABS) });
+    if (p.action === 'ver') return json_({ ok: true, ver: ver_() });
     if (p.action === 'list') return json_({ ok: true, rows: list_(p.tab, p.from, p.to) });
     if (p.action === 'stok') return json_({ ok: true, rows: stok_() });
     if (p.action === 'multi') return json_({ ok: true, data: multi_(p.q) });
@@ -90,6 +91,8 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.token !== TOKEN) return json_({ ok: false, error: 'token salah' });
+    // unggah foto/video hanya menyentuh Drive: lakukan di luar kunci supaya tidak menahan penulisan data orang lain
+    if (body.action === 'photo') { const pr = photo_(body); bump_(); return json_(Object.assign({ ok: true }, pr)); }
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
@@ -100,9 +103,13 @@ function doPost(e) {
         return json_({ ok: true, results: results });
       }
       return json_(Object.assign({ ok: true }, runOp_(body)));
-    } finally { lock.releaseLock(); }
+    } finally { bump_(); lock.releaseLock(); }
   } catch (err) { return json_({ ok: false, error: String(err) }); }
 }
+
+/* Penanda versi data: naik setiap ada penulisan. Perangkat memeriksa penanda ini dulu (ringan) dan baru menarik data penuh bila berubah. */
+function bump_() { try { CacheService.getScriptCache().put('WVER', Date.now() + '-' + Math.floor(Math.random() * 100000), 21600); } catch (e) {} }
+function ver_() { try { return CacheService.getScriptCache().get('WVER') || ''; } catch (e) { return ''; } }
 
 function runOp_(op) {
   if (op.action === 'append') return upsert_(op.tab, op.row);

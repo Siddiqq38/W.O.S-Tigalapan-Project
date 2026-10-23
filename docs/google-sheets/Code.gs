@@ -69,6 +69,7 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.token !== TOKEN) return json_({ ok: false, error: 'token salah' });
+    if (body.action === 'photo') { return json_(Object.assign({ ok: true }, photo_(body))); }
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
