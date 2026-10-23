@@ -3418,9 +3418,11 @@ init();
    c.filter(r=>!isLP(r.bin)&&had(r)>0).sort((a,b)=>((refPo&&poOfBin(a,item)===refPo)?0:1)-((refPo&&poOfBin(b,item)===refPo)?0:1)||Math.abs(dayN(a.awal)-refAwal)-Math.abs(dayN(b.awal)-refAwal)||String(a.awal||'zzzz').localeCompare(String(b.awal||'zzzz'))||nat(a.bin,b.bin)).forEach(r=>{if(need>0)take(r,Math.min(need,had(r)))})}
   if(need>0)c.forEach(r=>{if(need>0&&had(r)>0)take(r,Math.min(need,had(r)))});
   return{out,short:need}}
+ const isBrand=t=>/\b(MAMU|MYNO)\b/i.test(t||'');
+ const normB=t=>norm(t)+(isBrand(t)?'|B':'|P');
  function prevBins(l){
-  const key=norm(l.item),reserved={};view('PICK_ITEM').filter(r=>edit&&r.dok!==edit.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
-  const c=aux.stok.filter(r=>norm(r.sku||r.item)===key&&!A.binLocked(r.bin)).map(r=>({bin:r.bin,free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||nat(a.bin,b.bin));
+  const key=normB(l.item),reserved={};view('PICK_ITEM').filter(r=>edit&&r.dok!==edit.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
+  const c=aux.stok.filter(r=>normB(r.sku||r.item)===key&&!A.binLocked(r.bin)).map(r=>({bin:r.bin,free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||nat(a.bin,b.bin));
   const parts=(l.parts&&l.parts.length?l.parts.map(p=>num(p.qty)):[l.qty]),agg=new Map();let short=0;parts.forEach(q=>{const a=allocBins(c,q,l.item);a.out.forEach(x=>{x.c.free-=x.t;agg.set(x.c.bin,(agg.get(x.c.bin)||0)+x.t)});short+=a.short});return{bins:[...agg].map(([bin,qty])=>({bin,qty})),short}}
  const binTxt=l=>{if(!aux.ok)return '<span class="sub">memuat…</span>';if(l.manual&&!l.pv.bins.length)return '<span class="sub">tanpa stok bin</span>';return l.pv.bins.map(b=>'<b>'+esc(b.bin)+'</b> '+b.qty).join('<br>')+(l.pv.short>0?'<br><span style="color:#b3261e">stok kurang '+l.pv.short+'</span>':'')};
  function openEdit(dok){
@@ -3488,10 +3490,10 @@ init();
   busyMk=true;draw();
   try{const s=await call({action:'stok'},true);if(!s.ok)throw new Error(s.error||'stok tidak terbaca');
    const reserved={};view('PICK_ITEM').filter(r=>r.dok!==e.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
-   const stock=s.rows.map(r=>({bin:r.bin,sku:r.sku,key:norm(r.sku||r.item),free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0&&!A.binLocked(r.bin));
+   const stock=s.rows.map(r=>({bin:r.bin,sku:r.sku,key:normB(r.sku||r.item),free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0&&!A.binLocked(r.bin));
    const d=view('PICK_DOK').find(x=>x.id===e.dok),old=itemsOf(e.dok),rows=[],short=[];
    dropTasks(e.dok);old.forEach(r=>enqDel('PICK_ITEM',r.id));koliOf(e.dok).forEach(r=>enqDel('PICK_KOLI',r.id));
-   e.lines.forEach(l=>{const key=norm(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
+   e.lines.forEach(l=>{const key=normB(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
     [...l.parts].sort((a,b)=>num(a.koli)-num(b.koli)).forEach((p,pi)=>{let need=num(p.qty),n=0;const pid=l.id+'|P'+(pi+1),base={tanggal:d.tanggal,dok:e.dok,outlet:d.outlet,item:l.item,kategori:l.manual?'MANUAL':l.kat,soq:String(l.qty),ket:l.ket,koli:String(p.koli),status:'Menunggu'};
      allocBins(c,need,l.item).out.forEach(a=>{a.c.free-=a.t;need-=a.t;rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:a.c.sku,bin:a.c.bin,qty:String(a.t)}));n++});
      if(need>0){rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:'',bin:'',qty:String(need),ket_pick:l.manual&&!c.length?'Item manual (tanpa stok bin)':'Stok tidak cukup di bin manapun'}));if(!(l.manual&&!c.length))short.push(l.item+' kurang '+need)}})});
@@ -3536,6 +3538,24 @@ init();
  const koliAll=k=>itemsOf(k.dok).filter(r=>num(r.koli)===num(k.koli)),koliRows=k=>koliAll(k).filter(r=>r.kategori!=='OTHER').sort((a,b)=>{const x=lineNo(a),y=lineNo(b);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]||x[3]-y[3]}),koliOthers=k=>koliAll(k).filter(r=>r.kategori==='OTHER').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
  const koliById=id=>view('PICK_KOLI').find(k=>k.id===id);
  function updKoli(k,patch){enq('PICK_KOLI',Object.assign({},k,patch))}
+ const rebinBtn=k=>canAdmin()&&['Ditugaskan','Picking'].includes(k.status)&&koliRows(k).some(r=>r.status==='Menunggu'&&r.kategori!=='MANUAL')?' <button class="button secondary" data-obrebin="'+esc(k.id)+'" type="button">&#8635; Hitung ulang rekomendasi bin</button>':'';
+ async function rebin(k){
+  if(!canAdmin())return;
+  const rows=koliRows(k).filter(r=>r.status==='Menunggu'&&r.kategori!=='MANUAL');if(!rows.length){say('Tidak ada baris yang belum dipicking.',true);return}
+  if(!confirm('Hitung ulang rekomendasi bin untuk koli '+k.koli+'?\n\nBin pada baris yang belum dipicking dicari ulang dari stok (FIFO), dengan MAMU/MYNO dipisahkan dari item polosan.'))return;
+  try{const s=await call({action:'stok'},true);if(!s.ok)throw new Error(s.error||'stok tidak terbaca');
+   const mine=new Set(rows.map(r=>r.id)),reserved={};view('PICK_ITEM').filter(r=>r.status==='Menunggu'&&!mine.has(r.id)).forEach(r=>{const kk=r.bin+'|'+r.sku;reserved[kk]=(reserved[kk]||0)+num(r.qty)});
+   const stock=s.rows.map(r=>({bin:r.bin,sku:r.sku,key:normB(r.sku||r.item),free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0&&!A.binLocked(r.bin));
+   const groups=new Map();rows.forEach(r=>{const m=/^(.*\|P\d+)(\|\d+)?$/.exec(r.id),b=m?m[1]:r.id;(groups.get(b)||groups.set(b,[]).get(b)).push(r)});
+   let ch=0;const short=[];
+   groups.forEach((rs,base)=>{const first=rs[0],need0=rs.reduce((a,r)=>a+num(r.qty),0),c=stock.filter(r=>r.key===normB(first.item)).sort((a,b)=>String(a.awal||'zz').localeCompare(String(b.awal||'zz'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
+    let need=need0,n=0;const out=[],blank={status:'Menunggu',bin_actual:'',qty_actual:'',ket_pick:''};
+    allocBins(c,need,first.item).out.forEach(a=>{a.c.free-=a.t;need-=a.t;out.push(Object.assign({},first,blank,{id:n?base+'|'+n:base,sku:a.c.sku,bin:a.c.bin,qty:String(a.t)}));n++});
+    if(need>0){out.push(Object.assign({},first,blank,{id:n?base+'|'+n:base,sku:'',bin:'',qty:String(need),ket_pick:'Stok tidak cukup di bin manapun'}));short.push(first.item+' kurang '+need)}
+    const sig=a=>a.map(r=>r.id+'|'+r.bin+'|'+r.qty).sort().join(';');if(sig(out)===sig(rs))return;
+    rs.forEach(r=>enqDel('PICK_ITEM',r.id));out.forEach(o=>enq('PICK_ITEM',o));ch++});
+   say(ch?ch+' item diperbarui rekomendasi bin-nya.'+(short.length?' Stok kurang: '+short.join('; ')+'.':''):'Rekomendasi bin sudah sesuai, tidak ada yang berubah.',short.length>0)}
+  catch(e){say('Gagal menghitung ulang: '+(e&&e.message||e),true)}}
  // pembatalan picking satu koli (salah bin dll): hasil picking dihapus, stok yang terpotong dikembalikan, picker mengulang
  const RESETOK=['Siap verifikasi','Perbaikan','Siap TFS'];
  const resetBtn=k=>canAdmin()&&RESETOK.includes(k.status)?' <button class="button secondary" data-obreset="'+esc(k.id)+'" type="button" style="color:#b3261e">&#8634; Batalkan picking (ulang)</button>':'';
@@ -3611,7 +3631,7 @@ init();
  function drawPickScreen(){
   const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),ro=['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status),mine=k.picker===code()||canAdmin(),done=rows.length&&rows.every(r=>r.status!=='Menunggu');
   const pcs=rows.reduce((a,r)=>a+num(r.qty),0),act=rows.reduce((a,r)=>a+num(r.qty_actual),0);
-  let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button>'+resetBtn(k)+'</div><div class="card"><h3 style="margin:0">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
+  let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button>'+resetBtn(k)+rebinBtn(k)+'</div><div class="card"><h3 style="margin:0">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc((view('PICK_DOK').find(d=>d.id===k.dok)||{}).outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
   h+=binBar(rows)+'<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty</th><th>Hasil</th>'+(ro||!mine?'':'<th>Cek</th>')+'</tr></thead><tbody>'+binOrder(rows).map(r=>'<tr><td><strong>'+esc(r.bin||'?')+'</strong>'+ohTag(r)+lockTag(r)+'</td><td>'+esc(r.item)+(prio(r.ket)===2?' <span class="tag red">CRITICAL</span>':'')+poTag(r)+lpTag(r)+'</td><td><strong>'+(/\|X\d+$/.test(r.id)?'+':esc(r.qty))+'</strong></td><td>'+(r.status==='Sesuai'?'<span class="tag '+(/^(PEMBULATAN|ROUND (UP|DOWN))/.test(r.ket_pick||'')?'amber':'green')+'">✓ '+(/^(PEMBULATAN|ROUND (UP|DOWN))/.test(r.ket_pick||'')?(/^ROUND UP/.test(r.ket_pick)?'Round Up':/^ROUND DOWN/.test(r.ket_pick)?'Round Down':'Pembulatan')+' · '+esc(r.qty_actual)+' pcs':(/\|X\d+$/.test(r.id)?esc(r.bin_actual)+' · '+esc(r.qty_actual)+' pcs':'Sesuai'))+'</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':''):r.status==='Selisih'?'<span class="tag red">✗ '+esc(r.bin_actual||'-')+' · '+esc(r.qty_actual)+' pcs</span>'+(r.ket_pick?'<div class="sub">'+esc(r.ket_pick)+'</div>':'')+(r.foto_id?' <a href="https://drive.google.com/file/d/'+esc(r.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(mine&&!PASTTFS.includes(k.status)&&num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0)>0?'<div><button class="button secondary" data-obadd="'+esc(r.id)+'" type="button">+ Ditemukan di bin lain (kurang '+(num(r.qty)-num(r.qty_actual)-rows.filter(x=>x.id.startsWith(r.id+'|X')).reduce((a,x)=>a+num(x.qty_actual),0))+')</button></div>':''):'<span class="sub">'+(r.bin?'belum diambil':'stok tidak ditemukan')+'</span>')+'</td>'+(ro||!mine?'':'<td><button class="button" data-obok="'+esc(r.id)+'" type="button"'+(r.bin||r.kategori==='MANUAL'?'':' disabled')+'>✓</button> <button class="button secondary" data-obno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>').join('')+'</tbody></table></div><p class="sub">Target '+pcs+' pcs · diambil '+act+' pcs'+(done&&act<pcs?' · <strong style="color:#b3261e">SOO '+(pcs-act)+' pcs (stok tidak terpenuhi)</strong>':done&&act>pcs?' · lebih '+(act-pcs)+' pcs':'')+'</p>';
   if(!ro&&mine)h+='<div class="ob-actions"><button class="button" data-obdone="1" type="button"'+(done?'':' disabled')+'>Selesai picking koli ini</button></div>';
   if(ro)h+='<p class="note">Picking selesai. Lanjut di tab <strong>Verification Pick</strong>. Bila masih ada barang kurang yang ditemukan di bin lain, tombol Ditemukan di bin lain tetap bisa dipakai sebelum TFS.</p>';
@@ -3830,6 +3850,7 @@ init();
  document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='ob-binf'&&body&&body.contains(t)){binF=t.value;draw()}});
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
+  if(t.dataset.obrebin){const k=koliById(t.dataset.obrebin);if(k)rebin(k);return}
   if(t.dataset.obreset){const k=koliById(t.dataset.obreset);if(k)resetPick(k);return}
   if(t.dataset.obdlpick){if(!canAdmin())return;dlPick(t.dataset.obdlpick==='*'?dokGroups(SETS.tfs).map(x=>x.ks[0].dok):[t.dataset.obdlpick]);return}
   if(t.dataset.obbinsort){binSort=binSort===''?'asc':binSort==='asc'?'desc':'';draw();return}
