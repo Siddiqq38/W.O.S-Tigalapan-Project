@@ -2180,7 +2180,7 @@ init();
  function phFill(key,name){const b=document.querySelector('[data-phbody="'+key+'"]');if(!b)return;if(key==='gr'&&window.WOSGR){window.WOSGR.render(b,name);document.querySelectorAll('[data-ph="gr"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}if(key==='wms-location'&&window.WOSLC&&window.WOSLC.has(name)){window.WOSLC.render(b,name);document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}if(key==='wms-outbound'&&window.WOSOB&&window.WOSOB.has(name)){window.WOSOB.render(b,name);document.querySelectorAll('[data-ph="wms-outbound"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name));return}b.innerHTML='<h3>'+esc(name)+'</h3><p class="sub">Fitur ini sedang disiapkan. Alur, dokumen, input, proses, dan outputnya akan ditambahkan setelah detail alur diterima. Pola datanya sama dengan Receiving: angka dan status tersimpan di Google Sheets (WOS Data Gudang), foto dan video di Google Drive.</p>';document.querySelectorAll('[data-ph="'+key+'"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===name))}
  const mk=(id,label,title,sub)=>{const s=document.createElement('section');s.className='page';s.id=id;main.appendChild(s);const n=document.createElement('button');n.className='nav';n.dataset.page=id;n.textContent=label;try{names[id]=[title,sub]}catch(e){}
   n.addEventListener('click',()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));n.classList.add('active');s.classList.add('active');$('title').textContent=title;$('subtitle').textContent=sub;
-   if(id==='wms-inbound'){build();pull()}else if(!s.dataset.built){s.dataset.built='1';s.innerHTML='<div class="toolbar"><div><h2>'+esc(label)+'</h2><span class="sub">'+esc(sub)+'</span></div></div>'+phBlock(id);phFill(id,(FEAT[id].find(x=>id!=='wms-outbound'||allowTab(id,x[0]))||FEAT[id][0])[0])}});
+   if(id==='wms-inbound'){build();pull()}else if(!s.dataset.built){s.dataset.built='1';s.innerHTML='<div class="toolbar"><div><h2>'+esc(label)+'</h2>'+(id==='wms-outbound'&&window.WOSOB&&window.WOSOB.rangeHtml?'<span class="sub">Panel tanggal: pilih SOQ tanggal berapa (atau dari tanggal ke tanggal) yang ingin dilihat dan dikerjakan.</span>'+window.WOSOB.rangeHtml():'<span class="sub">'+esc(sub)+'</span>')+'</div></div>'+phBlock(id);try{window.WOSOB&&window.WOSOB.rangeSync&&setTimeout(window.WOSOB.rangeSync,0)}catch(e){}phFill(id,(FEAT[id].find(x=>id!=='wms-outbound'||allowTab(id,x[0]))||FEAT[id][0])[0])}});
   return{s,n}};
  const grp=document.createElement('div');grp.className='nav-group';grp.textContent='WMS';
  const anchor=document.querySelector('.profile');anchor.before(grp);
@@ -3434,6 +3434,19 @@ init();
  const prio=k=>/CRITICAL/.test(U(k))?2:/ADD/.test(U(k))?1:0;
  const lineBase=id=>{const m=/^(.*\|L\d+)/.exec(id);return m?m[1]:id};
  const itemsOf=dok=>view('PICK_ITEM').filter(r=>r.dok===dok),koliOf=dok=>view('PICK_KOLI').filter(r=>r.dok===dok);
+ // panel tanggal Outbound: saring SOQ (dan kolinya) menurut tanggal SOQ; kosong = semua tanggal
+ const RNGK='wos-ob-range-v1';
+ const rngGet=()=>{try{const r=JSON.parse(localStorage.getItem(RNGK)||'{}')||{};return{f:r.f||'',t:r.t||''}}catch(e){return{f:'',t:''}}};
+ const rngOn=()=>{const r=rngGet();return !!(r.f||r.t)};
+ const inRng=tg=>{const r=rngGet(),x=String(tg||'').slice(0,10);if(!x||(!r.f&&!r.t))return true;return (!r.f||x>=r.f)&&(!r.t||x<=r.t)};
+ const rngKoli=list=>{if(!rngOn())return list;const dm=new Map(view('PICK_DOK').map(d=>[d.id,d.tanggal]));return list.filter(k=>inRng(dm.get(k.dok)||k.tanggal))};
+ const dayAdd=(d,n)=>new Date(Date.parse(d+'T00:00:00Z')+n*864e5).toISOString().slice(0,10);
+ const fmtD=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'';
+ function rangeHtml(){const r=rngGet(),b=(k,l)=>'<button type="button" class="button secondary" data-obr="'+k+'" style="padding:6px 10px">'+l+'</button>';
+  return '<div class="ob-rng" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px"><div class="field" style="margin:0"><label for="ob-rf">Dari tanggal</label><input type="date" id="ob-rf" value="'+esc(r.f)+'"></div><div class="field" style="margin:0"><label for="ob-rt">Sampai tanggal</label><input type="date" id="ob-rt" value="'+esc(r.t)+'"></div>'+b('all','Semua tanggal')+b('today','Hari ini')+b('yest','Kemarin')+b('7d','7 hari terakhir')+'<span class="sub" id="ob-rs"></span></div>'}
+ function rngStatus(){const r=rngGet(),el=document.getElementById('ob-rs');if(!el)return;const f=document.getElementById('ob-rf'),t=document.getElementById('ob-rt');if(f&&f.value!==r.f)f.value=r.f;if(t&&t.value!==r.t)t.value=r.t;
+  const n=view('PICK_DOK').filter(d=>inRng(d.tanggal)).length;el.textContent=rngOn()?'Menampilkan SOQ tanggal '+(r.f?fmtD(r.f):'awal')+' s/d '+(r.t?fmtD(r.t):'terbaru')+' · '+n+' dokumen':'Menampilkan semua tanggal · '+n+' dokumen'}
+ function rngSet(f,t){if(f&&t&&f>t){const x=f;f=t;t=x}try{localStorage.setItem(RNGK,JSON.stringify({f:f||'',t:t||''}))}catch(e){}rngStatus();draw()}
  const started=dok=>itemsOf(dok).some(r=>r.status!=='Draft'&&r.status!=='Menunggu');
 
  function uploadModal(file){
@@ -3610,10 +3623,10 @@ init();
  // ---- tab Picking List
  function drawList(){
   if(!canAdmin()&&level()!=='ppic')return '<p class="note">Picking List diatur oleh PPIC atau Admin. Tugas picking Anda ada di tab <strong>Picking</strong>.</p>';
-  const docs=view('PICK_DOK').sort((a,b)=>String(b.tanggal+b.id).localeCompare(String(a.tanggal+a.id)));
+  const docsAll=view('PICK_DOK').sort((a,b)=>String(b.tanggal+b.id).localeCompare(String(a.tanggal+a.id))),docs=docsAll.filter(d=>inRng(d.tanggal));
   let h='<div class="card"><h3 style="margin:0">Upload SOQ</h3><p class="sub">Pilih file Excel SOQ dengan nama seperti <strong>SOQ LLO-01 MAMU PALOPO 2026.10.14</strong> (kode shipment, outlet, tanggal). Sistem membaca daftar item, mengelompokkan ke koli, lalu Admin menentukan picker.</p><input id="ob-file" type="file" accept=".xlsx,.xls,.csv"></div>';
-  if(!docs.length)return h+'<p class="sub" style="margin-top:12px">Belum ada SOQ.</p>';
-  return h+(canAdmin()?'<div class="note" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span>Riwayat SOQ saat ini: <b>'+docs.length+'</b> dokumen. Untuk membersihkan data simulasi sebelum go-live:</span><button class="button secondary" data-obwipe="1" type="button" style="color:#b3261e">Hapus semua riwayat simulasi SOQ</button></div>':'')+docs.map(d=>{const it=itemsOf(d.id),ks=koliOf(d.id),done=ks.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status)).length,ver=ks.filter(k=>k.status==='Siap TFS').length,can=!started(d.id);
+  if(!docs.length)return h+'<p class="sub" style="margin-top:12px">'+(docsAll.length?'Tidak ada SOQ pada rentang tanggal ini ('+docsAll.length+' SOQ ada di tanggal lain). Ubah panel tanggal di atas.':'Belum ada SOQ.')+'</p>';
+  return h+(canAdmin()?'<div class="note" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span>Riwayat SOQ saat ini: <b>'+docsAll.length+'</b> dokumen'+(docs.length!==docsAll.length?' ('+docs.length+' tampil sesuai tanggal)':'')+'. Untuk membersihkan data simulasi sebelum go-live:</span><button class="button secondary" data-obwipe="1" type="button" style="color:#b3261e">Hapus semua riwayat simulasi SOQ</button></div>':'')+docs.map(d=>{const it=itemsOf(d.id),ks=koliOf(d.id),done=ks.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status)).length,ver=ks.filter(k=>k.status==='Siap TFS').length,can=!started(d.id);
    return '<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><span class="tag '+(d.status==='Picking'?'amber':'')+'">'+esc(d.status)+'</span></div><p class="sub">'+esc(d.jumlah_item)+' item · '+esc(d.total_qty)+' pcs'+(ks.length?' · '+ks.length+' koli · picking selesai '+done+' · lolos verifikasi '+ver:'')+'</p>'+
    (ks.length?'<p class="sub">'+ks.sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'Koli '+esc(k.koli)+': '+esc(k.picker_nama||k.picker)+' ('+esc(k.status)+')').join(' · ')+'</p>':'')+
    '<div class="ob-actions">'+(!canAdmin()?'<span class="sub">Koli dan picker diatur oleh Admin.</span>':can?'<button class="button" data-obedit="'+esc(d.id)+'" type="button">'+(ks.length?'Atur ulang koli dan picker':'Atur koli dan picker')+'</button> <button class="button secondary" data-obdel="'+esc(d.id)+'" type="button" style="color:#b3261e">Hapus</button>':'<span class="sub">Sudah dikerjakan, tidak bisa diatur ulang.</span>')+'</div></div>'}).join('')}
@@ -3621,7 +3634,7 @@ init();
  // ---- tab Picking: daftar tugas
  const STC={'Ditugaskan':'','Picking':'dt','Siap verifikasi':'dtm','Perbaikan':'dtm','Siap TFS':'ok'};
  function listKoli(mode){
-  const me=code(),adm=canAdmin();let list=view('PICK_KOLI');
+  const me=code(),adm=canAdmin();let list=rngKoli(view('PICK_KOLI'));
   if(mode==='pick')list=list.filter(k=>adm?(!filterOp||k.picker===filterOp):k.picker===me);else if(adm&&filterOp)list=list.filter(k=>k.picker===filterOp);
   if(mode==='vp'){list=list.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status));ensureVp(list)}
   let h='';
@@ -3795,7 +3808,7 @@ init();
  const PASTTFS=['Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
  const STC2=Object.assign({},STC,{'Siap packing':'ok','Selesai TFS':'tos','Staging':'dt','Dimuat':'ok','Shipping':'dt','Diterima':'ok','Diterima-Masalah':'dtm','GR Selesai':'ok'});
  const dokOf=id=>view('PICK_DOK').find(d=>d.id===id)||{id,kode:id,outlet:'',tanggal:''};
- function dokGroups(set,all){const by={},sc=level()==='store'?storeCode():'';view('PICK_KOLI').filter(k=>set.includes(k.status)&&(!sc||String(k.dok).split('|')[0]===sc)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
+ function dokGroups(set,all){const by={},sc=level()==='store'?storeCode():'';rngKoli(view('PICK_KOLI')).filter(k=>set.includes(k.status)&&(!sc||String(k.dok).split('|')[0]===sc)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
  const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
  const chip=(k,attr,extra)=>'<button type="button" class="kb '+(STC2[k.status]||'')+(extra||'')+'" '+attr+'="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc(k.status)+'</small>'+(k.area?'<small>'+esc(k.area)+'</small>':'')+'</button>';
  const none=t=>'<p class="sub">'+t+'</p>';
@@ -4047,7 +4060,9 @@ init();
    if(left&&!confirm(left+' koli belum dimuat dan tetap di DC. Kirim yang sudah dimuat saja?'))return;const now=stIso();ld.forEach(k=>updKoli(k,{status:'Shipping',load_waktu:now}));enq('PICK_DOK',Object.assign({},d,{status:left?'Loading':'Shipping',metode:me,kategori:me==='Indirect'?ka:'',ekspedisi:ek,eta:si.eta!=null?si.eta:(d.eta||'')}));say(ld.length+' koli dikirim ke '+d.outlet+'. Manifest incoming tersedia di tab Shipping dan Receiving Outlet.');return}
   if(t.dataset.obrcv){const k=koliById(t.dataset.obrcv);if(k)rcvModal(k);return}
   if(t.dataset.obfix){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obfix);if(r)setVp(r,'Dikoreksi',r.vp_ket);return}});
+ document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('button[data-obr]');if(!t)return;const x=t.dataset.obr,td=today();rngSet(x==='all'?'':x==='today'?td:x==='yest'?dayAdd(td,-1):dayAdd(td,-6),x==='all'?'':x==='yest'?dayAdd(td,-1):td)});
  document.addEventListener('change',e=>{const t=e.target;
+  if(t.id==='ob-rf'||t.id==='ob-rt'){rngSet(document.getElementById('ob-rf').value,document.getElementById('ob-rt').value);return}
   if(t.id==='ob-file'&&t.files[0]){uploadModal(t.files[0]);t.value='';return}
   if(t.id==='ob-fop'){filterOp=t.value;draw();return}
   if(t.dataset&&t.dataset.obrepick){const k=koliById(t.dataset.obrepick);if(k&&(k.status==='Ditugaskan'||k.status==='Picking')&&t.value){repick(k,t.value);say('Picker koli '+k.koli+' diganti ke '+nameOf(t.value)+'.')}return}
@@ -4064,7 +4079,7 @@ init();
   if(t.dataset&&t.dataset.obpk2&&edit){const[id,i,f]=t.dataset.obpk2.split('||');const l=edit.lines.find(x=>x.id===id);if(l&&l.parts[Number(i)]){l.parts[Number(i)][f]=Math.max(0,Math.floor(num(t.value)));draw()}return}
   if(t.dataset&&t.dataset.obp&&edit){edit.pk[t.dataset.obp]=t.value;return}});
  setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!edit&&!(cur&&document.querySelector('.iv2-modal')))pull(false);if(cur&&cur.mode==='pick'&&!document.querySelector('.iv2-modal'))refreshStok()},8000);
- window.WOSOB={render,has:n=>NAMES.includes(n),pull};
+ window.WOSOB={render,has:n=>NAMES.includes(n),pull,rangeHtml,rangeSync:rngStatus};
 })();
 </script>
 <script>
