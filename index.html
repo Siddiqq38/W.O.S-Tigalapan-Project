@@ -1816,7 +1816,8 @@ init();
   const wt=new Date(Date.parse(r.at)+WITA);
   const row={id:rid(r),waktu_iso:r.at,tanggal:r.day,kode_staf:r.code,nama:name,aksi:r.action,jam_wita:isNaN(wt)?'':wt.toISOString().slice(11,16),lat:loc.lat||'',lng:loc.lng||'',akurasi_m:loc.accuracy||'',jarak_m:loc.meters||'',foto_id:'',simulasi:r.sim?'ya':'',perangkat:r.manual?'koreksi master':((loc.flag?'[GPS? '+loc.flag+'] ':'')+(navigator.userAgent||'').slice(0,90))};
   const push=()=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});saveQ(q);flush();if(!r.manual)ackOverlay(row.id)};
-  const ph=r.manual?null:(typeof attendancePhoto!=='undefined'&&attendancePhoto)||null;
+  // foto hanya milik baris yang dipilih di kamera ini dan baru saja dibuat; sekali pakai (jangan menempel ke presensi orang lain)
+  let ph=null;try{const sel=((document.getElementById('attendance-code')||{}).value||'').trim().toUpperCase();if(!r.manual&&typeof attendancePhoto!=='undefined'&&attendancePhoto&&sel===String(r.code).toUpperCase()&&Math.abs(Date.now()-Date.parse(r.at))<180000){ph=attendancePhoto;attendancePhoto=null}}catch(e){}
   if(ph&&/^data:image/.test(ph)&&/in$/.test(r.action)){shrink(ph,b64=>{const q=queue();q.push({a:'append',tab:'ATTENDANCE',row});if(b64)q.push({a:'photo',data:b64,name:rid(r)+'.jpg',rowId:row.id,date:r.day,kategori:'Presensi',row:row});saveQ(q);flush();ackOverlay(row.id)})}else push()}
  // konfirmasi kirim presensi: staf tidak menutup aplikasi sebelum data benar-benar sampai ke server
  function ackOverlay(id){
