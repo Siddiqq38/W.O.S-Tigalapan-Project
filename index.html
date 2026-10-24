@@ -2276,6 +2276,8 @@ init();
   if(host.dataset.sig!==html){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,vals={};host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file')vals[el.id]=el.value});host.dataset.sig=html;host.innerHTML=html;host.querySelectorAll('input,select,textarea').forEach(el=>{if(el.id&&el.type!=='file'&&vals[el.id]!==undefined&&vals[el.id]!==''&&el.id!=='iv2-jam'&&el.id!=='iv2-tgl')el.value=vals[el.id]});if(id&&$(id)){$(id).focus({preventScroll:true});try{if(st!=null)$(id).setSelectionRange(st,st)}catch(e){}}}
  }
 
+ // jendela dialog sederhana (dipakai Ubah STTB/PO, Edit incoming, Ubah sesi)
+ const modal=html=>{const m=document.createElement('div');m.className='iv2-modal';m.innerHTML='<div class="box">'+html+'</div>';document.body.appendChild(m);return m};
  // ---- pencarian riwayat penerimaan per PO / STTB / vendor sampai nomor koli
  function usCard(){
   const U=s=>String(s==null?'':s).trim().toUpperCase();
@@ -2740,7 +2742,7 @@ init();
    if(tot>0&&po!==oldPo&&mine.some(k=>Number(k.no_koli)>tot))return err('Ada koli bernomor lebih besar dari total koli '+tot+'.');
    const row=Object.assign({},r,{id:nid,resi,po,vendor:ven||vendorOfPo(po)||r.vendor||'',area_staging:area,koli_list:efree?'*'+(ecnt||''):''});
    if(nid!==r.id)enqDel('UNLOADING_RESI',r.id);enq('UNLOADING_RESI',row);
-   mine.forEach(k=>{if(po!==oldPo){enqDel('KOLI',k.id);enq('KOLI',Object.assign({},k,{id:po+'|'+String(k.id).slice(String(k.id).indexOf('|')+1),po,resi}))}else if(resi!==r.resi)enq('KOLI',Object.assign({},k,{resi}))});
+   const usedIds=new Set(K.map(x=>x.id));[...mine].sort((a,b)=>(String(a.id).indexOf('^')>0)-(String(b.id).indexOf('^')>0)).forEach(k=>{if(po!==oldPo){enqDel('KOLI',k.id);const dup=String(k.id).indexOf('^')>0,base=po+'|'+k.no_koli;let nid2=po+'|'+String(k.id).slice(String(k.id).indexOf('|')+1);if(dup&&!usedIds.has(base))nid2=base;usedIds.add(nid2);const ket2=dup&&nid2===base?String(k.keterangan||'').replace(/^Koli \d+ ke-\d+\s*/,'').replace(/\s*\[KET:\.?\]/g,'').trim():k.keterangan;enq('KOLI',Object.assign({},k,{id:nid2,po,resi,keterangan:ket2}))}else if(resi!==r.resi)enq('KOLI',Object.assign({},k,{resi}))});
    const pi=view('PO_INFO').find(x=>x.id===po)||{},vNew=ven||pi.vendor||vendorOfPo(po)||'';
    if(tot>0&&(!pi.id||Number(pi.total_koli)!==tot||vNew!==(pi.vendor||'')))enq('PO_INFO',Object.assign({id:po,vendor:'',total_koli:'',pekan:'',catatan:'',diperbarui:today()},pi,{id:po,total_koli:String(tot),vendor:vNew,diperbarui:today()}));
    if(po!==oldPo){const other=view('UNLOADING_RESI').some(x=>x.id!==r.id&&poKey(x.po)===oldPo)||K.some(k=>poKey(k.po)===oldPo&&!mine.includes(k));if(!other&&view('PO_INFO').some(x=>x.id===oldPo))enqDel('PO_INFO',oldPo)}
