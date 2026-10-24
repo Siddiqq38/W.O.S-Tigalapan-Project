@@ -1789,7 +1789,7 @@ init();
  const rkey=r=>r.code+'|'+r.day+'|'+r.action;
  const chip=document.createElement('div');chip.id='st-chip';chip.style.cursor='pointer';chip.title='Ketuk untuk memeriksa koneksi';document.body.append(chip);
  chip.onclick=async()=>{chip.textContent='Memeriksa koneksi…';let t='';try{t=await window.WOSStore.test()}catch(e){t='Gagal: '+e.message}window.__fullPull=1;try{await window.WOSStore.flush();await window.WOSStore.pull()}catch(e){}window.__fullPull=0;const s=window.WOSStore.status();alert('Koneksi Google Sheets: '+t+'\nAntrean kirim: '+s.queued+(s.lastErr?'\nKesalahan terakhir: '+s.lastErr:'')+'\nBila antrean tidak berkurang, periksa sinyal internet lalu muat ulang halaman.');paint()};
- function paint(){const n=queue().length;chip.className=on()&&sessionStorage.getItem('wos-session-code')?'on':'';chip.textContent=state==='err'?'Sheets: gagal ('+n+' antre)':n?'Sheets: mengirim '+n+'…':'Sheets: tersambung'}
+ function paint(){const n=queue().length;chip.className=on()&&sessionStorage.getItem('wos-session-code')?'on':'';chip.textContent=state==='err'?'Sheets: gagal ('+n+' antri)':n?'Sheets: mengirim '+n+'…':'Sheets: tersambung'}
   async function call(body,get){const c=cfg();if(get&&body.action==='list'&&window.__mc){const k=body.tab+'|'+(body.from||'')+'|'+(body.to||'');if(window.__mc[k])return{ok:true,rows:window.__mc[k]}}const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),body.action==='photo'?180000:30000);try{if(get){const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+new URLSearchParams(Object.assign({token:c.token},body)),{signal:ac.signal});return await r.json()}
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
  async function flush(){if(!on()||(busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paint();return}busy=true;busyAt=Date.now();
@@ -2235,7 +2235,7 @@ init();
    D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
    if(state!=='err')state='ok'}catch(e){state='err';err=String(e&&e.message||e);pullErr=err}
   paintState();render()}
- function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antre)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
+ function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antri)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
 
  // ---- bantu data
  const poKey=s=>String(s||'').trim().toUpperCase();
@@ -3258,6 +3258,23 @@ init();
   h+=sendBlock();
   return h}
  const fmtN=n=>Math.round(n).toLocaleString('id-ID');
+ // ---- export Qty Good Receipt: rekap per item (vendor, PO, qty total, PIC mengikuti item)
+ let grx={f:'',t:'',m:'harian'};
+ const csvDl=(name,rows)=>{const q=v=>{v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v},a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
+ const poShort=po=>{const s=String(po||'').trim().toUpperCase(),m=/^([A-Z]+)(\d+)/.exec(s);return m?{v:m[1],p:m[1]+m[2]}:{v:s.split('-')[0],p:s.split('-')[0]}};
+ function grExportPanel(){if(!grx.t){const t=today();grx.t=t;grx.f=new Date(Date.parse(t+'T00:00:00Z')-6*864e5).toISOString().slice(0,10)}
+  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">Export Qty Good Receipt</h3><p class="sub" style="margin:0 0 8px">Rekap hasil counting: tanggal, item, category (dikosongkan dulu), vendor, PO, qty, dan PIC. Vendor, PO, dan PIC mengikuti item. Pilih rentang tanggal.</p><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="sub">Dari<input type="date" data-grx="f" value="'+esc(grx.f)+'" style="display:block"></label><label class="sub">Sampai<input type="date" data-grx="t" value="'+esc(grx.t)+'" style="display:block"></label><label class="sub">Bentuk<select data-grx="m" style="display:block"><option value="harian"'+(grx.m==='harian'?' selected':'')+'>Per tanggal dan item</option><option value="total"'+(grx.m==='total'?' selected':'')+'>Total per item (seluruh rentang)</option></select></label><button class="button" data-grxexp="1" type="button">&#11015; Export Qty Good Receipt</button></div></div>'}
+ function grExport(){
+  const f=grx.f<=grx.t?grx.f:grx.t,t=grx.f<=grx.t?grx.t:grx.f,g=new Map();
+  view('GR_COUNT').forEach(c=>{if(String(c.seq||'').charAt(0)==='R')return;const q=num(c.qty_actual);if(!(q>0)||!c.tanggal||c.tanggal<f||c.tanggal>t)return;
+   const day=grx.m==='harian'?c.tanggal:'',item=String(c.item||'').trim(),k=day+'|'+item.toUpperCase(),ps=poShort(c.po);
+   let o=g.get(k);if(!o){o={day,item,v:new Set(),p:new Set(),pic:new Set(),q:0};g.set(k,o)}o.q+=q;o.v.add(ps.v);o.p.add(ps.p);if(c.operator)o.pic.add(nameOf(c.operator))});
+  const rows=[['Tanggal','Item name','Category','Vendor','PO','Qty','PIC']];
+  [...g.values()].sort((a,b)=>a.day.localeCompare(b.day)||a.item.localeCompare(b.item,'id',{numeric:true})).forEach(o=>rows.push([o.day||(f+' s/d '+t),o.item,'',[...o.v].join(', '),[...o.p].join(', '),o.q,[...o.pic].join(', ')]));
+  if(rows.length<2){say('Tidak ada hasil GR pada rentang tanggal ini.',true);return}
+  csvDl('Qty-Good-Receipt-'+f+'_sd_'+t+'.csv',rows);say('File Qty Good Receipt ('+(rows.length-1)+' baris) diunduh.')}
+ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-grxexp]');if(!b||!body||!body.contains(b))return;e.preventDefault();grExport()});
+ document.addEventListener('change',e=>{const t=e.target;if(t&&t.dataset&&t.dataset.grx&&body&&body.contains(t))grx[t.dataset.grx]=t.value});
  // ---- laporan ketidaksesuaian: unduh CSV dan kirim ke vendor (WhatsApp / email) lengkap dengan tautan video
  function repDet(){
   const C=view('GR_COUNT'),pos=[...new Set(C.map(c=>poKey(c.po)))].sort(),sel=pos.includes(repPo)?repPo:'',cr=C.filter(c=>!sel||poKey(c.po)===sel),ex=r=>!sjKoli(poKey(r.po),r.no_koli).some(x=>String(x.seq)===String(r.seq)),sjRows=cr.filter(c=>!ex(c)),bad=sjRows.filter(c=>c.status!=='Sesuai'),extra=cr.filter(ex),det=[];
@@ -3293,7 +3310,7 @@ init();
   else if(tabName==='Put Away')h+=(cur&&cur.mode==='put')?putScreen():listTugas('put');
   else if(tabName==='Defect Handling')h+=drawDefect();
   else if(tabName==='Laporan Kesesuaian')h+=drawReport();
-  else h+=drawEntry();
+  else h+=grExportPanel()+drawEntry();
   const sig=h;if(body.dataset.sig!==sig){const ae=document.activeElement,id=ae&&ae.id,st=ae&&ae.selectionStart,key=ae&&ae.dataset&&ae.dataset.pb;body.dataset.sig=sig;body.innerHTML=h;
    if(key){const el=body.querySelector('[data-pb="'+key+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(st,st)}catch(e){}}}else if(id&&$(id)){$(id).focus({preventScroll:true})}}}
  function render(b,name){body=b;if(name!==tabName){cur=null;pu={};msg=''}tabName=name;draw();pullGR(false)}
@@ -3752,9 +3769,26 @@ init();
   ids.forEach(id=>{const d=dokOf(id)||{},ks=koliOf(id).slice().sort((a,b)=>num(a.koli)-num(b.koli));ks.forEach(k=>{koliAll(k).slice().sort((a,b)=>String(a.bin||'').localeCompare(String(b.bin||''),'en',{numeric:true,sensitivity:'base'})).forEach(r=>out.push([d.kode,d.outlet,k.koli,k.picker_nama||k.picker,k.status,r.bin,r.bin_actual||r.bin,r.item,r.qty,r.qty_actual,r.status,r.ket_pick,r.vp||'']))})});
   if(out.length<2){alert('Belum ada data picking untuk diunduh.');return}
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+out.map(r=>r.map(esc2).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const kd=ids.length===1?((dokOf(ids[0])||{}).kode||'SOQ'):'semua-SOQ';a.download='Hasil-Picking-'+String(kd).replace(/[^A-Za-z0-9]+/g,'_')+'-'+today()+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
- function drawTfsList(){const g=dokGroups(SETS.tfs);if(!g.length)return none('Belum ada koli yang lolos verifikasi.');
+ // ---- export Qty Picking: rekap per item (outlet, SOQ, qty total, PIC mengikuti item)
+ let obx={f:'',t:'',m:'harian'};
+ const csvDl2=(name,rows)=>{const q=v=>{v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v},a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
+ function obExportPanel(){if(!canAdmin())return '';if(!obx.t){const t=today();obx.t=t;obx.f=new Date(Date.parse(t+'T00:00:00Z')-6*864e5).toISOString().slice(0,10)}
+  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">Export Qty Picking</h3><p class="sub" style="margin:0 0 8px">Rekap qty hasil picking: tanggal (hari koli selesai dipicking), item, category (dikosongkan dulu), outlet, SOQ, qty, dan PIC. Outlet, SOQ, dan PIC mengikuti item. Pilih rentang tanggal.</p><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="sub">Dari<input type="date" data-obx="f" value="'+esc(obx.f)+'" style="display:block"></label><label class="sub">Sampai<input type="date" data-obx="t" value="'+esc(obx.t)+'" style="display:block"></label><label class="sub">Bentuk<select data-obx="m" style="display:block"><option value="harian"'+(obx.m==='harian'?' selected':'')+'>Per tanggal dan item</option><option value="total"'+(obx.m==='total'?' selected':'')+'>Total per item (seluruh rentang)</option></select></label><button class="button" data-obxexp="1" type="button">&#11015; Export Qty Picking</button></div></div>'}
+ function obExport(){
+  const f=obx.f<=obx.t?obx.f:obx.t,t=obx.f<=obx.t?obx.t:obx.f,toDay=iso=>{const x=Date.parse(iso);return isNaN(x)?'':new Date(x+288e5).toISOString().slice(0,10)};
+  const kol=new Map(view('PICK_KOLI').map(k=>[k.dok+'|'+num(k.koli),k])),dk=new Map(view('PICK_DOK').map(d=>[d.id,d])),g=new Map();
+  view('PICK_ITEM').forEach(r=>{if(r.kategori==='OTHER')return;const q=num(r.qty_actual);if(!(q>0))return;const k=kol.get(r.dok+'|'+num(r.koli)),d=dk.get(r.dok)||{},dayR=k&&k.selesai?toDay(k.selesai):(r.tanggal||'');if(!dayR||dayR<f||dayR>t)return;
+   const day=obx.m==='harian'?dayR:'',item=String(r.item||'').trim(),key=day+'|'+item.toUpperCase();
+   let o=g.get(key);if(!o){o={day,item,out:new Set(),soq:new Set(),pic:new Set(),q:0};g.set(key,o)}o.q+=q;if(d.outlet)o.out.add(d.outlet);o.soq.add(d.kode||r.dok);const pc=r.picker||(k&&k.picker);if(pc)o.pic.add(nameOf(pc))});
+  const rows=[['Tanggal','Item name','Category','Outlet','SOQ','Qty','PIC']];
+  [...g.values()].sort((a,b)=>a.day.localeCompare(b.day)||a.item.localeCompare(b.item,'id',{numeric:true})).forEach(o=>rows.push([o.day||(f+' s/d '+t),o.item,'',[...o.out].join(', '),[...o.soq].join(', '),o.q,[...o.pic].join(', ')]));
+  if(rows.length<2){say('Tidak ada hasil picking pada rentang tanggal ini.',true);return}
+  csvDl2('Qty-Picking-'+f+'_sd_'+t+'.csv',rows);say('File Qty Picking ('+(rows.length-1)+' baris) diunduh.')}
+ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-obxexp]');if(!b||!body||!body.contains(b))return;e.preventDefault();obExport()});
+ document.addEventListener('change',e=>{const t=e.target;if(t&&t.dataset&&t.dataset.obx&&body&&body.contains(t))obx[t.dataset.obx]=t.value});
+ function drawTfsList(){const g=dokGroups(SETS.tfs);if(!g.length)return obExportPanel()+none('Belum ada koli yang lolos verifikasi.');
   const dlAll=canAdmin()?'<div class="ob-actions" style="margin-top:10px"><button class="button" data-obdlpick="*" type="button">⬇ Unduh semua hasil picking (Excel)</button></div>':'';
-  return dlAll+g.map(x=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+(canAdmin()?'<button class="button secondary" data-obdlpick="'+esc(x.d.id||x.ks[0].dok)+'" type="button">⬇ Unduh hasil picking</button>':'')+'</div><p class="sub">Selesai TFS '+x.ks.filter(k=>!['Siap TFS','Siap packing'].includes(k.status)).length+' dari '+x.ks.length+' koli yang siap.</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obopen')).join('')+'</div></div>').join('')}
+  return obExportPanel()+dlAll+g.map(x=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">'+head(x.d)+(canAdmin()?'<button class="button secondary" data-obdlpick="'+esc(x.d.id||x.ks[0].dok)+'" type="button">⬇ Unduh hasil picking</button>':'')+'</div><p class="sub">Selesai TFS '+x.ks.filter(k=>!['Siap TFS','Siap packing'].includes(k.status)).length+' dari '+x.ks.length+' koli yang siap.</p><div class="kl">'+x.ks.map(k=>chip(k,'data-obopen')).join('')+'</div></div>').join('')}
  const cp=(t)=>!canAdmin()?'':'<button class="button secondary" data-obcp="'+esc(t)+'" type="button" title="Copy" style="padding:2px 8px">📋</button>';
  // penanda "sudah di-copy" per baris TFS: ikon salin berubah jadi centang; klik 2x untuk menyalin lagi
  const CPK='wos-tfs-copied-v1',cpMap=()=>{try{return JSON.parse(localStorage.getItem(CPK)||'{}')||{}}catch(e){return{}}},cpSave=m=>{try{localStorage.setItem(CPK,JSON.stringify(m))}catch(e){}};
@@ -5061,7 +5095,7 @@ init();
   const row=(g,icon,cls,txt,m)=>'<div class="d3-r'+(g?' d3-go':'')+'"'+(g?' data-go="'+esc(g)+'"':'')+'>'+(icon?'<i class="d3-dot '+(cls||'')+'" aria-hidden="true"></i>':'')+'<span>'+txt+'</span>'+(m?'<span class="m">'+m+'</span>':'')+'</div>';
   const panel=(k,title,badge,bc,body)=>'<details class="d3-p" data-k="'+k+'"'+(dsIsOpen(k)?' open':'')+'><summary>'+esc(title)+(badge!==''?'<span class="d3c '+(bc||'')+'">'+badge+'</span>':'')+'</summary><div class="d3-b">'+body+'</div></details>';
   const empty=m=>'<p class="sub" style="margin:4px 0 8px">'+m+'</p>';
-  const h='<div class="d3-bar"><div><p class="sub" style="font-size:14px">'+esc(hari)+' · '+hm+' WITA</p></div><span class="d3-chip'+(V3.err()?' r':'')+'" style="margin-left:auto">'+(V3.err()?'Data belum lengkap':esc(sync))+'</span>'+(q?'<span class="d3-chip w">'+q+' antre kirim</span>':'')+'<button class="button secondary" data-dsexport="1" type="button">&#11015; Export GR dan Picking</button><button class="button secondary" data-dsrefresh="1" type="button">Muat ulang</button></div>'+
+  const h='<div class="d3-bar"><div><p class="sub" style="font-size:14px">'+esc(hari)+' · '+hm+' WITA</p></div><span class="d3-chip'+(V3.err()?' r':'')+'" style="margin-left:auto">'+(V3.err()?'Data belum lengkap':esc(sync))+'</span>'+(q?'<span class="d3-chip w">'+q+' Antri kirim</span>':'')+'<button class="button secondary" data-dsrefresh="1" type="button">Muat ulang</button></div>'+
    (V3.err()?'<p class="note" style="color:#b3261e;margin:0">Sebagian data belum termuat: '+esc(V3.err())+'. Angka di bawah bisa belum lengkap.</p>':'')+
    '<div class="d3-hero">'+
     '<div class="d3-card d3-go" data-go="attendance" title="Buka Attendance">'+ring(pc(hadir,staff),'#1D9E75','Attendance')+'<div><p class="d3-l">Attendance</p><b>'+hadir+'/'+staff+'</b><p class="d3-s '+(late?'d3-wr':'d3-ok')+'">'+late+' terlambat · lihat detail</p></div></div>'+
@@ -5087,7 +5121,7 @@ init();
   if(el._sig!==h){el._sig=h;el.innerHTML=h}
   const d=document.getElementById('dashboard');if(d&&d.classList.contains('active')){const sb=document.getElementById('subtitle');if(sb)sb.textContent='Distribusi Center 38 · '+hari}}
  {const d0=document.getElementById('dashboard');if(d0&&!document.getElementById('wos-dash3')){const el0=document.createElement('div');el0.id='wos-dash3';d0.prepend(el0);
-  el0.addEventListener('click',e=>{if(e.target.closest('[data-dsexport]')){openExport();return}if(e.target.closest('[data-dsrefresh]')){dsLoad(true);return}const g=e.target.closest('[data-go]');if(g)go(g.dataset.go)});
+  el0.addEventListener('click',e=>{if(e.target.closest('[data-dsrefresh]')){dsLoad(true);return}const g=e.target.closest('[data-go]');if(g)go(g.dataset.go)});
   el0.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset&&d.dataset.k){DS.open[d.dataset.k]=d.open;try{localStorage.setItem('wos-dash-open-v1',JSON.stringify(DS.open))}catch(x){}}},true)}}
  {const d=document.getElementById('dashboard');if(d){d._draw=drawDash;d._show=dsLoad;d.querySelectorAll(':scope>*').forEach(x=>{if(x.id!=='wos-dash3')x.style.display='none'});if(!document.getElementById('wos-dash3')){const box=document.createElement('div');box.id='wos-dash3';d.prepend(box)}document.querySelector('.nav[data-page="dashboard"]')?.addEventListener('click',()=>{drawDash();dsLoad()});setTimeout(()=>{drawDash();if(d.classList.contains('active'))dsLoad()},800)}}
 })();
