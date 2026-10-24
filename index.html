@@ -2712,11 +2712,11 @@ init();
    if(!resi)return err('Isi nomor STTB / resi.');if(!po)return err('Isi kode PO.');const efree=q('#iv2-e-free').checked,ecnt=Number(q('#iv2-e-cnt').value)||0;if(!efree&&!(tot>0))return err('Isi total koli satu PO.');
    const nid=s.id+'|'+resi+'|'+po;if(nid!==r.id&&view('UNLOADING_RESI').some(x=>x.id===nid))return err('STTB '+resi+' untuk PO '+po+' sudah ada di sesi ini.');
    const K=view('KOLI'),mine=K.filter(k=>poKey(k.po)===oldPo&&k.sesi_id===s.id&&k.resi===r.resi&&k.status!=='Batal');
-   if(po!==oldPo){const clash=mine.filter(k=>K.some(x=>x.id===po+'|'+k.no_koli&&x.id!==k.id));if(clash.length)return err('Koli '+clash.map(k=>k.no_koli).slice(0,8).join(', ')+' sudah tercatat pada PO '+po+'. Periksa kembali kode PO.');}
+   if(po!==oldPo){const rest=k=>String(k.id).slice(String(k.id).indexOf('|')+1),clash=mine.filter(k=>K.some(x=>x.id===po+'|'+rest(k)&&x.id!==k.id));if(clash.length)return err('Koli '+clash.map(k=>k.no_koli).slice(0,8).join(', ')+' sudah tercatat pada PO '+po+'. Periksa kembali kode PO.');}
    if(tot>0&&po!==oldPo&&mine.some(k=>Number(k.no_koli)>tot))return err('Ada koli bernomor lebih besar dari total koli '+tot+'.');
    const row=Object.assign({},r,{id:nid,resi,po,vendor:ven||vendorOfPo(po)||r.vendor||'',area_staging:area,koli_list:efree?'*'+(ecnt||''):''});
    if(nid!==r.id)enqDel('UNLOADING_RESI',r.id);enq('UNLOADING_RESI',row);
-   mine.forEach(k=>{if(po!==oldPo){enqDel('KOLI',k.id);enq('KOLI',Object.assign({},k,{id:po+'|'+k.no_koli,po,resi}))}else if(resi!==r.resi)enq('KOLI',Object.assign({},k,{resi}))});
+   mine.forEach(k=>{if(po!==oldPo){enqDel('KOLI',k.id);enq('KOLI',Object.assign({},k,{id:po+'|'+String(k.id).slice(String(k.id).indexOf('|')+1),po,resi}))}else if(resi!==r.resi)enq('KOLI',Object.assign({},k,{resi}))});
    const pi=view('PO_INFO').find(x=>x.id===po)||{},vNew=ven||pi.vendor||vendorOfPo(po)||'';
    if(tot>0&&(!pi.id||Number(pi.total_koli)!==tot||vNew!==(pi.vendor||'')))enq('PO_INFO',Object.assign({id:po,vendor:'',total_koli:'',pekan:'',catatan:'',diperbarui:today()},pi,{id:po,total_koli:String(tot),vendor:vNew,diperbarui:today()}));
    if(po!==oldPo){const other=view('UNLOADING_RESI').some(x=>x.id!==r.id&&poKey(x.po)===oldPo)||K.some(k=>poKey(k.po)===oldPo&&!mine.includes(k));if(!other&&view('PO_INFO').some(x=>x.id===oldPo))enqDel('PO_INFO',oldPo)}
