@@ -3812,6 +3812,23 @@ init();
  const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
  const chip=(k,attr,extra)=>'<button type="button" class="kb '+(STC2[k.status]||'')+(extra||'')+'" '+attr+'="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc(k.status)+'</small>'+(k.area?'<small>'+esc(k.area)+'</small>':'')+'</button>';
  const none=t=>'<p class="sub">'+t+'</p>';
+ // riwayat selesai per tahap (di paling atas tab), mengikuti panel tanggal; buka/tutup diingat per perangkat
+ const HISTK='wos-ob-hist-v1',HIST_PASS=['Siap TFS','Siap packing','Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
+ const HIST={
+  vp:{t:'Selesai diverifikasi',set:HIST_PASS,tm:k=>k.vp_selesai,who:k=>k.vp_oleh,ex:()=>''},
+  pack:{t:'Selesai packing & masuk staging',set:['Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'],tm:k=>k.pack_waktu,who:k=>k.pack_oleh,ex:k=>k.area||''},
+  load:{t:'Selesai dimuat ke kendaraan',set:['Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'],tm:k=>k.load_waktu,who:k=>k.load_oleh,ex:()=>''},
+  ship:{t:'Selesai diterima toko',set:RECEIVED,tm:k=>k.rcv_waktu,who:k=>k.rcv_nama||k.rcv_oleh,ex:k=>k.status==='Diterima-Masalah'?'bermasalah: '+(k.rcv_ket||''):''}};
+ const histOpen=key=>{try{return (JSON.parse(localStorage.getItem(HISTK)||'{}')||{})[key]===1}catch(e){return false}};
+ function histPanel(key){
+  const H=HIST[key],sc=level()==='store'?storeCode():'',ks=rngKoli(view('PICK_KOLI')).filter(k=>H.set.includes(k.status)&&(!sc||String(k.dok).split('|')[0]===sc)),by={};
+  ks.forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});
+  const ids=Object.keys(by).sort().reverse(),st='margin:0 0 10px;padding:10px 14px;border:1px solid var(--line,#e3e6ea);border-radius:12px;background:var(--panel,#fff)';
+  const sum='<summary style="cursor:pointer;font-weight:700">'+esc(H.t)+' · '+ks.length+' koli'+(ids.length?' · '+ids.length+' SOQ':'')+(rngOn()?'':' · semua tanggal')+'</summary>';
+  if(!ids.length)return '<details class="ob-hist" data-obh="'+key+'" style="'+st+'">'+sum+'<p class="sub" style="margin:8px 0 0">Belum ada pada rentang tanggal ini.</p></details>';
+  return '<details class="ob-hist" data-obh="'+key+'"'+(histOpen(key)?' open':'')+' style="'+st+'">'+sum+ids.map(id=>{const d=dokOf(id),l=by[id].slice().sort((a,b)=>num(a.koli)-num(b.koli));
+   return '<div style="margin-top:10px"><div style="font-weight:600">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+' · '+l.length+' koli</span></div>'+l.map(k=>{const w=H.tm(k),ex=H.ex(k);return '<div class="sub" style="padding:2px 0">Koli '+esc(k.koli)+(H.who(k)?' · '+esc(nameOf(H.who(k))):'')+(w?' · '+esc(wita(w)):'')+(ex?' · '+esc(ex):'')+'</div>'}).join('')+'</div>'}).join('')+'</details>'}
+ document.addEventListener('toggle',e=>{const d=e.target;if(!d||!d.dataset||!d.dataset.obh)return;try{const o=JSON.parse(localStorage.getItem(HISTK)||'{}')||{};o[d.dataset.obh]=d.open?1:0;localStorage.setItem(HISTK,JSON.stringify(o))}catch(x){}},true);
 
  // ---- cetak surat jalan dan STTB
  const PCSS='<style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#111}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #444;padding:5px 7px;text-align:left;vertical-align:top}th{background:#eee}h2{margin:0}.sig{display:flex;gap:10px;margin-top:20px}.sig div{flex:1;text-align:center;font-size:12px}.sig i{display:block;height:64px;border-bottom:1px solid #111}@media print{button{display:none}}</style>';
@@ -3995,11 +4012,11 @@ init();
   if(narrowTab()&&!cur)h+=refreshBar();
   if(tabName==='Picking List')h+=edit?drawEdit():drawList();
   else if(tabName==='Picking')h+=cur&&cur.mode==='pick'?drawPickScreen():listKoli('pick');
-  else if(tabName==='Verification Pick')h+=cur&&cur.mode==='vp'?drawVpScreen():listKoli('vp');
+  else if(tabName==='Verification Pick')h+=cur&&cur.mode==='vp'?drawVpScreen():histPanel('vp')+listKoli('vp');
   else if(tabName==='Transfer Stok (TFS ke MOKA)')h+=cur&&cur.mode==='tfs'?drawTfsScreen():drawTfsList();
-  else if(tabName==='Packing & Staging')h+=drawPack();
-  else if(tabName==='Loading')h+=drawLoad();
-  else if(tabName==='Shipping')h+=drawShipTab();
+  else if(tabName==='Packing & Staging')h+=histPanel('pack')+drawPack();
+  else if(tabName==='Loading')h+=histPanel('load')+drawLoad();
+  else if(tabName==='Shipping')h+=histPanel('ship')+drawShipTab();
   else if(tabName==='Receiving Outlet')h+=drawRcv();
   else if(tabName==='GR Outlet')h+=cur&&cur.mode==='gr'?drawGrScreen():drawGrList();
   else h+=drawMasalah();
