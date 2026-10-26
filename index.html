@@ -4908,13 +4908,59 @@ init();
    stores:Object.entries(byStore).sort((a,b)=>b[1].pcs-a[1].pcs),selisih:rows.filter(r=>r.status==='Selisih').length,salah:rows.filter(r=>r.vp==='Salah'||r.vp==='Dikoreksi').length,
    miss:gr.filter(g=>mine.has(g.dok+'|'+num(g.koli))&&g.status&&!/sesuai|ok|selesai/i.test(g.status)).length,
    recv:kol.length,recvBad:kol.filter(k=>k.status==='Bermasalah').length,cKoli:new Set(gc.map(r=>r.po+'|'+r.no_koli)).size,cPcs:gc.reduce((a,r)=>a+num(r.qty_actual),0),pKoli:new Set(pa.map(r=>r.po+'|'+r.no_koli)).size,pPcs:pa.reduce((a,r)=>a+num(r.qty),0),lc:lc.length}}
+ // ---- Kecepatan dan akurasi kerja (norm dari riwayat kerja tim) + skor kinerja dengan bobot KPI
+ const KPN={cnt:{l:19,p:4.5},pick:{l:120,p:1.5},pa:{l:45},cap:240,gap:25};
+ const kbw=()=>{try{const o=JSON.parse(localStorage.getItem('wos-kpi-bobot-v1')||'null');if(o&&o.kec>=0&&o.akur>=0&&(o.kec+o.akur)>0)return o}catch(e){}return{kec:50,akur:50}};
+ function perfKin(who,fr,to){
+  const [f,t]=fr?[fr,to]:perfRange(),inR=d=>{d=String(d||'').slice(0,10);return d>=f&&d<=t},wd=s=>{const x=Date.parse(s);return isFinite(x)?new Date(x+288e5).toISOString().slice(0,10):''};
+  const out={cnt:null,pick:null,pa:null};
+  // counting: waktu aktif = menit yang punya input; target = 19 dtk per baris (+4,5 dtk per 100 pcs)
+  const gc=view('GR_COUNT').filter(r=>(who==='*'||r.operator===who)&&inR(r.tanggal)&&String(r.seq||'').charAt(0)!=='R'&&r.jam_wita);
+  if(gc.length){const sets=new Set();let lines=0,pcs=0,ok=0;gc.forEach(r=>{const m=/^(\d+):(\d\d)/.exec(r.jam_wita);if(!m)return;sets.add(r.operator+'|'+String(r.tanggal).slice(0,10)+'|'+((+m[1])*60+(+m[2])));lines++;pcs+=num(r.qty_actual);if(r.status==='Sesuai')ok++});
+   const act=sets.size*60,tgt=KPN.cnt.l*lines+KPN.cnt.p*pcs/100;out.cnt={lines,pcs,act,tgt,eff:act?tgt/act*100:null,acc:lines?100*ok/lines:null,koli:new Set(gc.map(r=>r.po+'|'+r.no_koli)).size}}
+  // picking: lama koli (mulai sampai selesai, maks 4 jam); target = 120 dtk per baris (+1,5 dtk per 100 pcs); akurasi dari koreksi verifikasi dan miss-picking
+  const it=new Map();view('PICK_ITEM').forEach(r=>{if(r.kategori==='OTHER')return;const k=r.dok+'|'+num(r.koli);(it.get(k)||it.set(k,[]).get(k)).push(r)});
+  const pkk=view('PICK_KOLI').filter(k=>(who==='*'||k.picker===who)&&k.status!=='Batal'&&k.mulai&&k.selesai&&inR(wd(k.selesai))),gr=view('PICK_GR');
+  if(pkk.length){let tgt=0,dur=0,lines=0,err=0,n=0;pkk.forEach(k=>{const rows=it.get(k.dok+'|'+num(k.koli))||[],L=rows.length,P=rows.reduce((s,r)=>s+(num(r.qty_actual)||num(r.qty)),0),d=(Date.parse(k.selesai)-Date.parse(k.mulai))/1000;lines+=L;err+=rows.filter(r=>r.vp==='Salah'||r.vp==='Dikoreksi').length+gr.filter(g=>g.dok===k.dok&&num(g.koli)===num(k.koli)&&g.status&&!/sesuai|ok|selesai/i.test(g.status)).length;if(isFinite(d)&&d>0&&d<=KPN.cap*60&&L){tgt+=KPN.pick.l*L+KPN.pick.p*P/100;dur+=d;n++}});
+   out.pick={koli:pkk.length,valid:n,lines,err,act:dur,tgt,eff:dur?tgt/dur*100:null,acc:lines?Math.max(0,100-100*err/lines):null}}
+  // put away: selang simpan antar koli per operator per hari (0,5 sampai 25 menit); target = 45 dtk per baris (norm sementara)
+  const by={};view('PUTAWAY').forEach(r=>{if(!(who==='*'||r.operator===who)||!inR(r.tanggal)||!r.jam_wita)return;const m=/^(\d+):(\d\d)/.exec(r.jam_wita);if(!m)return;const key=r.operator+'|'+String(r.tanggal).slice(0,10),k=r.po+'|'+r.no_koli,o=(by[key]=by[key]||{}),e=o[k]||(o[k]={t:0,rows:0}),tm=(+m[1])*60+(+m[2]);e.rows++;if(tm>e.t)e.t=tm});
+  {let act=0,tgt=0,rows=0,koli=0;Object.values(by).forEach(o=>{const ks=Object.values(o).sort((a,b)=>a.t-b.t);koli+=ks.length;ks.forEach(x=>rows+=x.rows);for(let i=1;i<ks.length;i++){const g=(ks[i].t-ks[i-1].t)*60;if(g>=30&&g<=KPN.gap*60){act+=g;tgt+=KPN.pa.l*ks[i].rows}}});
+   if(koli)out.pa={koli,rows,act,tgt,eff:act?tgt/act*100:null,acc:null}}
+  const sp=[out.cnt,out.pick,out.pa].filter(x=>x&&x.eff!=null&&x.tgt>0),spd=sp.length?sp.reduce((s,x)=>s+Math.min(100,x.eff)*x.tgt,0)/sp.reduce((s,x)=>s+x.tgt,0):null;
+  const ac=[];if(out.pick&&out.pick.lines)ac.push([Math.max(0,Math.min(100,100-(out.pick.err/out.pick.lines-0.01)*2500)),out.pick.lines]);if(out.cnt&&out.cnt.lines)ac.push([out.cnt.acc,out.cnt.lines]);
+  const akur=ac.length?ac.reduce((s,x)=>s+x[0]*x[1],0)/ac.reduce((s,x)=>s+x[1],0):null,w=kbw();
+  const total=spd!=null&&akur!=null?(spd*w.kec+akur*w.akur)/(w.kec+w.akur):(spd!=null?spd:akur);
+  return Object.assign(out,{spd,akur,total,w})}
+ window.WOSKin=perfKin;
+ const kinLbl=v=>v==null?['-','']:v>=85?['Sesuai norm','g']:v>=60?['Perlu dipantau','o']:['Perlu pembinaan','r'];
+ const kinPct=v=>v==null?'-':Math.round(v)+'%',kinMin=s=>s==null?'-':s>=3600?Math.floor(s/3600)+'j '+Math.round(s%3600/60)+'m':Math.round(s/60)+' mnt';
+ function kinCard(who){
+  if(who==='*')return '';
+  const K=perfKin(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',col=e=>e==null?'':e>=85?'g':e>=60?'o':'r';
+  const lb=kinLbl(K.total);
+  return '<h4 style="margin:14px 0 6px">Kecepatan dan akurasi kerja</h4><div class="an-kpi">'+
+   k('Skor kinerja',K.total==null?'-':Math.round(K.total),lb[0]+' · bobot kecepatan '+K.w.kec+'% dan akurasi '+K.w.akur+'%',lb[1])+
+   k('Skor kecepatan',kinPct(K.spd),'target ÷ waktu kerja (maks 100%)',col(K.spd))+k('Skor akurasi',kinPct(K.akur),'picking: 100 bila temuan ≤1% baris, 0 bila ≥5%; counting: kesesuaian',col(K.akur))+
+   (K.cnt?k('Counting',kinPct(K.cnt.eff),K.cnt.koli+' koli · '+K.cnt.lines+' baris · aktif '+kinMin(K.cnt.act)+' (target '+kinMin(K.cnt.tgt)+')',col(K.cnt.eff)):'')+
+   (K.pick?k('Picking',kinPct(K.pick.eff),K.pick.koli+' koli · '+K.pick.lines+' baris · '+kinMin(K.pick.act)+' (target '+kinMin(K.pick.tgt)+')',col(K.pick.eff)):'')+
+   (K.pa?k('Put away',kinPct(K.pa.eff),K.pa.koli+' koli · '+K.pa.rows+' baris · norm sementara',col(K.pa.eff)):'')+
+   (K.pick?k('Akurasi picking',kinPct(K.pick.acc),K.pick.err+' temuan dari '+K.pick.lines+' baris',K.pick.err?'o':'g'):'')+(K.cnt?k('Kesesuaian counting',kinPct(K.cnt.acc),'baris sesuai surat jalan (indikatif)',''):'')+
+   '</div><p class="sub" style="margin:6px 0 0">Efisiensi 100% = tepat norm; lebih dari 100% dihitung 100 untuk skor. Norm dari riwayat kerja tim: counting 19 dtk/baris, picking 120 dtk/baris, put away 45 dtk/baris (sementara).</p>'+
+   (level()==='supervisor'?'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:8px"><label class="sub">Bobot kecepatan (%)<input type="number" min="0" max="100" data-kbw="kec" value="'+K.w.kec+'" style="width:90px;display:block"></label><label class="sub">Bobot akurasi (%)<input type="number" min="0" max="100" data-kbw="akur" value="'+K.w.akur+'" style="width:90px;display:block"></label><span class="sub">Bobot KPI tersimpan di perangkat ini.</span></div>':'')}
+ function kinTable(){
+  const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>!p.out&&p.role!=='Supervisor'),av=(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,30,n):'';
+  const L=ops.map(([c,p])=>({c,n:p.name,K:perfKin(c)})).filter(x=>x.K.cnt||x.K.pick||x.K.pa).sort((a,b)=>(b.K.total==null?-1:b.K.total)-(a.K.total==null?-1:a.K.total));
+  if(!L.length)return '';
+  return '<h4 style="margin:14px 0 6px">Peringkat kinerja per operator (kecepatan dan akurasi)</h4><div class="an-wrap"><table class="an-t"><thead><tr><th>Operator</th><th>Counting</th><th>Picking</th><th>Put away</th><th>Skor kecepatan</th><th>Skor akurasi</th><th>Skor kinerja</th><th>Status</th></tr></thead><tbody>'+L.map(x=>{const K=x.K,lb=kinLbl(K.total);return '<tr><td><span style="display:inline-flex;align-items:center;gap:8px">'+av(x.c,x.n)+'<b>'+esc(x.n)+'</b></span></td><td>'+(K.cnt?kinPct(K.cnt.eff)+' <span style="color:#8896ab">('+K.cnt.lines+' baris)</span>':'-')+'</td><td>'+(K.pick?kinPct(K.pick.eff)+' <span style="color:#8896ab">('+K.pick.koli+' koli)</span>':'-')+'</td><td>'+(K.pa?kinPct(K.pa.eff):'-')+'</td><td>'+kinPct(K.spd)+'</td><td>'+kinPct(K.akur)+'</td><td><b>'+(K.total==null?'-':Math.round(K.total))+'</b></td><td>'+(K.total==null?'-':'<span class="tag '+({g:'green',o:'amber',r:'red'}[lb[1]]||'')+'">'+lb[0]+'</span>')+'</td></tr>'}).join('')+'</tbody></table></div><p class="sub" style="margin:6px 0 0">Status: sesuai norm bila skor 85 ke atas, perlu dipantau 60-84, perlu pembinaan di bawah 60. Dasar penilaian bulanan: bobot kecepatan dan akurasi di atas.</p>'}
+ document.addEventListener('change',e=>{const t=e.target;if(t.dataset&&t.dataset.kbw){const b=kbw(),v=Math.max(0,Math.min(100,Number(t.value)||0));b[t.dataset.kbw]=v;if(!(b.kec+b.akur>0))return;try{localStorage.setItem('wos-kpi-bobot-v1',JSON.stringify(b))}catch(x){}try{V3.redraw()}catch(x){}}});
  function perfCard(who){
   const P=perfCalc(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',fmt=n=>Math.round(n).toLocaleString('id-ID');
   const pb=window.WOSRng.html();
   return '<div class="an-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div><h3 style="margin:0">Performa · '+(who==='*'?'Seluruh tim dan gudang':esc(nameOf(who)))+'</h3><p class="sub" style="margin:0">'+esc(P.f)+' s/d '+esc(P.t)+'</p></div><div>'+pb+'</div></div>'+
    '<h4 style="margin:12px 0 6px">Outbound · Picking</h4><div class="an-kpi">'+k('Koli dikerjakan',P.koliDone+' / '+P.koli,'selesai dari yang ditugaskan')+k('Total pcs',fmt(P.pcs),P.lines+' baris item')+k('SKU berbeda',P.sku,'jenis item')+k('Toko tujuan',P.stores.length,'toko')+k('Item selisih',P.selisih,'bin / qty berbeda saat picking',P.selisih?'o':'g')+k('Koreksi verifikasi',P.salah,'ditemukan salah saat verifikasi',P.salah?'r':'g')+k('Temuan GR Outlet',P.miss,'miss-picking di toko',P.miss?'r':'g')+'</div>'+
    (P.stores.length?'<div class="an-wrap" style="margin-top:8px"><table class="an-t"><thead><tr><th>Toko</th><th>Kode</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+P.stores.map(([o,e])=>'<tr><td>'+esc(o)+'</td><td>'+esc(e.kode)+'</td><td>'+e.koli+'</td><td>'+fmt(e.pcs)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Belum ada picking pada periode ini.</p>')+
-   '<h4 style="margin:14px 0 6px">Inbound dan lainnya</h4><div class="an-kpi">'+k('Koli diterima (unloading)',P.recv,P.recvBad?P.recvBad+' bermasalah':'tanpa temuan')+k('Counting',P.cKoli+' koli',fmt(P.cPcs)+' pcs')+k('Put away',P.pKoli+' koli',fmt(P.pPcs)+' pcs')+k('Cycle count / opname',P.lc,'bin selesai dihitung')+'</div>'+(who==='*'?teamTable():'')+'</div>'}
+   '<h4 style="margin:14px 0 6px">Inbound dan lainnya</h4><div class="an-kpi">'+k('Koli diterima (unloading)',P.recv,P.recvBad?P.recvBad+' bermasalah':'tanpa temuan')+k('Counting',P.cKoli+' koli',fmt(P.cPcs)+' pcs')+k('Put away',P.pKoli+' koli',fmt(P.pPcs)+' pcs')+k('Cycle count / opname',P.lc,'bin selesai dihitung')+'</div>'+kinCard(who)+(who==='*'?kinTable()+teamTable():'')+'</div>'}
  function teamTable(){
   const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>!p.out&&p.role!=='Supervisor'),fmt=n=>Math.round(n).toLocaleString('id-ID');
   const L=ops.map(([c,p])=>({c,n:p.name,P:perfCalc(c)})).filter(x=>x.P.koli||x.P.recv||x.P.cKoli||x.P.pKoli||x.P.lc).sort((a,b)=>(b.P.pcs+b.P.cPcs+b.P.pPcs)-(a.P.pcs+a.P.cPcs+a.P.pPcs));
@@ -6297,6 +6343,8 @@ init();
  const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3||!V3.mkPage)return;
  const {esc,call,today}=A;
  const WA=40,WP=60,WPROD=0.7,WCOMP=0.3;
+ // bobot skor akhir (dapat diatur SPV): kehadiran, task, kecepatan, akurasi, compliance. Bobot tersimpan di perangkat.
+ const KW_D={on:true,att:20,task:20,spd:20,akur:20,comp:20},kw5=()=>{try{const o=JSON.parse(localStorage.getItem('wos-kpi-w5-v1')||'null');if(o&&typeof o==='object')return Object.assign({},KW_D,o)}catch(e){}return Object.assign({},KW_D)};
  const MON=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
  const pad=n=>String(n).padStart(2,'0');
  const fm=n=>(Math.round(n*100)/100).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -6341,7 +6389,11 @@ init();
   raw.ev.forEach(r=>{if(!r||seenE.has(r.id))return;seenE.add(r.id);const o=by[r.kode_staf];if(!o||r.status==='batal'||!o.days.has(r.tanggal))return;let j={};try{j=JSON.parse(r.json||'{}')}catch(e){}const type=r.jenis||j.type||'Temuan',w=type==='DRM'?0.5:1;o.pts+=w;o.viol.push({day:r.tanggal,type,detail:j.detail||'',w})});
   const kmap={};raw.kol.forEach(k=>{kmap[k.id]=k});const seenG=new Set();
   raw.gr.forEach(g=>{if(!g||g.status!=='Salah'||seenG.has(g.id))return;seenG.add(g.id);const k=kmap[g.dok+'|K'+g.koli];if(!k)return;[...new Set([k.picker,k.vp_oleh,k.pack_oleh].filter(Boolean))].forEach(c=>{const o=by[c];if(!o||!o.days.size)return;o.pts+=1;o.viol.push({day:g.tanggal,type:'Miss-picking di toko',detail:(g.outlet||'')+' · '+(g.item||'')+' (koli '+g.koli+')',w:1})})});
-  rows.forEach(o=>{o.att=o.days.size;const ratio=o.assign?o.done/o.assign:1;o.prod=WA*o.att/hk+WP*ratio;o.comp=o.att?Math.max(0,100*(1-o.pts/(2*o.att))):null;o.final=o.att?WPROD*o.prod+WCOMP*(o.comp==null?100:o.comp):null});
+  rows.forEach(o=>{o.att=o.days.size;const ratio=o.assign?o.done/o.assign:1;o.prod=WA*o.att/hk+WP*ratio;o.comp=o.att?Math.max(0,100*(1-o.pts/(2*o.att))):null;o.final=o.att?WPROD*o.prod+WCOMP*(o.comp==null?100:o.comp):null;
+   o.spd=null;o.akur=null;const KW=kw5();
+   if(KW.on&&o.att&&window.WOSKin){let K=null;try{K=window.WOSKin(o.code,p.from,p.to)}catch(e){}if(K){o.spd=K.spd;o.akur=K.akur}
+    const parts=[[KW.att,Math.min(100,100*o.att/hk)],[KW.task,100*ratio],[KW.spd,o.spd],[KW.akur,o.akur],[KW.comp,o.comp==null?100:o.comp]].filter(x=>x[1]!=null&&x[0]>0),sw=parts.reduce((a,x)=>a+x[0],0);
+    o.final=sw?parts.reduce((a,x)=>a+x[0]*Math.min(100,x[1]),0)/sw:null}});
   const rk=rows.filter(o=>o.att>0).sort((a,b)=>(Math.round(b.final*100)-Math.round(a.final*100))||b.done-a.done);
   rk.forEach((o,i)=>{o.rank=i&&Math.round(o.final*100)===Math.round(rk[i-1].final*100)&&o.done===rk[i-1].done?rk[i-1].rank:i+1});
   rows.sort((a,b)=>(a.rank||999)-(b.rank||999)||a.name.localeCompare(b.name));
@@ -6356,16 +6408,32 @@ init();
   catch(e){st.err=String(e&&e.message||e)}
   st.yrBusy=false;draw(s)}
  const kindLbl={picking:'Picking',gr:'Good Receipt',de:'Data Entry',lc:'Location Control',verifikasi:'Verifikasi',lain:'Lainnya'};
+ function kwBox(){
+  const w=kw5(),spv=sessionStorage.getItem('wos-session-v1')==='supervisor',lab=[['att','Kehadiran'],['task','Task selesai'],['spd','Kecepatan kerja'],['akur','Akurasi kerja'],['comp','Compliance']];
+  let h='<div class="card" style="margin:0 0 10px;padding:12px 14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><b>Bobot indikator skor akhir</b>'+(spv?'<label class="sub" style="margin:0"><input type="checkbox" data-kw5on="1"'+(w.on?' checked':'')+'> Pakai kecepatan dan akurasi (bila mati: 70% produktivitas + 30% compliance)</label>':'')+'</div>';
+  if(w.on){const tot=lab.reduce((a,x)=>a+(Number(w[x[0]])||0),0);
+   h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">'+lab.map(x=>'<label class="sub">'+x[1]+' (%)<input type="number" min="0" max="100" data-kw5="'+x[0]+'" value="'+w[x[0]]+'"'+(spv?'':' disabled')+' style="width:84px;display:block"></label>').join('')+'<span class="sub" style="align-self:end">Total bobot '+tot+'%'+(tot!==100?' (dinormalkan otomatis)':'')+'</span></div>'+
+   '<p class="sub" style="margin:8px 0 0">Skor akhir = rata-rata berbobot lima indikator. <b>Kehadiran</b> = hadir ÷ hari kerja. <b>Task</b> = selesai ÷ ditugaskan. <b>Kecepatan</b> = target norm ÷ waktu kerja (maks 100) untuk counting (19 dtk/baris), picking (120 dtk/baris), put away (45 dtk/baris, sementara). <b>Akurasi</b> = picking: skor dari tingkat temuan (koreksi verifikasi dan miss-picking): 100 bila temuan ≤ 1% baris, turun linear ke 0 bila ≥ 5%; counting: persentase baris sesuai surat jalan (indikatif). <b>Compliance</b> = 100 − poin pelanggaran ÷ (2 × hari hadir). Indikator yang tidak punya data (misalnya driver tidak counting) dikeluarkan dan bobotnya dibagi ke indikator lain. Bobot tersimpan di perangkat ini.</p>'}
+  else h+='<p class="sub" style="margin:8px 0 0">Skor akhir = 70% Produktivitas + 30% Compliance (rumus lama).</p>';
+  return h+'</div>'}
+ function kinDetailHtml(o){
+  let K=null;try{K=window.WOSKin&&window.WOSKin(o.code,st.per.from,st.per.to)}catch(e){}
+  if(!K||(!K.cnt&&!K.pick&&!K.pa))return '<div style="flex:1;min-width:240px"><b>Kecepatan dan akurasi</b><p class="sub" style="margin:4px 0 0">Tidak ada pekerjaan counting, put away, atau picking pada periode ini.</p></div>';
+  const mn=x=>x==null?'-':x>=3600?Math.floor(x/3600)+' j '+Math.round(x%3600/60)+' mnt':Math.round(x/60)+' mnt',pc=v=>v==null?'-':Math.round(v)+'%';
+  return '<div style="flex:1;min-width:260px"><b>Kecepatan dan akurasi</b><ul style="margin:4px 0 0 18px">'+
+   (K.cnt?'<li>Counting: '+K.cnt.koli+' koli, '+K.cnt.lines+' baris · aktif '+mn(K.cnt.act)+' dari target '+mn(K.cnt.tgt)+' · efisiensi <b>'+pc(K.cnt.eff)+'</b> · kesesuaian '+pc(K.cnt.acc)+'</li>':'')+
+   (K.pick?'<li>Picking: '+K.pick.koli+' koli, '+K.pick.lines+' baris · '+mn(K.pick.act)+' dari target '+mn(K.pick.tgt)+' · efisiensi <b>'+pc(K.pick.eff)+'</b> · temuan '+K.pick.err+' ('+(K.pick.lines?(100*K.pick.err/K.pick.lines).toFixed(1).replace('.',','):'0')+'% baris, skor akurasi '+pc(Math.max(0,Math.min(100,100-(K.pick.err/Math.max(1,K.pick.lines)-0.01)*2500)))+')</li>':'')+
+   (K.pa?'<li>Put away: '+K.pa.koli+' koli, '+K.pa.rows+' baris · efisiensi <b>'+pc(K.pa.eff)+'</b> (norm sementara)</li>':'')+'</ul></div>'}
  function vPeriode(){
   const k=keyOf(st.per),raw=st.cache[k];let h='';
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:10px"><button class="button secondary" data-pf="prev" type="button">&larr;</button><b>'+esc(dl(st.per.from))+' – '+esc(dl(st.per.to))+'</b><button class="button secondary" data-pf="next" type="button">&rarr;</button><button class="button secondary" data-pf="now" type="button">Periode ini</button><label class="sub">Dari<input type="date" data-pff="from" value="'+esc(st.per.from)+'" style="display:block"></label><label class="sub">Sampai<input type="date" data-pff="to" value="'+esc(st.per.to)+'" style="display:block"></label><label class="sub">Hari kerja<input type="number" min="1" max="31" data-pfhk="1" value="'+hkOf(st.per)+'" style="display:block;width:80px"></label><button class="button secondary" data-pf="reload" type="button">Muat ulang</button>'+(raw?'<button class="button secondary" data-pf="csv" type="button">&#11015; Unduh CSV</button>':'')+'</div>';
-  h+='<p class="sub" style="margin:0 0 10px">Skor akhir = <b>70% Produktivitas</b> + <b>30% Compliance</b>. Produktivitas = 40% × (hadir ÷ hari kerja) + 60% × (task selesai ÷ task ditugaskan). Compliance = 100 − poin pelanggaran ÷ (2 × hari hadir). Poin: DRM tidak ikut 0,5 · laporan 5R tidak masuk atau ditolak, komplain, dan temuan 1 · miss-picking di toko 1 untuk picker, checker, dan packer.</p>';
+  h+=kwBox();
   if(!raw)return h+'<p class="sub">'+(st.busy?'Memuat data…':'Belum ada data.')+'</p>';
   const res=compute(raw,st.per);
-  h+='<div class="an-wrap"><table class="an-t"><thead><tr><th>Rank</th><th>Nama</th><th>Posisi</th><th style="text-align:right">Hadir / HK</th><th style="text-align:right">Assignment</th><th style="text-align:right">Selesai</th><th style="text-align:right">Productivity %</th><th style="text-align:right">Compliance %</th><th style="text-align:right">Skor akhir</th><th></th></tr></thead><tbody>'+res.rows.map(o=>{
+  h+='<div class="an-wrap"><table class="an-t"><thead><tr><th>Rank</th><th>Nama</th><th>Posisi</th><th style="text-align:right">Hadir / HK</th><th style="text-align:right">Assignment</th><th style="text-align:right">Selesai</th><th style="text-align:right">Productivity %</th><th style="text-align:right">Kecepatan %</th><th style="text-align:right">Akurasi %</th><th style="text-align:right">Compliance %</th><th style="text-align:right">Skor akhir</th><th></th></tr></thead><tbody>'+res.rows.map(o=>{
    const med=o.rank===1?'&#129351; ':o.rank===2?'&#129352; ':o.rank===3?'&#129353; ':'';
-   let r='<tr'+(o.att?'':' style="opacity:.55"')+'><td><b>'+(o.rank?med+o.rank:'-')+'</b></td><td>'+esc(o.name)+' <span class="sub">'+esc(o.code)+'</span></td><td>'+esc(o.pos)+'</td><td style="text-align:right">'+o.att+' / '+res.hk+'</td><td style="text-align:right">'+o.assign+'</td><td style="text-align:right">'+o.done+'</td><td style="text-align:right">'+(o.att?fm(o.prod)+'%':'-')+'</td><td style="text-align:right">'+(o.comp==null?'-':fm(o.comp)+'%')+'</td><td style="text-align:right"><b>'+(o.final==null?'-':fm(o.final))+'</b></td><td><button class="button secondary" data-pf="sel" data-c="'+esc(o.code)+'" type="button" style="padding:3px 10px">'+(st.sel===o.code?'Tutup':'Detail')+'</button></td></tr>';
-   if(st.sel===o.code){const ks=Object.entries(o.kinds);r+='<tr><td colspan="10" style="background:#f6f9fc"><div style="display:flex;gap:24px;flex-wrap:wrap"><div><b>Task per jenis</b>'+(ks.length?'<ul style="margin:4px 0 0 18px">'+ks.map(([k,v])=>'<li>'+esc(kindLbl[k]||k)+': '+v.d+' selesai dari '+v.a+'</li>').join('')+'</ul>':'<p class="sub" style="margin:4px 0 0">Tidak ada task pada periode ini.</p>')+'</div><div style="flex:1;min-width:260px"><b>Pelanggaran compliance ('+fm(o.pts).replace(',00','')+' poin)</b>'+(o.viol.length?'<ul style="margin:4px 0 0 18px">'+o.viol.sort((a,b)=>String(a.day).localeCompare(b.day)).map(v=>'<li>'+esc(dl(v.day))+' · '+esc(v.type)+' ('+v.w+')'+(v.detail?' — '+esc(v.detail):'')+'</li>').join('')+'</ul>':'<p class="sub" style="margin:4px 0 0">Tidak ada pelanggaran.</p>')+'</div></div></td></tr>'}
+   let r='<tr'+(o.att?'':' style="opacity:.55"')+'><td><b>'+(o.rank?med+o.rank:'-')+'</b></td><td>'+esc(o.name)+' <span class="sub">'+esc(o.code)+'</span></td><td>'+esc(o.pos)+'</td><td style="text-align:right">'+o.att+' / '+res.hk+'</td><td style="text-align:right">'+o.assign+'</td><td style="text-align:right">'+o.done+'</td><td style="text-align:right">'+(o.att?fm(o.prod)+'%':'-')+'</td><td style="text-align:right">'+(o.spd==null?'-':fm(o.spd)+'%')+'</td><td style="text-align:right">'+(o.akur==null?'-':fm(o.akur)+'%')+'</td><td style="text-align:right">'+(o.comp==null?'-':fm(o.comp)+'%')+'</td><td style="text-align:right"><b>'+(o.final==null?'-':fm(o.final))+'</b></td><td><button class="button secondary" data-pf="sel" data-c="'+esc(o.code)+'" type="button" style="padding:3px 10px">'+(st.sel===o.code?'Tutup':'Detail')+'</button></td></tr>';
+   if(st.sel===o.code){const ks=Object.entries(o.kinds);r+='<tr><td colspan="12" style="background:#f6f9fc"><div style="display:flex;gap:24px;flex-wrap:wrap"><div><b>Task per jenis</b>'+(ks.length?'<ul style="margin:4px 0 0 18px">'+ks.map(([k,v])=>'<li>'+esc(kindLbl[k]||k)+': '+v.d+' selesai dari '+v.a+'</li>').join('')+'</ul>':'<p class="sub" style="margin:4px 0 0">Tidak ada task pada periode ini.</p>')+'</div><div style="flex:1;min-width:260px"><b>Pelanggaran compliance ('+fm(o.pts).replace(',00','')+' poin)</b>'+(o.viol.length?'<ul style="margin:4px 0 0 18px">'+o.viol.sort((a,b)=>String(a.day).localeCompare(b.day)).map(v=>'<li>'+esc(dl(v.day))+' · '+esc(v.type)+' ('+v.w+')'+(v.detail?' — '+esc(v.detail):'')+'</li>').join('')+'</ul>':'<p class="sub" style="margin:4px 0 0">Tidak ada pelanggaran.</p>')+'</div>'+kinDetailHtml(o)+'</div></td></tr>'}
    return r}).join('')+'</tbody></table></div><p class="sub" style="margin:8px 0 0">Task dihitung dari daftar Task masing-masing orang; jenis pekerjaan yang belum dibuatkan task otomatis (mis. packing, loading, pengantaran) belum ikut dalam angka Assignment.</p>';
   return h}
  function vTahun(){
@@ -6384,7 +6452,7 @@ init();
   if(s._sig!==h){s._sig=h;const b2=s.querySelector('.v3-b');b2.style.minHeight=b2.offsetHeight+'px';b2.innerHTML=h;requestAnimationFrame(()=>{b2.style.minHeight=''})}}
  function csv(){
   const raw=st.cache[keyOf(st.per)];if(!raw)return;const res=compute(raw,st.per),q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-  const lines=[['Rank','Kode','Nama','Posisi','Hadir','Hari kerja','Assignment','Selesai','Productivity %','Compliance %','Skor akhir','Poin pelanggaran'].map(q).join(',')].concat(res.rows.map(o=>[o.rank||'',o.code,o.name,o.pos,o.att,res.hk,o.assign,o.done,o.att?fm(o.prod):'',o.comp==null?'':fm(o.comp),o.final==null?'':fm(o.final),o.pts].map(q).join(',')));
+  const lines=[['Rank','Kode','Nama','Posisi','Hadir','Hari kerja','Assignment','Selesai','Productivity %','Kecepatan %','Akurasi %','Compliance %','Skor akhir','Poin pelanggaran'].map(q).join(',')].concat(res.rows.map(o=>[o.rank||'',o.code,o.name,o.pos,o.att,res.hk,o.assign,o.done,o.att?fm(o.prod):'',o.spd==null?'':fm(o.spd),o.akur==null?'':fm(o.akur),o.comp==null?'':fm(o.comp),o.final==null?'':fm(o.final),o.pts].map(q).join(',')));
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download='performance-tim-'+st.per.from+'-sd-'+st.per.to+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
  V3.mkPage('performance','Performance','Performance Tim','Kehadiran, produktivitas, dan compliance per periode (potong 23–22)','analysis',s=>{
   s.innerHTML='<div class="toolbar"><div><h2>Performance tim</h2><span class="sub">Kehadiran, produktivitas, dan compliance per periode (potong 23–22)</span></div></div><div class="v3-b"></div>';
@@ -6396,6 +6464,7 @@ init();
    if(d.pf==='csv'){csv();return}});
   s.addEventListener('change',e=>{const t=e.target,d=t.dataset;
    if(d.pff){const p=Object.assign({},st.per);p[d.pff]=t.value;if(p.from&&p.to&&p.from>p.to){const x=p.from;p.from=p.to;p.to=x}st.per=p;st.sel='';draw(s);loadPer(s)}
+   else if(d.kw5on||d.kw5){const w=kw5();if(d.kw5on)w.on=t.checked;else w[d.kw5]=Math.max(0,Math.min(100,Number(t.value)||0));try{localStorage.setItem('wos-kpi-w5-v1',JSON.stringify(w))}catch(x){}s._sig='';draw(s)}
    else if(d.pfhk){st.hk[keyOf(st.per)]=Number(t.value)||'';try{localStorage.setItem('wos-perf-hk',JSON.stringify(st.hk))}catch(x){}s._sig='';draw(s)}});
   s._draw=()=>draw(s);s._show=()=>{if(st.tab==='Tahunan')loadYear(s);else loadPer(s)}});
 })();
