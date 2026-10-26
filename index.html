@@ -6455,6 +6455,25 @@ init();
 })();
 </script>
 <script>
+// Layar stabil: saat panel digambar ulang (DRM, role, ringkasan, daftar), baris yang sedang dilihat dijaga di posisi yang sama agar tidak naik turun
+(()=>{
+ let anc=null,fixing=false,pend=false;
+ try{const c=document.createElement('style');c.textContent='.page{overflow-anchor:none}';document.head.appendChild(c)}catch(e){}
+ const page=()=>document.querySelector('.page.active');
+ const keyOf=el=>{let c='';try{c=(el.dataset&&el.dataset.code)||((el.querySelector('[data-code]')||{dataset:{}}).dataset.code)||''}catch(e){}return el.tagName+'|'+c+'|'+(el.textContent||'').replace(/\s+/g,' ').trim().slice(0,40)};
+ function pick(){try{const p=page();if(!p)return null;const x=Math.max(5,Math.min(window.innerWidth-5,Math.round(window.innerWidth*0.55))),y=Math.round(window.innerHeight*0.3);let el=document.elementFromPoint(x,y);if(!el||!p.contains(el))return null;el=el.closest('tr,.rl-row,.mini,.step,.kb,li')||el.closest('.card,section')||el;if(!el.isConnected)return null;return{el,key:keyOf(el),tag:el.tagName,top:el.getBoundingClientRect().top}}catch(e){return null}}
+ function rec(){anc=pick()}
+ function fix(){pend=false;if(window.__noStable)return;const a=anc,p=page();if(!a||!p)return;let el=a.el;
+  if(!el.isConnected||!p.contains(el)){const c=[...p.querySelectorAll(a.tag)].filter(e=>keyOf(e)===a.key);if(!c.length){rec();return}el=c.reduce((m,e)=>Math.abs(e.getBoundingClientRect().top-a.top)<Math.abs(m.getBoundingClientRect().top-a.top)?e:m);a.el=el}
+  const d=el.getBoundingClientRect().top-a.top;if(Math.abs(d)>1){fixing=true;window.scrollBy(0,d);setTimeout(()=>{fixing=false},60)}rec()}
+ window.addEventListener('scroll',()=>{if(fixing)return;rec()},{passive:true});
+ ['pointerdown','keydown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,rec,{capture:true,passive:true}));
+ const main=document.querySelector('main')||document.body;
+ new MutationObserver(()=>{if(pend)return;pend=true;requestAnimationFrame(fix)}).observe(main,{childList:true,subtree:true,characterData:true});
+ setTimeout(rec,1500);
+})();
+</script>
+<script>
 // Video dan bukti dari Google Drive diputar langsung di aplikasi (jendela pemutar), seperti bukti 5R, tanpa pindah ke halaman Drive
 (()=>{
  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
