@@ -240,17 +240,24 @@ const htmlEscape=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;'
  }
  const openDoc=html=>{const w=window.open('','_blank');if(!w){alert('Pop-up diblokir browser. Izinkan pop-up untuk situs ini, lalu coba lagi.');return null}w.document.open();w.document.write(html);w.document.close();return w};
  const complete=r=>r.end&&r.minutes&&r.position&&r.dept&&r.reason&&r.result;
+ const missingOf=r=>{const m=[];if(!r.end||!r.minutes)m.push('Lembur out / durasi');if(!r.position)m.push('Posisi');if(!r.dept)m.push('Dept');if(!r.reason)m.push('Alasan');if(!r.result)m.push('Hasil lembur');return m};
  function printRec(no){
   const s=store(),rec=s.log.find(l=>l.no===no);if(!rec)return;
-  if(!rec.printedAt&&!complete(rec)){openForm(rec.code,rec.date);f('msg').textContent='Lengkapi hasil lembur (dan data lain yang kosong) sebelum mencetak.';return}
+  if(!rec.printedAt){const miss=missingOf(rec),onlyRes=miss.length===1&&miss[0]==='Hasil lembur';
+   // hanya hasil lembur yang kosong: boleh dicetak dengan kotak hasil dikosongkan (ditulis tangan); selain itu formulir dibuka dan kolom yang kurang ditandai
+   if(miss.length&&!(onlyRes&&confirm('Hasil lembur '+rec.name+' belum diisi.\n\nOK = tetap cetak, kotak "Hasil Lembur" dikosongkan (ditulis tangan di kertas).\nBatal = isi hasil lembur dulu.'))){
+    openForm(rec.code,rec.date);const m='SPL '+rec.no+' belum bisa dicetak. Lengkapi: '+miss.join(', ')+'.';f('msg').textContent=m;banner(m);
+    const id={'Hasil lembur':'result','Posisi':'pos','Dept':'dept','Alasan':'reason'}[miss[0]];if(id&&f(id)){f(id).style.outline='3px solid #e0a82b';try{f(id).focus({preventScroll:true})}catch(e){}setTimeout(()=>{f(id).style.outline=''},5000)}
+    return}}
   if(!openDoc(splHtml(rec)))return;
   if(!rec.printedAt){rec.printedAt=new Date().toISOString();write(STORE,s)}renderSpl();
  }
+ const setH=(id,h)=>{const e=document.getElementById(id);if(e&&e.dataset.sg!==h){e.dataset.sg=h;e.innerHTML=h}};
  function renderSpl(){
   const s=store();if(syncFromAttendance(s))write(STORE,s);
   const map=overtimeMap(),keys=new Set([...map.keys(),...s.log.map(l=>l.date+'|'+l.code)]),rows=[...keys].map(k=>{const [day,code]=k.split('|');return {day,code,att:map.get(k),rec:s.log.find(l=>l.date===day&&l.code===code)}}).sort((a,b)=>b.day.localeCompare(a.day)||a.code.localeCompare(b.code)).slice(0,60);
-  document.getElementById('spl-list').innerHTML='<table><thead><tr><th>Tanggal</th><th>Karyawan</th><th>Lembur in</th><th>Lembur out</th><th>Durasi lembur</th><th>Status SPL</th><th>Aksi</th></tr></thead><tbody>'+(rows.length?rows.map(o=>{const rec=o.rec,[label,color]=statusOf(rec),inT=rec?.start||o.att?.in,outT=rec?.end||o.att?.out,m=rec?.minutes||(inT&&outT?spanMin(inT,outT):0);return '<tr><td>'+htmlEscape(o.day)+'</td><td>'+dispName(o.code,rec)+'</td><td>'+(inT||'—')+'</td><td>'+(outT||'<span class="sub">belum lembur out</span>')+'</td><td>'+(m?'<strong>'+m+' menit</strong><br><span class="sub">'+dur(m)+'</span>':'—')+'</td><td><span class="tag '+color+'">'+label+'</span>'+(rec?'<br><span class="sub">'+htmlEscape(rec.no)+'</span>':'')+'</td><td>'+(rec&&rec.end&&rec.minutes?'<button class="button" data-spl-print="'+htmlEscape(rec.no)+'">'+(rec.printedAt?'Cetak ulang':'Cetak SPL')+'</button> ':'')+'<button class="button secondary" data-spl-open="'+htmlEscape(o.code)+'|'+htmlEscape(o.day)+'">'+(rec?'Ubah data':'Isi data SPL')+'</button>'+(isSpvX()?' <button class="button secondary" data-spl-del="'+htmlEscape(o.code)+'|'+htmlEscape(o.day)+'" style="color:#b3261e">Hapus</button>':'')+'</td></tr>'}).join(''):'<tr><td colspan="7" class="sub">Belum ada presensi lembur. Pilih aksi Lembur in pada form presensi di atas; SPL akan terbuka otomatis.</td></tr>')+'</tbody></table>';
-  document.getElementById('spl-history').innerHTML='<table><thead><tr><th>No. SPL</th><th>Tanggal</th><th>Karyawan</th><th>Durasi</th><th>Dicetak</th><th>Cetak ulang</th></tr></thead><tbody>'+(s.log.some(l=>l.printedAt)?s.log.filter(l=>l.printedAt).slice(0,15).map(l=>'<tr><td>'+htmlEscape(l.no)+'</td><td>'+htmlEscape(l.date)+'</td><td>'+htmlEscape(l.name)+(isOth(l.code)?' (Other)':' ('+l.code+')')+'</td><td>'+dur(l.minutes)+'</td><td>'+htmlEscape(new Date(l.printedAt).toLocaleString('id-ID',{timeZone:'Asia/Makassar'}))+'</td><td><button class="button secondary" data-spl-print="'+htmlEscape(l.no)+'">Cetak ulang</button></td></tr>').join(''):'<tr><td colspan="6" class="sub">Belum ada SPL yang dicetak.</td></tr>')+'</tbody></table>';
+  setH('spl-list','<table><thead><tr><th>Tanggal</th><th>Karyawan</th><th>Lembur in</th><th>Lembur out</th><th>Durasi lembur</th><th>Status SPL</th><th>Aksi</th></tr></thead><tbody>'+(rows.length?rows.map(o=>{const rec=o.rec,[label,color]=statusOf(rec),inT=rec?.start||o.att?.in,outT=rec?.end||o.att?.out,m=rec?.minutes||(inT&&outT?spanMin(inT,outT):0);return '<tr><td>'+htmlEscape(o.day)+'</td><td>'+dispName(o.code,rec)+'</td><td>'+(inT||'—')+'</td><td>'+(outT||'<span class="sub">belum lembur out</span>')+'</td><td>'+(m?'<strong>'+m+' menit</strong><br><span class="sub">'+dur(m)+'</span>':'—')+'</td><td><span class="tag '+color+'">'+label+'</span>'+(rec?'<br><span class="sub">'+htmlEscape(rec.no)+'</span>':'')+'</td><td>'+(rec&&rec.end&&rec.minutes?'<button class="button" data-spl-print="'+htmlEscape(rec.no)+'">'+(rec.printedAt?'Cetak ulang':'Cetak SPL')+'</button> ':'')+'<button class="button secondary" data-spl-open="'+htmlEscape(o.code)+'|'+htmlEscape(o.day)+'">'+(rec?'Ubah data':'Isi data SPL')+'</button>'+(isSpvX()?' <button class="button secondary" data-spl-del="'+htmlEscape(o.code)+'|'+htmlEscape(o.day)+'" style="color:#b3261e">Hapus</button>':'')+'</td></tr>'}).join(''):'<tr><td colspan="7" class="sub">Belum ada presensi lembur. Pilih aksi Lembur in pada form presensi di atas; SPL akan terbuka otomatis.</td></tr>')+'</tbody></table>');
+  setH('spl-history','<table><thead><tr><th>No. SPL</th><th>Tanggal</th><th>Karyawan</th><th>Durasi</th><th>Dicetak</th><th>Cetak ulang</th></tr></thead><tbody>'+(s.log.some(l=>l.printedAt)?s.log.filter(l=>l.printedAt).slice(0,15).map(l=>'<tr><td>'+htmlEscape(l.no)+'</td><td>'+htmlEscape(l.date)+'</td><td>'+htmlEscape(l.name)+(isOth(l.code)?' (Other)':' ('+l.code+')')+'</td><td>'+dur(l.minutes)+'</td><td>'+htmlEscape(new Date(l.printedAt).toLocaleString('id-ID',{timeZone:'Asia/Makassar'}))+'</td><td><button class="button secondary" data-spl-print="'+htmlEscape(l.no)+'">Cetak ulang</button></td></tr>').join(''):'<tr><td colspan="6" class="sub">Belum ada SPL yang dicetak.</td></tr>')+'</tbody></table>');
   card.querySelectorAll('[data-spl-open]').forEach(b=>b.onclick=()=>{const [c,d]=b.dataset.splOpen.split('|');openForm(c,d)});
   card.querySelectorAll('[data-spl-print]').forEach(b=>b.onclick=()=>printRec(b.dataset.splPrint));
   card.querySelectorAll('[data-spl-del]').forEach(b=>b.onclick=()=>{if(!isSpvX())return;const [c,d]=b.dataset.splDel.split('|');
@@ -260,7 +267,7 @@ const htmlEscape=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;'
    renderSpl()});
  }
  function saveForm(printAfter){
-  const msg=t=>f('msg').textContent=t,code=curCode(),date=f('date').value,start=f('start').value,end=f('end').value,minutes=start&&end?spanMin(start,end):0;
+  const msg=t=>{f('msg').textContent=t;banner(t)},code=curCode(),date=f('date').value,start=f('start').value,end=f('end').value,minutes=start&&end?spanMin(start,end):0;
   if(!code||!date)return msg('Pilih karyawan dan tanggal lembur.');
   if(code==='OTH:')return msg('Ketik nama lengkap karyawan (Other).');
   if(!start)return msg('Isi jam mulai (otomatis dari Lembur in).');
@@ -268,7 +275,7 @@ const htmlEscape=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;'
   if(!f('pos').value.trim()||!f('dept').value.trim())return msg('Isi Posisi/jabatan dan Dept.');
   if(!f('reason').value.trim())return msg('Isi alasan lembur.');
   if(printAfter&&(!end||!minutes))return msg('Belum bisa dicetak: tunggu presensi Lembur out agar durasi terhitung.');
-  if(printAfter&&!f('result').value.trim())return msg('Isi hasil lembur sebelum mencetak.');
+  if(printAfter&&end&&!f('result').value.trim()&&!confirm('Hasil lembur belum diisi.\n\nOK = tetap cetak, kotak "Hasil Lembur" dikosongkan (ditulis tangan di kertas).\nBatal = isi hasil lembur dulu.')){f('result').style.outline='3px solid #e0a82b';try{f('result').focus()}catch(e){}setTimeout(()=>{f('result').style.outline=''},5000);return msg('Isi hasil lembur sebelum mencetak.')}
   const s=store(),ym=date.slice(0,7).replace('-',''),existing=s.log.find(l=>l.code===code&&l.date===date);
   const data={code,name:isOth(code)?code.slice(4):staffMaster[code].name,nik:f('nik').value.trim(),position:f('pos').value.trim(),dept:f('dept').value.trim(),date,dayType:f('daytype').value,kind:end?kinds[0]:kinds[1],start,end,minutes,reason:f('reason').value.trim(),result:end?f('result').value.trim():''};
   let rec=existing;
