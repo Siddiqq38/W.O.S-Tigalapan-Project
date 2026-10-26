@@ -4654,7 +4654,7 @@ init();
       if(!confirm('Item "'+nm+'" belum ada di stok maupun Master SKU.\n\nAjukan sebagai item BARU? Nama harus sama persis dengan label barang. Setelah SPV menyetujui, item ini masuk ke stok dan Master SKU.'))return;
       it={sku:U(nm),item:nm}}}const ex=oh().map.get(U(adjForm.bin)+'|'+it.sku);sel={sku:it.sku,item:it.item,qty:ex?ex.qty:0}}
    if(!sel)return say('Pilih bin dan item.',true);if(adjForm.fisik==='')return say('Isi qty fisik.',true);if(!adjForm.alasan.trim())return say('Isi alasan.',true);const f=num(adjForm.fisik);if(f===sel.qty)return say('Qty fisik sama dengan sistem, tidak perlu adjustment.',true);
-   enq('ADJUSTMENT',{id:'ADJ|'+Date.now().toString(36).toUpperCase(),tanggal:today(),bin:U(adjForm.bin),sku:sel.sku,item:sel.item,qty_sistem:String(sel.qty),qty_fisik:String(f),selisih:String(f-sel.qty),alasan:adjForm.alasan.trim(),sumber:'Manual',status:'Menunggu SPV',diminta_oleh:code(),diminta_jam:stIso(),disetujui_oleh:'',disetujui_jam:'',catatan:''});adjForm={bin:'',sku:'',fisik:'',alasan:'',extra:''};say('Pengajuan adjustment dikirim ke SPV.');return}
+   enq('ADJUSTMENT',{id:'ADJ|'+Date.now().toString(36).toUpperCase(),tanggal:today(),bin:U(adjForm.bin),sku:sel.sku,item:sel.item,qty_sistem:String(sel.qty),qty_fisik:String(f),selisih:String(f-sel.qty),alasan:adjForm.alasan.trim(),sumber:'Manual',status:'Menunggu SPV',diminta_oleh:code(),diminta_jam:stIso(),disetujui_oleh:'',disetujui_jam:'',catatan:''});try{window.WOSSku&&window.WOSSku.register(sel.item)}catch(e){}adjForm={bin:'',sku:'',fisik:'',alasan:'',extra:''};say('Pengajuan adjustment dikirim ke SPV.');return}
   if(d.lcappr){const a=adjs().find(x=>x.id===d.lcappr);if(a)approve(a);return}
   if(d.lcrej){const a=adjs().find(x=>x.id===d.lcrej);if(a){const k=prompt('Alasan penolakan','');if(k===null)return;enq('ADJUSTMENT',Object.assign({},a,{status:'Ditolak',disetujui_oleh:code(),disetujui_jam:stIso(),catatan:k}))}return}
   if(d.lcmodeset){const[k,v]=d.lcmodeset.split('|');if(k==='so')soMode=v;else if(k==='cc')ccMode=v;else if(k==='adj')adjMode=v;pickTouched=false;pickItems=new Set();draw();return}
@@ -6354,10 +6354,10 @@ init();
  const A=window.WOSGudang&&window.WOSGudang.api;if(!A)return;
  const {$,esc,view,call,code,canAdmin,level,today}=A;
  const U=s=>String(s==null?'':s).trim().toUpperCase(),norm=s=>String(s==null?'':s).trim().replace(/\s+/g,' ');
- const CK='wos-sku-cache-v1',OVK='wos-sku-ov-v1';
+ const CK='wos-sku-cache-v1',OVK='wos-sku-ov-v1',REGK='wos-sku-reg-v1';
  const rj=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}};
  const wj=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
- let cache=rj(CK,{}),ov=rj(OVK,{}),srv={ok:null,rows:{},at:0},stock={},lastBuild=0,sig='';
+ let cache=rj(CK,{}),ov=rj(OVK,{}),reg=rj(REGK,{}),srv={ok:null,rows:{},at:0},stock={},lastBuild=0,sig='';
  const st={q:'',kat:'',lim:300,msg:'',bad:false,busy:false,nn:'',nk:'Kaos polos'};
  const CATS=['Kaos polos','MAMU','MYNO','Support - Plastik OPP Kids','Support - Plastik OPP Dewasa','Support - Tote bag','Support - Goodie bag','Support - Lainnya','Defect'];
  function guess(n){const u=U(n),my=/\bMYNO\b/.test(u),ma=/\bMAMU\b/.test(u),brand=my?'MYNO':ma?'MAMU':'Tigalapan';
@@ -6380,13 +6380,21 @@ init();
   Object.keys(stock).forEach(k=>addN(stock[k].n,'Stok bin'));
   if(Object.keys(cache).length!==before)wj(CK,cache)}
  function rows(){if(Date.now()-lastBuild>30000)build();return Object.keys(cache).map(k=>{const e=cache[k],i=info(e.n);return Object.assign({k,item:e.n,sumber:e.s,stok:(stock[k]||{}).q||0},i)}).sort((a,b)=>a.item.localeCompare(b.item,'id',{numeric:true}))}
- window.WOSSku={names:()=>{if(Date.now()-lastBuild>30000)build();return Object.keys(cache).map(k=>cache[k].n)},cat:n=>info(n).kategori,info,list:rows,refresh:()=>fullRefresh()};
+ window.WOSSku={register:n=>register(n),names:()=>{if(Date.now()-lastBuild>30000)build();return Object.keys(cache).map(k=>cache[k].n)},cat:n=>info(n).kategori,info,list:rows,refresh:()=>fullRefresh()};
  // ---- server MASTER_SKU (aktif setelah skrip gudang terbaru di-deploy)
  async function probe(force){if(!force&&Date.now()-srv.at<300000)return;srv.at=Date.now();
   try{const r=await call({action:'list',tab:'MASTER_SKU'},true);if(r&&r.ok){srv.ok=true;srv.rows={};(r.rows||[]).forEach(x=>{if(x.id)srv.rows[U(x.item||x.id)]=x});await pushLocal()}else srv.ok=false}catch(e){srv.ok=false}
   build();draw()}
- async function pushLocal(){const ks=Object.keys(ov);if(!ks.length||!srv.ok)return;
-  for(let i=0;i<ks.length;i+=20){const part=ks.slice(i,i+20);const r=await call({action:'batch',ops:part.map(k=>({action:'append',tab:'MASTER_SKU',row:ov[k]}))});if(!(r&&r.ok))return;part.forEach(k=>{srv.rows[k]=ov[k];delete ov[k]});wj(OVK,ov)}}
+ async function pushLocal(){const m=Object.assign({},reg,ov),ks=Object.keys(m);if(!ks.length||!srv.ok)return;
+  for(let i=0;i<ks.length;i+=20){const part=ks.slice(i,i+20);const r=await call({action:'batch',ops:part.map(k=>({action:'append',tab:'MASTER_SKU',row:m[k]}))});if(!(r&&r.ok))return;part.forEach(k=>{srv.rows[k]=m[k];delete ov[k];delete reg[k]});wj(OVK,ov);wj(REGK,reg)}}
+ // item baru (dari adjustment, hitung, dsb.) langsung didaftarkan ke Master SKU; tidak pernah dihapus meski stok jadi 0
+ function register(name){const n=norm(name);if(n.length<3)return;addN(n,'Input baru');wj(CK,cache);const k=U(n);if(srv.rows[k]||ov[k]||reg[k])return;const g=guess(n),row={id:k,item:n,kategori:g.kategori,brand:g.brand,jenis:g.jenis,status:'Aktif',catatan:'otomatis',diubah:today()+' '+code()};
+  const hold=()=>{reg[k]=row;wj(REGK,reg)};if(srv.ok)call({action:'append',tab:'MASTER_SKU',row}).then(r=>{if(r&&r.ok)srv.rows[k]=row;else hold()}).catch(hold);else hold()}
+ async function syncAll(){if(st.busy||!srv.ok)return;const L=rows().filter(r=>!srv.rows[r.k]);if(!L.length)return;st.busy=true;st.bad=false;let n=0;
+  try{for(let i=0;i<L.length;i+=40){const part=L.slice(i,i+40);st.msg='Menyimpan ke server… '+n+' / '+L.length;draw();const ops=part.map(r=>{const o=ov[r.k]||reg[r.k]||{};return{action:'append',tab:'MASTER_SKU',row:{id:r.k,item:r.item,kategori:o.kategori||r.kategori,brand:o.brand||r.brand,jenis:o.jenis||r.jenis,status:'Aktif',catatan:o.catatan||'daftar otomatis',diubah:today()+' '+code()}}}),res=await call({action:'batch',ops});if(!(res&&res.ok))throw new Error((res&&res.error)||'gagal');ops.forEach(o=>{srv.rows[o.row.id]=o.row;delete ov[o.row.id];delete reg[o.row.id]});n+=part.length}
+   wj(OVK,ov);wj(REGK,reg);st.msg='Selesai: '+n+' item tersimpan permanen di server (Google Sheets).';st.bad=false}
+  catch(e){st.msg='Berhenti di '+n+' / '+L.length+': '+(e&&e.message||e)+'. Ulangi nanti.';st.bad=true}
+  st.busy=false;draw()}
  async function saveMany(list){ // list: [{item,kategori,brand,jenis}]
   const stamp=today()+' '+code(),out=list.map(x=>{const g=guess(x.item);return{id:U(x.item),item:norm(x.item),kategori:x.kategori||g.kategori,brand:x.brand||g.brand,jenis:x.jenis||g.jenis,status:'Aktif',catatan:x.catatan||'',diubah:stamp}});
   out.forEach(r=>addN(r.item,'Master SKU'));
@@ -6421,10 +6429,10 @@ init();
  // ---- tampilan
  function html(){
   const all=rows(),f=st.q.trim().toUpperCase().split(/\s+/).filter(Boolean),list=all.filter(r=>(!st.kat||r.kategori===st.kat)&&f.every(t=>U(r.item).includes(t)||U(r.kategori).includes(t))),cnt={};all.forEach(r=>{cnt[r.kategori]=(cnt[r.kategori]||0)+1});
-  const cats=CATS.concat(Object.keys(cnt).filter(c=>CATS.indexOf(c)<0)),man=all.filter(r=>r.manual).length;
+  const cats=CATS.concat(Object.keys(cnt).filter(c=>CATS.indexOf(c)<0)),man=all.filter(r=>r.manual).length,miss=srv.ok?all.filter(r=>!srv.rows[r.k]).length:0;
   const sync=srv.ok===true?'<span class="tag green">Tersinkron ke Google Sheets</span>':srv.ok===false?'<span class="tag amber">Disimpan di perangkat ini (menunggu deploy skrip gudang terbaru)</span>':'<span class="tag">Memeriksa…</span>';
   return '<div class="card-head"><div><h2>Master SKU (Item Name &amp; Kategori)</h2><span class="sub">Daftar semua nama item yang pernah tercatat, lengkap dengan kategori. Item baru dari adjustment, hitung, picking, atau surat jalan otomatis masuk. Unduh, lengkapi kategorinya, lalu impor kembali.</span></div>'+sync+'</div>'+
-   '<p class="sub" style="margin:4px 0 8px"><b>'+all.length+'</b> item · '+cats.filter(c=>cnt[c]).map(c=>esc(c)+' '+cnt[c]).join(' · ')+(man?' · <b>'+man+'</b> kategori diatur manual':'')+'</p>'+
+   (srv.ok&&miss?'<p class="note"><b>'+miss+'</b> item belum tersimpan di server (baru ada di daftar otomatis). Simpan agar permanen dan terbaca server walau stoknya 0. <button class="button" data-sk="syncall" type="button"'+(st.busy?' disabled':'')+'>Simpan semua ke server</button></p>':'')+'<p class="sub" style="margin:4px 0 8px"><b>'+all.length+'</b> item · '+cats.filter(c=>cnt[c]).map(c=>esc(c)+' '+cnt[c]).join(' · ')+(man?' · <b>'+man+'</b> kategori diatur manual':'')+'</p>'+
    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:8px"><label class="sub" style="flex:1;min-width:220px">Cari item<input data-skf="q" value="'+esc(st.q)+'" placeholder="Contoh: NAVY RIB" autocomplete="off" style="width:100%"></label><label class="sub">Kategori<select data-skf="kat" style="display:block"><option value="">Semua</option>'+cats.map(c=>'<option'+(st.kat===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label>'+
    '<button class="button" data-sk="exp" type="button">Unduh Excel (CSV)</button><label class="button secondary" style="cursor:pointer">Impor CSV<input type="file" data-skfile="1" accept=".csv,.txt,text/csv" hidden></label><button class="button secondary" data-sk="ref" type="button"'+(st.busy?' disabled':'')+'>Muat semua data server</button></div>'+
    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:8px"><label class="sub" style="flex:1;min-width:220px">Tambah item baru<input data-skf="nn" value="'+esc(st.nn)+'" placeholder="Nama item persis seperti label" autocomplete="off" style="width:100%"></label><label class="sub">Kategori<select data-skf="nk" style="display:block">'+CATS.map(c=>'<option'+(st.nk===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label><button class="button secondary" data-sk="add" type="button">Simpan item</button></div>'+
@@ -6435,7 +6443,7 @@ init();
   const pg=$('master');if(!pg||!(canAdmin()||level()==='supervisor'||level()==='manager'))return;let h=$('wos-skumaster');
   if(!h){h=document.createElement('section');h.id='wos-skumaster';h.className='card';h.style.marginTop='18px';pg.appendChild(h);
    h.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
-    if(b.dataset.sk==='exp')exportCsv();else if(b.dataset.sk==='ref')fullRefresh();else if(b.dataset.sk==='more'){st.lim+=300;draw()}
+    if(b.dataset.sk==='exp')exportCsv();else if(b.dataset.sk==='ref')fullRefresh();else if(b.dataset.sk==='syncall')syncAll();else if(b.dataset.sk==='more'){st.lim+=300;draw()}
     else if(b.dataset.sk==='add'){const n=norm(st.nn);if(n.length<4){st.msg='Isi nama item (minimal 4 huruf).';st.bad=true;draw();return}try{await saveMany([{item:n,kategori:st.nk}]);st.msg='Item "'+n+'" disimpan.';st.bad=false;st.nn=''}catch(x){st.msg='Gagal: '+(x&&x.message||x);st.bad=true}draw()}
     else if(b.dataset.skedit){const k=b.dataset.skedit,e0=cache[k];if(!e0)return;const c=info(e0.n),v=prompt('Kategori untuk:\n'+e0.n+'\n\nPilihan: '+CATS.join(' | '),c.kategori);if(v===null)return;const kat=norm(v);if(!kat)return;try{await saveMany([{item:e0.n,kategori:kat,brand:c.brand,jenis:c.jenis}]);st.msg='Kategori '+e0.n+' menjadi '+kat+'.';st.bad=false}catch(x){st.msg='Gagal: '+(x&&x.message||x);st.bad=true}draw()}});
    h.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.skf;if(!k)return;st[k]=e.target.value;if(k==='q'){st.lim=300;draw()}});
