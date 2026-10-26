@@ -1928,14 +1928,14 @@ init();
    for(const f of [epochCheck,pullPengajuan,pullMore,pullRelease,pullR5,pullStatus,pullSpl,pullCp]){try{await f()}catch(e){lastErr=String(e&&e.message||e)}}window.__mc=null;if(state!=='err')state='ok'}catch(e){window.__mc=null;state='err';lastErr=String(e&&e.message||e)}paint()}
  // ---- Attendance: koreksi master (hapus = tanda hapus di sheet, perangkat lain ikut menghapus)
  // SPV mengubah jam presensi (misalnya sesuai CCTV): baris yang sama diganti jamnya, foto presensi tetap
- function attEdit(code,day,action,hhmm){
+ function attEdit(code,day,action,hhmm,note){
   const at=new Date(Date.parse(day+'T'+hhmm+':00+08:00')).toISOString(),k=code+'|'+day+'|'+action;let old='';
   merging=true;try{const l=rj(AK,[]),i=l.findIndex(r=>rkey(r)===k);if(i>=0){old=l[i].at;l[i].at=at;l[i].manual=true}else l.push({code,action,day,at,manual:true});raw.call(localStorage,AK,JSON.stringify(l))}finally{merging=false}
   seen.add(k);const id=rid({code,day,action}),wt=new Date(Date.parse(at)+WITA),ow=old?new Date(Date.parse(old)+WITA).toISOString().slice(11,16):'-',pm=rj('wos-att-photo-v1',{});
-  enq('append','ATTENDANCE',{id,waktu_iso:at,tanggal:day,kode_staf:code,nama:nm(code),aksi:action,jam_wita:wt.toISOString().slice(11,16),lat:'',lng:'',akurasi_m:'',jarak_m:'',foto_id:pm[id]||'',simulasi:'',perangkat:'koreksi SPV '+(sessionStorage.getItem('wos-session-code')||'')+' (jam sebelumnya '+ow+')'});
+  enq('append','ATTENDANCE',{id,waktu_iso:at,tanggal:day,kode_staf:code,nama:nm(code),aksi:action,jam_wita:wt.toISOString().slice(11,16),lat:'',lng:'',akurasi_m:'',jarak_m:'',foto_id:pm[id]||'',simulasi:'',perangkat:'koreksi SPV '+(sessionStorage.getItem('wos-session-code')||'')+' (jam sebelumnya '+ow+')'+(note?' · '+note:'')});
   window.dispatchEvent(new Event('storage'))}
- function attDelete(code,day,action){const k=code+'|'+day+'|'+action;merging=true;try{const l=rj(AK,[]),i=l.findIndex(r=>rkey(r)===k);if(i>=0){l.splice(i,1);raw.call(localStorage,AK,JSON.stringify(l))}}finally{merging=false}seen.add(k);
-  enq('append','ATTENDANCE',{id:rid({code,day,action}),tanggal:day,kode_staf:code,nama:nm(code),aksi:action,simulasi:'hapus',perangkat:'dihapus oleh '+(sessionStorage.getItem('wos-session-code')||'master')});window.dispatchEvent(new Event('storage'))}
+ function attDelete(code,day,action,note){const k=code+'|'+day+'|'+action;merging=true;try{const l=rj(AK,[]),i=l.findIndex(r=>rkey(r)===k);if(i>=0){l.splice(i,1);raw.call(localStorage,AK,JSON.stringify(l))}}finally{merging=false}seen.add(k);
+  enq('append','ATTENDANCE',{id:rid({code,day,action}),tanggal:day,kode_staf:code,nama:nm(code),aksi:action,simulasi:'hapus',perangkat:'dihapus oleh '+(sessionStorage.getItem('wos-session-code')||'master')+(note?' · '+note:'')});window.dispatchEvent(new Event('storage'))}
  // ---- Pengajuan (Change Off, cuti, izin terlambat, izin lain-lain)
  const PK='wos-pengajuan-applied-v1',APPK='wos-attendance-applications-demo-v1';
  const hash=s=>{let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return Math.abs(h).toString(36)};
@@ -2155,7 +2155,7 @@ init();
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const rj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
  const todayW=()=>new Date(Date.now()+WITA).toISOString().slice(0,10);
- const isMaster=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'&&!sessionStorage.getItem('wos-impersonator')}catch(e){return false}};
+ const isMaster=()=>false; /* digantikan panel Koreksi presensi v2 */
  const sm=()=>{try{return staffMaster}catch(e){return{}}};
  let day=todayW(),msg='';
  function ensure(){
@@ -6976,6 +6976,94 @@ window.WOSMon=(function(){
   b.addEventListener('click',e=>{const x=e.target.closest('[data-ap]');if(!x)return;const n=navOk(x.dataset.ap);if(n)n.click()});
   const first=document.getElementById('wos-dash-find')||document.getElementById('wos-dash-dr');if(first)d.insertBefore(b,first);else d.prepend(b)}
  setInterval(()=>{try{mark()}catch(e){}},3000);setTimeout(mark,2500);
+})();
+</script>
+<script>
+// Koreksi presensi (SPV) v2: pilih karyawan dan tanggal, lihat presensinya, lalu koreksi dengan keterangan wajib dan konfirmasi bukti.
+// Bukti (misalnya rekaman CCTV) dikirim terpisah ke HR lewat WhatsApp. Setiap koreksi tercatat di Google Sheets: jam lama, siapa yang mengubah, keterangan, dan bukti.
+(()=>{
+ const $=id=>document.getElementById(id),WITA=8*3600e3,AK='wos-attendance-kpi-v1',BUKTI='bukti dikirim ke HR via WhatsApp';
+ const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const rj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
+ const todayW=()=>new Date(Date.now()+WITA).toISOString().slice(0,10),hmOf=iso=>new Date(Date.parse(iso)+WITA).toISOString().slice(11,16);
+ const isMaster=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'&&!sessionStorage.getItem('wos-impersonator')}catch(e){return false}};
+ const sm=()=>{try{return staffMaster}catch(e){return{}}},ACTS=['Attendance in','Attendance out','Lembur in','Lembur out'];
+ const st={who:'',day:todayW(),rows:null,busy:false,msg:'',bad:false,note:'',bukti:false,hist:null,histAt:0,histBusy:false,addAct:'Attendance in',addT:'08:00',edit:{}};
+ let sig='';
+ const cfg=()=>window.WOSStore&&window.WOSStore.config?window.WOSStore.config():null;
+ async function srvList(from,to){const c=cfg();if(!c)return null;const r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'list',tab:'ATTENDANCE',from,to})).then(x=>x.json());return r&&r.ok?(r.rows||[]):null}
+ async function load(){
+  if(!st.who||!st.day){st.rows=null;draw();return}
+  st.busy=true;draw();
+  const loc=rj(AK,[]).filter(r=>r&&r.code===st.who&&r.day===st.day),m=new Map();loc.forEach(r=>m.set(r.action,{action:r.action,at:r.at,manual:!!r.manual,src:'lokal'}));
+  try{const rows=await srvList(st.day,st.day);if(rows)rows.forEach(r=>{if(r.kode_staf!==st.who||r.simulasi==='hapus'||String(r.tanggal).slice(0,10)!==st.day||!r.waktu_iso)return;if(!m.has(r.aksi))m.set(r.aksi,{action:r.aksi,at:r.waktu_iso,manual:/^koreksi/.test(r.perangkat||''),src:'server'})})}catch(e){}
+  st.rows=[...m.values()].sort((a,b)=>String(a.at).localeCompare(String(b.at)));st.edit={};st.busy=false;draw()}
+ async function loadHist(force){
+  if(st.histBusy||(!force&&st.hist&&Date.now()-st.histAt<30000))return;st.histBusy=true;
+  try{const f=new Date(Date.now()+WITA-14*864e5).toISOString().slice(0,10),rows=await srvList(f,todayW());
+   if(rows){st.hist=rows.filter(r=>/^(koreksi|dihapus oleh)/.test(r.perangkat||'')).map(r=>{const p=String(r.perangkat||''),del=r.simulasi==='hapus',by=(/(?:koreksi SPV|dihapus oleh)\s+(\S+)/.exec(p)||[])[1]||'',al=(/alasan:\s*(.*?)(?:\s*·\s*bukti:|$)/.exec(p)||[])[1]||'',bk=(/bukti:\s*(.*)$/.exec(p)||[])[1]||'';
+    return{at:r.waktu_server||'',day:String(r.tanggal).slice(0,10),code:r.kode_staf,act:r.aksi,jam:del?'-':(r.jam_wita||''),jenis:del?'Hapus':/jam sebelumnya -\)/.test(p)?'Tambah':'Ubah jam',by,al,bk,prev:(/jam sebelumnya (\d+:\d+)/.exec(p)||[])[1]||''}}).sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,40);st.histAt=Date.now()}}catch(e){}
+  st.histBusy=false;draw()}
+ function say(t,bad){st.msg=t;st.bad=!!bad;draw()}
+ function guard(){const note=String(st.note||'').trim();if(!st.who||!st.day){say('Pilih karyawan dan tanggal dulu.',true);return null}
+  if(note.length<10){say('Isi keterangan koreksi (minimal 10 huruf), misalnya: "Datang 07.45, terbaca terlambat karena server gangguan".',true);return null}
+  if(!st.bukti){say('Centang konfirmasi bahwa bukti (misalnya rekaman CCTV) sudah atau akan dikirim ke HR lewat WhatsApp.',true);return null}
+  return 'alasan: '+note.replace(/[\r\n]+/g,' ')+' · bukti: '+BUKTI}
+ function afterChange(txt){st.note='';st.bukti=false;st.msg=txt;st.bad=false;try{window.__renderDrm&&window.__renderDrm()}catch(e){}load();st.histAt=0;setTimeout(()=>loadHist(true),2500)}
+ function saveEdits(){
+  const note=guard();if(!note)return;
+  const ch=(st.rows||[]).filter(r=>st.edit[r.action]&&st.edit[r.action]!==hmOf(r.at));
+  if(!ch.length){say('Belum ada jam yang diubah. Ubah kolom "Jam seharusnya" dulu.',true);return}
+  const nm=sm()[st.who]?sm()[st.who].name:st.who;
+  if(!confirm('Ubah presensi '+nm+' tanggal '+st.day+':\n'+ch.map(r=>r.action+' '+hmOf(r.at)+' → '+st.edit[r.action]+' WITA').join('\n')+'\n\nKeterangan dan bukti akan tercatat di Google Sheets. Lanjutkan?'))return;
+  try{ch.forEach(r=>window.WOSStore.attEdit(st.who,st.day,r.action,st.edit[r.action],note));afterChange('Koreksi disimpan ('+ch.length+' presensi). Terlambat atau tidaknya dihitung ulang dari jam baru.')}catch(e){say('Gagal menyimpan: '+(e&&e.message||e),true)}}
+ function addRow(){
+  const note=guard();if(!note)return;if((st.rows||[]).some(r=>r.action===st.addAct)){say(st.addAct+' sudah ada. Ubah jamnya lewat kolom "Jam seharusnya".',true);return}
+  if(!st.addT){say('Isi jam presensi.',true);return}const nm=sm()[st.who]?sm()[st.who].name:st.who;
+  if(!confirm('Tambahkan '+st.addAct+' '+nm+' tanggal '+st.day+' pukul '+st.addT+' WITA?\n\nKeterangan dan bukti akan tercatat di Google Sheets.'))return;
+  try{window.WOSStore.attEdit(st.who,st.day,st.addAct,st.addT,note);afterChange('Presensi '+st.addAct+' ditambahkan ('+st.addT+').')}catch(e){say('Gagal menambah: '+(e&&e.message||e),true)}}
+ function delRow(act){
+  const note=guard();if(!note)return;const nm=sm()[st.who]?sm()[st.who].name:st.who;
+  if(!confirm('HAPUS '+act+' '+nm+' tanggal '+st.day+'?\n\nKeterangan dan bukti akan tercatat di Google Sheets.'))return;
+  try{window.WOSStore.attDelete(st.who,st.day,act,note);afterChange('Presensi '+act+' dihapus.')}catch(e){say('Gagal menghapus: '+(e&&e.message||e),true)}}
+ function reqHtml(){let req=[];try{req=[].concat(jotmRequests.map(o=>['Change Off',o]),annualLeaveRequests.map(o=>['Cuti tahunan',o]),lateRequests.map(o=>['Izin terlambat',o]),otherLeaveRequests.map(o=>['Izin lain-lain',o]))}catch(e){}
+  return req.length?'<table><thead><tr><th>Staf</th><th>Jenis</th><th>Status</th><th></th></tr></thead><tbody>'+req.map(([t,o])=>'<tr><td>'+esc(o.employee)+'</td><td>'+esc(t)+'</td><td>'+esc(o.status||'')+'</td><td>'+(o.id?'<button type="button" class="button secondary" data-c2="delreq" data-k="'+esc(o.id)+'">Hapus</button>':'')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Tidak ada pengajuan yang menunggu.</p>'}
+ function html(){
+  const staff=Object.entries(sm()).filter(([,p])=>p.role!=='Supervisor'&&!p.out).sort((a,b)=>String(a[1].name).localeCompare(b[1].name));
+  let h='<h2>Koreksi presensi (SPV)</h2><p class="sub">Untuk staf yang <b>sebenarnya datang tepat waktu dan sudah check-in</b>, tetapi presensinya tidak terbaca atau terbaca terlambat karena gangguan sistem. Wajib mengisi keterangan. Bukti (misalnya rekaman CCTV) dikirim <b>terpisah ke HR lewat WhatsApp</b>. Setiap koreksi tercatat: jam lama, jam baru, siapa yang mengubah, keterangan, dan bukti.</p>'+
+   '<div class="form-grid" style="align-items:end"><div class="field"><label for="c2-who">Karyawan</label><select id="c2-who"><option value="">- pilih karyawan -</option>'+staff.map(([c,p])=>'<option value="'+esc(c)+'"'+(st.who===c?' selected':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</select></div><div class="field"><label for="c2-day">Tanggal presensi</label><input id="c2-day" type="date" value="'+esc(st.day)+'"></div></div>';
+  if(st.msg)h+='<p class="note" style="margin-top:10px;'+(st.bad?'color:#b3261e;border-left:5px solid #b3261e':'border-left:5px solid #1b7a46')+'">'+esc(st.msg)+'</p>';
+  if(!st.who)return h+'<p class="sub" style="margin-top:12px">Pilih karyawan dan tanggal untuk melihat presensinya.</p>'+hist()+'<h3 style="margin-top:16px">Pengajuan yang menunggu</h3><div style="overflow:auto">'+reqHtml()+'</div>';
+  const nm=sm()[st.who]?sm()[st.who].name:st.who;
+  h+='<h3 style="margin:14px 0 6px">Presensi '+esc(nm)+' · '+esc(st.day)+'</h3>';
+  if(st.busy||st.rows==null)h+='<p class="sub">Memuat…</p>';
+  else if(!st.rows.length)h+='<p class="note">Belum ada presensi untuk '+esc(nm)+' pada tanggal ini (tidak terbaca). Gunakan "Tambah presensi yang tidak terbaca" di bawah.</p>';
+  else h+='<div style="overflow:auto"><table><thead><tr><th>Aksi</th><th>Jam tercatat (WITA)</th><th>Keterangan</th><th>Jam seharusnya</th><th></th></tr></thead><tbody>'+st.rows.map(r=>{const hm=hmOf(r.at),late=r.action==='Attendance in'&&hm>'08:10',mn=late?(((+hm.slice(0,2))*60+(+hm.slice(3,5)))-490):0;
+   return '<tr><td>'+esc(r.action)+'</td><td><b>'+hm+'</b></td><td>'+(late?'<span class="tag red">terlambat '+mn+' mnt</span>':'<span class="tag green">tepat waktu</span>')+(r.manual?' <span class="tag amber">sudah dikoreksi</span>':'')+'</td><td><input type="time" data-c2edit="'+esc(r.action)+'" value="'+esc(st.edit[r.action]||hm)+'" style="width:120px"></td><td><button type="button" class="button secondary" data-c2="del" data-act="'+esc(r.action)+'">Hapus</button></td></tr>'}).join('')+'</tbody></table></div>';
+  h+='<div class="card" style="margin-top:12px;background:#fafdff"><h3 style="margin:0 0 6px">Alasan dan bukti (wajib)</h3><div class="field"><label for="c2-note">Keterangan koreksi</label><textarea id="c2-note" rows="2" placeholder="Contoh: Datang 07.45 dan sudah check-in, tidak terbaca karena server gangguan; check-in ulang 08.15 terbaca terlambat." style="width:100%">'+esc(st.note)+'</textarea></div>'+
+   '<label style="display:flex;gap:8px;align-items:flex-start;margin:8px 0;font-size:14px"><input type="checkbox" id="c2-bukti"'+(st.bukti?' checked':'')+' style="margin-top:3px"> <span>Saya sudah atau akan mengirim bukti (misalnya rekaman CCTV) ke HR lewat WhatsApp.</span></label>'+
+   '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><button class="button" type="button" data-c2="save">Simpan koreksi jam</button></div>'+
+   '<h4 style="margin:14px 0 6px">Tambah presensi yang tidak terbaca</h4><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label class="sub">Aksi<select id="c2-act" style="display:block">'+ACTS.map(a=>'<option'+(st.addAct===a?' selected':'')+'>'+a+'</option>').join('')+'</select></label><label class="sub">Jam (WITA)<input type="time" id="c2-t" value="'+esc(st.addT)+'" style="display:block;width:120px"></label><button class="button secondary" type="button" data-c2="add">Tambah presensi</button></div><p class="sub" style="margin:6px 0 0">Tombol Simpan, Tambah, dan Hapus memakai keterangan dan konfirmasi bukti di atas.</p></div>';
+  return h+hist()+'<h3 style="margin-top:16px">Pengajuan yang menunggu</h3><div style="overflow:auto">'+reqHtml()+'</div>'}
+ function hist(){
+  const H=st.hist;return '<h3 style="margin:16px 0 6px">Riwayat koreksi (14 hari terakhir)</h3>'+(H==null?'<p class="sub">Memuat riwayat…</p>':!H.length?'<p class="sub">Belum ada koreksi.</p>':'<div style="overflow:auto"><table><thead><tr><th>Dikoreksi</th><th>Tanggal presensi</th><th>Karyawan</th><th>Aksi</th><th>Jenis</th><th>Jam</th><th>Oleh</th><th>Keterangan</th><th>Bukti</th></tr></thead><tbody>'+H.map(x=>'<tr><td>'+esc(String(x.at).replace('T',' ').slice(0,16))+'</td><td>'+esc(x.day)+'</td><td>'+esc(sm()[x.code]?sm()[x.code].name:x.code)+' <span class="sub">'+esc(x.code)+'</span></td><td>'+esc(x.act)+'</td><td>'+esc(x.jenis)+'</td><td>'+(x.prev?esc(x.prev)+' → ':'')+esc(x.jam)+'</td><td>'+esc(x.by)+'</td><td>'+esc(x.al||'-')+'</td><td>'+(x.bk?'<span class="tag green">ada</span>':'<span class="tag amber">tanpa</span>')+'</td></tr>').join('')+'</tbody></table></div>')}
+ function draw(){
+  const box=$('wos-correct2');if(!box)return;const h=html();if(sig===h)return;sig=h;
+  const ae=document.activeElement,k=ae&&ae.id&&box.contains(ae)?ae.id:(ae&&ae.dataset&&ae.dataset.c2edit&&box.contains(ae)?'e:'+ae.dataset.c2edit:''),pos=ae&&ae.selectionStart;
+  box.innerHTML=h;
+  if(k){const el=k.indexOf('e:')===0?box.querySelector('[data-c2edit="'+k.slice(2)+'"]'):$(k);if(el){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}}
+ function ensure(){
+  const host=$('attendance');let box=$('wos-correct2');
+  if(!host||!isMaster()){if(box)box.remove();return null}
+  if(!box){box=document.createElement('div');box.id='wos-correct2';box.className='card';box.style.margin='14px 0';host.appendChild(box);
+   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.c2;
+    if(a==='save')saveEdits();else if(a==='add')addRow();else if(a==='del')delRow(b.dataset.act);
+    else if(a==='delreq'){if(!confirm('Hapus pengajuan ini?'))return;let ok=false;try{ok=window.WOSStore.pDelete(b.dataset.k)}catch(x){}say(ok?'Pengajuan dihapus.':'Pengajuan tidak ditemukan.',!ok)}});
+   box.addEventListener('input',e=>{const t=e.target;if(t.id==='c2-note')st.note=t.value;else if(t.dataset&&t.dataset.c2edit)st.edit[t.dataset.c2edit]=t.value;else if(t.id==='c2-t')st.addT=t.value});
+   box.addEventListener('change',e=>{const t=e.target;if(t.id==='c2-who'){st.who=t.value;st.msg='';load()}else if(t.id==='c2-day'){st.day=t.value||todayW();st.msg='';load()}else if(t.id==='c2-bukti'){st.bukti=t.checked}else if(t.id==='c2-act'){st.addAct=t.value}});
+   draw();loadHist(true)}
+  return box}
+ setInterval(()=>{if(document.hidden)return;const a=$('attendance');if(a&&a.classList.contains('active')){if(ensure()){draw();loadHist(false)}}else if($('wos-correct2')&&!isMaster())$('wos-correct2').remove()},2500);
 })();
 </script>
 <script>
