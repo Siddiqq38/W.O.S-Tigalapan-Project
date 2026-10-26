@@ -6948,6 +6948,37 @@ window.WOSMon=(function(){
 })();
 </script>
 <script>
+// Label "Approve": semua keterangan Setujui, Setujui SPV, dan Setujui Manager ditampilkan sebagai "Approve" (status Disetujui menjadi "Approved").
+// Hanya tampilan; data dan logika tidak berubah. Juga penanda untuk SPV dan Manager bila ada pengajuan atau adjustment yang perlu di-Approve.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api;
+ const AP=[[/Setujui Manager/g,'Approve'],[/Setujui SPV/g,'Approve'],[/\bSetujui\b/g,'Approve'],[/\bDisetujui (?:SPV|Manager)\b/g,'Approved'],[/\bDisetujui\b/g,'Approved']];
+ const SKIP={TEXTAREA:1,SCRIPT:1,STYLE:1,INPUT:1};
+ function sweep(){if(document.hidden)return;const root=document.querySelector('.page.active');if(!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);let n;
+  while((n=w.nextNode())){const v=n.nodeValue;if(!v||v.indexOf('etuju')<0)continue;if(n.parentElement&&SKIP[n.parentElement.tagName])continue;let o=v;for(const [r,t] of AP)o=o.replace(r,t);if(o!==v)n.nodeValue=o}}
+ setInterval(()=>{try{sweep()}catch(e){}},900);
+ // ---- penanda perlu Approve
+ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const navOk=p=>{const n=document.querySelector('.nav[data-page="'+p+'"]');return n&&!n.classList.contains('wos-hide')&&!n.classList.contains('wos-lock')?n:null};
+ function pending(){const lv=sessionStorage.getItem('wos-session-v1')||'';if(!['supervisor','manager'].includes(lv))return{p:0,a:0};
+  const p=navOk('attendance')?document.querySelectorAll('#attendance button[onclick*="approve"]').length:0;let a=0;
+  if(lv==='supervisor'&&A&&navOk('wms-location')){try{a=A.view('ADJUSTMENT').filter(x=>x.status==='Menunggu SPV').length}catch(e){}}
+  return{p,a}}
+ const bdg=(el,n)=>{if(!el)return;if(n>0){if(el.getAttribute('data-bdg')!==String(n))el.setAttribute('data-bdg',String(n))}else if(el.hasAttribute('data-bdg'))el.removeAttribute('data-bdg')};
+ function mark(){const{p,a}=pending(),d=document.getElementById('dashboard'),ex=document.getElementById('wos-dash-appr');
+  bdg(document.querySelector('.nav[data-page="attendance"]'),p);bdg(document.querySelector('.nav[data-page="wms-location"]'),a);
+  if(!d)return;const sig=p+'|'+a;
+  if(!p&&!a){if(ex)ex.remove();return}
+  if(ex&&ex.dataset.sig===sig)return;if(ex)ex.remove();
+  const b=document.createElement('div');b.id='wos-dash-appr';b.className='card';b.dataset.sig=sig;b.style.cssText='margin-bottom:14px;border-left:6px solid #e0a82b;background:#fff8e6';
+  b.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><div style="flex:1;min-width:240px"><b style="font-size:16px">Perlu di-Approve</b><div class="sub" style="margin:2px 0 0">'+(p?p+' pengajuan (Change Off, cuti, izin) menunggu Approve Anda':'')+(p&&a?' · ':'')+(a?a+' adjustment stok menunggu Approve':'')+'</div></div>'+
+   (p?'<button class="button" data-ap="attendance" type="button">Approve pengajuan ('+p+')</button>':'')+(a?'<button class="button" data-ap="wms-location" type="button">Approve adjustment ('+a+')</button>':'')+'</div>';
+  b.addEventListener('click',e=>{const x=e.target.closest('[data-ap]');if(!x)return;const n=navOk(x.dataset.ap);if(n)n.click()});
+  const first=document.getElementById('wos-dash-find')||document.getElementById('wos-dash-dr');if(first)d.insertBefore(b,first);else d.prepend(b)}
+ setInterval(()=>{try{mark()}catch(e){}},3000);setTimeout(mark,2500);
+})();
+</script>
+<script>
 // Video dan bukti dari Google Drive diputar langsung di aplikasi (jendela pemutar), seperti bukti 5R, tanpa pindah ke halaman Drive
 (()=>{
  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
