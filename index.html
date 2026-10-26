@@ -496,8 +496,8 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
   $('events').innerHTML=events.length?'<table><thead><tr><th>Staff / kategori</th><th>Fakta / sumber</th><th>Status</th><th>Tindak lanjut</th></tr></thead><tbody>'+events.map(e=>'<tr><td>'+esc(label(e.code))+'<br>'+esc(e.type)+'<br><span class="sub">'+esc(e.day)+'</span></td><td>'+esc(e.detail)+'<br><span class="sub">'+esc(e.source)+' · '+esc(e.actor)+'</span></td><td>'+tag(({pending:'Menunggu verifikasi',valid:'Terverifikasi',batal:'Dibatalkan'})[e.status],e.status==='valid'?'red':'amber')+'<br>'+esc(e.review||'')+'</td><td>'+ (e.resolved?'Selesai · '+esc(e.resolution||''):isReviewer()?'<button class="button secondary" data-review="'+esc(e.id)+'" data-status="valid">Verifikasi</button> <button class="button secondary" data-review="'+esc(e.id)+'" data-status="batal">Batalkan</button> '+(e.status==='valid'?'<button class="button secondary" data-resolve="'+esc(e.id)+'">Selesai ditindaklanjuti</button>':''):'Menunggu SPV / Manager')+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Belum ada kejadian tercatat pada tanggal ini.</p>';
   const monthly=complianceMonthly(state,$('month').value);
   $('monthly').innerHTML=(()=>{
-   const bucket=t=>/^DRM/i.test(t)?'drm':/^(5R|Temuan 5R)$/i.test(t)?'fiver':/miss picking/i.test(t)?'mp':/miss put ?away/i.test(t)?'mpa':/main hp/i.test(t)?'hp':/tidur/i.test(t)?'tidur':'lain';
-   const BK=[['drm','Tidak ikut DRM'],['fiver','5R tidak lapor / ditolak'],['mp','Miss picking'],['mpa','Miss put away'],['hp','Main HP'],['tidur','Tidur di jam kerja'],['lain','SOP / komplain lain']];
+   const bucket=t=>/^DRM/i.test(t)?'drm':/^(alpha|mangkir)/i.test(t)?'abs':/^(5R|Temuan 5R)$/i.test(t)?'fiver':/miss picking/i.test(t)?'mp':/miss put ?away/i.test(t)?'mpa':/main hp/i.test(t)?'hp':/tidur/i.test(t)?'tidur':'lain';
+   const BK=[['drm','Tidak ikut DRM'],['abs','Alpha / Mangkir'],['fiver','5R tidak lapor / ditolak'],['mp','Miss picking'],['mpa','Miss put away'],['hp','Main HP'],['tidur','Tidur di jam kerja'],['lain','SOP / komplain lain']];
    const evs=state.events.filter(e=>e.day.startsWith($('month').value)&&e.status!=='batal'),by={};
    evs.forEach(e=>{const o=by[e.code]=by[e.code]||{valid:{},pending:0,total:0};if(e.status==='valid'){const b=bucket(e.type);o.valid[b]=(o.valid[b]||0)+1;o.total++}else o.pending++});
    const list=Object.entries(by).sort((a,b)=>b[1].total-a[1].total||b[1].pending-a[1].pending);
@@ -5092,7 +5092,7 @@ init();
  async function rkLoad(force){
   const key=rk.f+'|'+rk.t;if(RK.busy||(!force&&RK.key===key&&Date.now()-RK.at<90000))return;RK.busy=true;V3.redraw();
   try{if(!window.WOSStore)throw new Error('penyimpanan belum siap');const c=window.WOSStore.config(),q=(tab,fr,to)=>fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token,action:'list',tab},fr?{from:fr,to}:{}))).then(r=>r.json());
-   const [a,p]=await Promise.all([q('ATTENDANCE',rk.f,rk.t),q('PENGAJUAN')]);if(!a.ok)throw new Error(a.error);RK.att=a.rows||[];RK.pg=p.ok?p.rows||[]:[];RK.key=key;RK.at=Date.now();RK.err=''}catch(e){RK.err=String(e&&e.message||e)}
+   const [a,p,ce]=await Promise.all([q('ATTENDANCE',rk.f,rk.t),q('PENGAJUAN'),q('COMPLIANCE_EVENT',rk.f,rk.t)]);if(!a.ok)throw new Error(a.error);RK.att=a.rows||[];RK.pg=p.ok?p.rows||[]:[];RK.cl={};(ce&&ce.ok?ce.rows||[]:[]).forEach(e=>{if(/^ABS:/.test(String(e.id)))RK.cl[e.kode_staf+'|'+String(e.tanggal).slice(0,10)]={j:e.jenis,s:e.status}});RK.key=key;RK.at=Date.now();RK.err=''}catch(e){RK.err=String(e&&e.message||e)}
   RK.busy=false;V3.redraw()}
  const hm=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?+m[1]*60+ +m[2]:-1};
  function rkCompute(){
@@ -5101,12 +5101,12 @@ init();
   const first={},last={},lem={};RK.att.forEach(r=>{if(r.simulasi==='hapus'||r.tanggal<rk.f||r.tanggal>rk.t)return;const k=r.kode_staf+'|'+r.tanggal,j=r.jam_wita||'';if(r.aksi==='Attendance in'){if(!first[k]||hm(j)<hm(first[k]))first[k]=j}else if(r.aksi==='Attendance out'){if(!last[k]||hm(j)>hm(last[k]))last[k]=j}else if(/lembur/i.test(r.aksi||''))lem[k]=1});
   const lv={},pend={};RK.pg.forEach(p=>{const c=idx.get(U(p.nama))||p.kode_staf;if(!c||!p.tanggal_mulai)return;const a=String(p.tanggal_mulai).slice(0,10),b=String(p.tanggal_selesai||p.tanggal_mulai).slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(a))return;if(b<rk.f||a>rk.t)return;if(p.status!=='Disetujui'){if(p.status==='Menunggu'||/menunggu/i.test(p.status||''))pend[c]=(pend[c]||0)+1;return}
    const code=/sakit/i.test(p.jenis)?'S':/change/i.test(p.jenis)?'CO':/cuti/i.test(p.jenis)?'C':/terlambat/i.test(p.jenis)?'IT':'IL';for(let d=a;d<=b&&d<=rk.t;d=addD(d,1)){if(d<rk.f)continue;(lv[c+'|'+d]=lv[c+'|'+d]||new Set()).add(code)}});
-  const lm=hm(rk.late),rows=emp.map(e=>{const o={c:e.c,n:e.n,r:e.r,ld:e.ld,hadir:0,telat:0,mnt:0,S:0,IT:0,IL:0,CO:0,C:0,lembur:0,alpha:0,sumMin:0,cells:{},pend:pend[e.c]||0};
+  const lm=hm(rk.late),rows=emp.map(e=>{const o={c:e.c,n:e.n,r:e.r,ld:e.ld,hadir:0,telat:0,mnt:0,S:0,IT:0,IL:0,CO:0,C:0,lembur:0,alpha:0,alp:0,mgk:0,sumMin:0,cells:{},pend:pend[e.c]||0};
    dates.forEach(d=>{if(e.ld&&d>e.ld){o.cells[d]={resign:true,codes:[]};return}const k=e.c+'|'+d,j=first[k],codes=lv[k]?[...lv[k]]:[],sun=new Date(d+'T00:00:00Z').getUTCDay()===0;let late=0;
     if(j){o.hadir++;o.sumMin+=hm(j);if(lm>=0&&hm(j)>lm){late=hm(j)-lm;o.telat++;o.mnt+=late}}
     codes.forEach(c=>{if(c==='S')o.S++;else if(c==='IT')o.IT++;else if(c==='IL')o.IL++;else if(c==='CO')o.CO++;else if(c==='C')o.C++});
     if(lem[k])o.lembur++;
-    if(!j&&!codes.length&&!sun&&d<=t0)o.alpha++;
+    {const ce=(RK.cl||{})[k];if(!j&&ce&&ce.s!=='batal'&&ce.j==='Alpha')o.alp++;else if(!j&&ce&&ce.s!=='batal'&&ce.j==='Mangkir')o.mgk++;else if(!j&&!codes.length&&!sun&&d<t0&&!ce)o.alpha++}
     o.cells[d]={j,out:last[k],late,codes,sun,lem:!!lem[k]}});return o});
   return{dates,rows}}
  const wdl=d=>['Mg','Sn','Sl','Rb','Km','Jm','Sb'][new Date(d+'T00:00:00Z').getUTCDay()];
@@ -5119,17 +5119,17 @@ init();
   else{
    const T=k=>sum(R2.map(o=>o[k]));
    h+='<div class="an-kpi">'+kpi('Karyawan',R2.length,'terdaftar aktif')+kpi('Total hadir',T('hadir')+' hari','rata-rata '+(R2.length?Math.round(10*T('hadir')/R2.length)/10:0)+' hari/orang')+kpi('Terlambat',T('telat')+' kali',T('mnt')+' menit total',T('telat')?'o':'g')+kpi('Sakit',T('S')+' hari','disetujui')+kpi('Change Off + Cuti',(T('CO')+T('C'))+' hari','disetujui')+'</div>';
-   h+=card('Rekap per karyawan','Periode '+rk.f+' s/d '+rk.t+'. Pengajuan dihitung hanya yang berstatus Disetujui. Terlambat = jam masuk lewat '+rk.late+'. Tanpa keterangan = hari kerja (Senin–Sabtu) tanpa presensi dan tanpa pengajuan disetujui; perkiraan karena libur nasional belum diperhitungkan.',
-    '<div class="an-wrap"><table class="an-t"><thead><tr><th>Karyawan</th><th>Hadir</th><th>Rata-rata jam masuk</th><th>Terlambat (kali)</th><th>Menit terlambat</th><th>Sakit</th><th>Izin terlambat</th><th>Izin lain</th><th>Change Off</th><th>Cuti</th><th>Lembur (hari)</th><th>Tanpa keterangan</th><th>Pengajuan menunggu</th></tr></thead><tbody>'+
-    R2.map(o=>'<tr><td>'+esc(o.n)+' <span style="color:#8896ab;font-weight:400">'+esc(o.c)+'</span>'+(o.ld?' <span class="tag red">Resign · terakhir '+o.ld.slice(8,10)+'/'+o.ld.slice(5,7)+'</span>':'')+'</td><td>'+o.hadir+'</td><td>'+avgJam(o)+'</td><td'+(o.telat?' style="color:#c0332a;font-weight:700"':'')+'>'+o.telat+'</td><td>'+o.mnt+'</td><td>'+o.S+'</td><td>'+o.IT+'</td><td>'+o.IL+'</td><td>'+o.CO+'</td><td>'+o.C+'</td><td>'+o.lembur+'</td><td'+(o.alpha?' style="color:#c0332a;font-weight:700"':'')+'>'+o.alpha+'</td><td>'+(o.pend||'')+'</td></tr>').join('')+
-    '<tr class="tot"><td>TOTAL</td><td>'+T('hadir')+'</td><td></td><td>'+T('telat')+'</td><td>'+T('mnt')+'</td><td>'+T('S')+'</td><td>'+T('IT')+'</td><td>'+T('IL')+'</td><td>'+T('CO')+'</td><td>'+T('C')+'</td><td>'+T('lembur')+'</td><td>'+T('alpha')+'</td><td></td></tr></tbody></table></div>');
+   h+=card('Rekap per karyawan','Periode '+rk.f+' s/d '+rk.t+'. Pengajuan dihitung hanya yang berstatus Disetujui. Terlambat = jam masuk lewat '+rk.late+'. Alpha dan Mangkir = hasil Penutupan presensi harian oleh SPV (menu Attendance). Belum ditutup (perkiraan) = hari kerja lampau (Senin–Sabtu) tanpa presensi, tanpa pengajuan disetujui, dan belum diputuskan SPV; libur nasional belum diperhitungkan.',
+    '<div class="an-wrap"><table class="an-t"><thead><tr><th>Karyawan</th><th>Hadir</th><th>Rata-rata jam masuk</th><th>Terlambat (kali)</th><th>Menit terlambat</th><th>Sakit</th><th>Izin terlambat</th><th>Izin lain</th><th>Change Off</th><th>Cuti</th><th>Lembur (hari)</th><th>Alpha</th><th>Mangkir</th><th>Belum ditutup (perkiraan)</th><th>Pengajuan menunggu</th></tr></thead><tbody>'+
+    R2.map(o=>'<tr><td>'+esc(o.n)+' <span style="color:#8896ab;font-weight:400">'+esc(o.c)+'</span>'+(o.ld?' <span class="tag red">Resign · terakhir '+o.ld.slice(8,10)+'/'+o.ld.slice(5,7)+'</span>':'')+'</td><td>'+o.hadir+'</td><td>'+avgJam(o)+'</td><td'+(o.telat?' style="color:#c0332a;font-weight:700"':'')+'>'+o.telat+'</td><td>'+o.mnt+'</td><td>'+o.S+'</td><td>'+o.IT+'</td><td>'+o.IL+'</td><td>'+o.CO+'</td><td>'+o.C+'</td><td>'+o.lembur+'</td><td'+(o.alp?' style="color:#c0332a;font-weight:700"':'')+'>'+o.alp+'</td><td'+(o.mgk?' style="color:#c0332a;font-weight:700"':'')+'>'+o.mgk+'</td><td'+(o.alpha?' style="color:#b36b00;font-weight:700"':'')+'>'+o.alpha+'</td><td>'+(o.pend||'')+'</td></tr>').join('')+
+    '<tr class="tot"><td>TOTAL</td><td>'+T('hadir')+'</td><td></td><td>'+T('telat')+'</td><td>'+T('mnt')+'</td><td>'+T('S')+'</td><td>'+T('IT')+'</td><td>'+T('IL')+'</td><td>'+T('CO')+'</td><td>'+T('C')+'</td><td>'+T('lembur')+'</td><td>'+T('alp')+'</td><td>'+T('mgk')+'</td><td>'+T('alpha')+'</td><td></td></tr></tbody></table></div>');
    h+=card('Detail harian','Jam masuk per hari (merah = terlambat). Kode: S sakit, IT izin terlambat, IL izin lain-lain, CO change off, C cuti. Minggu berwarna abu.',
     '<div class="an-wrap" style="max-height:70vh"><table class="an-t"><thead><tr><th>Karyawan</th>'+m.dates.map(d=>'<th style="text-align:center;min-width:46px">'+d.slice(8,10)+'<br><span style="font-weight:400;font-size:10px">'+wdl(d)+'</span></th>').join('')+'</tr></thead><tbody>'+
     R2.map(o=>'<tr><td>'+esc(o.n)+'</td>'+m.dates.map(d=>{const c=o.cells[d];if(c.resign)return '<td style="text-align:center;background:#f3dede;color:#b3261e;font-size:10px">resign</td>';const txt=c.j?c.j:c.codes.join('/');const st2=c.sun?'background:#eef0f4':c.late?'color:#c0332a;font-weight:700':c.codes.length&&!c.j?'color:#1f6fb5;font-weight:700':'';return '<td style="text-align:center;'+st2+'" title="'+esc(c.out?'pulang '+c.out:'')+'">'+esc(txt||(c.sun||d>t0?'':'–'))+(c.j&&c.codes.length?'<br><span style="font-size:10px;color:#1f6fb5">'+esc(c.codes.join('/'))+'</span>':'')+'</td>'}).join('')+'</tr>').join('')+'</tbody></table></div>')}
   if(s._sig!==h){s._sig=h;s.querySelector('.v3-b').innerHTML=h}}
  function rkCsv(kind){
   const m=rkCompute();let rows;
-  if(kind==='rekap'){rows=[['Kode','Nama','Peran','Hadir','Rata-rata jam masuk','Terlambat (kali)','Menit terlambat','Sakit','Izin terlambat','Izin lain-lain','Change Off','Cuti','Lembur (hari)','Tanpa keterangan (perkiraan)','Pengajuan menunggu']].concat(m.rows.map(o=>[o.c,o.n+(o.ld?' (Resign, terakhir '+o.ld+')':''),o.r,o.hadir,avgJam(o),o.telat,o.mnt,o.S,o.IT,o.IL,o.CO,o.C,o.lembur,o.alpha,o.pend]))}
+  if(kind==='rekap'){rows=[['Kode','Nama','Peran','Hadir','Rata-rata jam masuk','Terlambat (kali)','Menit terlambat','Sakit','Izin terlambat','Izin lain-lain','Change Off','Cuti','Lembur (hari)','Alpha','Mangkir','Belum ditutup (perkiraan)','Pengajuan menunggu']].concat(m.rows.map(o=>[o.c,o.n+(o.ld?' (Resign, terakhir '+o.ld+')':''),o.r,o.hadir,avgJam(o),o.telat,o.mnt,o.S,o.IT,o.IL,o.CO,o.C,o.lembur,o.alp,o.mgk,o.alpha,o.pend]))}
   else rows=[['Kode','Nama','Tanggal','Jam masuk','Jam pulang','Terlambat (menit)','Keterangan']].concat(m.rows.flatMap(o=>m.dates.filter(d=>{const c=o.cells[d];return !c.resign&&(c.j||c.codes.length)}).map(d=>{const c=o.cells[d];return [o.c,o.n,d,c.j||'',c.out||'',c.late||'',c.codes.map(x=>({S:'Sakit',IT:'Izin terlambat',IL:'Izin lain-lain',CO:'Change Off',C:'Cuti'}[x])).join(', ')]})));
   window.wosXlsx(rows,'Rekap-presensi-'+kind+'-'+rk.f+'_'+rk.t+'.xlsx',kind==='rekap'?'Rekap':'Detail harian')}
  const BODY={'Inbound vs Outbound':tabIO,'Vendor':tabVendor,'Supply Toko':tabSupply,'Item':tabItem,'Utilisasi':tabUtil,'Tim':tabTim,'Ekspedisi':tabEks,'Kehadiran':tabAtt};
@@ -6490,6 +6490,81 @@ init();
  const main=document.querySelector('main')||document.body;
  new MutationObserver(()=>{if(pend)return;pend=true;requestAnimationFrame(fix)}).observe(main,{childList:true,subtree:true,characterData:true});
  setTimeout(rec,1500);
+})();
+</script>
+<script>
+// Penutupan presensi harian (khusus SPV): setiap staf aktif yang tidak punya presensi masuk dan tidak punya pengajuan disetujui pada tanggal itu
+// diputuskan statusnya: Alpha, Mangkir, Lupa check-in (presensi manual ditambahkan), atau Libur/tidak dihitung.
+// Alpha dan Mangkir dicatat sebagai kejadian Compliance (tersinkron ke Google Sheets) dan dihitung di rekap kehadiran.
+(()=>{
+ const $=id=>document.getElementById(id);
+ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const sm=()=>{try{return staffMaster}catch(e){return{}}};
+ const AK='wos-attendance-kpi-v1',OPT=['Alpha','Mangkir','Lupa check-in','Libur/tidak dihitung'];
+ const rj=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}};
+ const wd=()=>new Date(Date.now()+288e5).toISOString().slice(0,10),hmNow=()=>new Date(Date.now()+288e5).toISOString().slice(11,16);
+ const me=()=>{try{return sessionStorage.getItem('wos-session-code')||''}catch(e){return ''}};
+ const isSpv=()=>{try{return sessionStorage.getItem('wos-session-v1')==='supervisor'&&!sessionStorage.getItem('wos-impersonator')}catch(e){return false}};
+ const st={day:wd(),busy:false,msg:'',bad:false,srv:null,key:'',at:0,draft:{}};
+ let sig='';
+ const eid=(d,c)=>'ABS:'+d+':'+c;
+ async function load(force){
+  const key=st.day;if(st.busy||(!force&&st.key===key&&Date.now()-st.at<60000))return;st.busy=true;
+  try{if(!window.WOSStore)throw new Error('penyimpanan belum siap');const c=window.WOSStore.config(),q=(tab,f,t)=>fetch(c.url+'?'+new URLSearchParams(Object.assign({token:c.token,action:'list',tab},f?{from:f,to:t}:{}))).then(r=>r.json());
+   const [a,p,e]=await Promise.all([q('ATTENDANCE',st.day,st.day),q('PENGAJUAN'),q('COMPLIANCE_EVENT',st.day,st.day)]);if(!a.ok)throw new Error(a.error||'gagal membaca presensi');
+   st.srv={att:a.rows||[],pg:p.ok?(p.rows||[]):[],ev:e.ok?(e.rows||[]):[]};st.key=key;st.at=Date.now();st.err=''}
+  catch(x){st.err=String(x&&x.message||x)}
+  st.busy=false;draw()}
+ function compute(){
+  const S=sm(),day=st.day,srv=st.srv||{att:[],pg:[],ev:[]},sun=new Date(day+'T00:00:00Z').getUTCDay()===0;
+  const ins=new Set();srv.att.forEach(r=>{if(r.aksi==='Attendance in'&&r.simulasi!=='hapus'&&String(r.tanggal).slice(0,10)===day)ins.add(r.kode_staf)});
+  rj(AK,[]).forEach(r=>{if(r&&r.action==='Attendance in'&&r.day===day)ins.add(r.code)});
+  const idx=new Map(Object.entries(S).map(([c,p])=>[String(p.name).toUpperCase(),c])),leave=new Map();
+  srv.pg.forEach(p=>{if(p.status!=='Disetujui')return;const c=p.kode_staf||idx.get(String(p.nama||'').toUpperCase());if(!c)return;const a=String(p.tanggal_mulai||'').slice(0,10),b=String(p.tanggal_selesai||p.tanggal_mulai||'').slice(0,10);if(a&&a<=day&&day<=(b||a))leave.set(c,p.jenis||'Pengajuan')});
+  const ev=new Map();srv.ev.forEach(e=>{if(String(e.id)===eid(day,e.kode_staf))ev.set(e.kode_staf,{jenis:e.jenis,status:e.status})});
+  try{((window.__complianceSnapshot&&window.__complianceSnapshot().events)||[]).forEach(e=>{if(e.id===eid(day,e.code))ev.set(e.code,{jenis:e.type,status:e.status})})}catch(x){}
+  const list=Object.entries(S).filter(([c,p])=>p.role!=='Supervisor'&&(!p.out||(p.lastDay&&p.lastDay>=day))&&!(p.lastDay&&day>p.lastDay)).sort((a,b)=>String(a[1].name).localeCompare(b[1].name));
+  const cand=list.filter(([c])=>!ins.has(c)&&!leave.has(c)),done=cand.filter(([c])=>ev.has(c)),open=cand.filter(([c])=>!ev.has(c));
+  return{sun,ins,leave,ev,list,cand,done,open}}
+ const tagOf=e=>!e?'':e.status==='batal'?'<span class="tag purple">'+esc(e.jenis)+'</span>':'<span class="tag '+(e.jenis==='Alpha'?'red':'amber')+'">'+esc(e.jenis)+'</span>';
+ function html(){
+  const d=compute(),today=wd(),early=st.day===today&&hmNow()<'17:00';
+  let h='<div class="card-head"><div><h2>Penutupan presensi harian</h2><span class="sub">Tentukan status staf yang tidak punya presensi dan tidak punya pengajuan disetujui. Alpha dan Mangkir masuk ke Compliance dan rekap kehadiran; Lupa check-in menambahkan presensi manual.</span></div></div>'+
+   '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:8px"><label class="sub">Tanggal<input type="date" data-cdf="day" value="'+esc(st.day)+'" style="display:block"></label><button class="button secondary" data-cd="reload" type="button"'+(st.busy?' disabled':'')+'>Muat ulang data</button><span class="sub">'+(st.busy?'Memuat…':d.cand.length+' staf tanpa presensi/pengajuan · '+d.open.length+' belum ditutup · '+d.done.length+' sudah ditutup · '+d.ins.size+' hadir')+'</span></div>';
+  if(early)h+='<p class="note">Hari ini belum berakhir. Disarankan menutup setelah pukul 17.00 WITA supaya yang masih bisa check-in tidak terlanjur dicatat Alpha.</p>';
+  if(d.sun)h+='<p class="note">Tanggal ini hari Minggu; staf tanpa presensi tidak dihitung Alpha kecuali Anda menetapkannya.</p>';
+  if(st.err)h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(st.err)+'</p>';
+  if(st.msg)h+='<p class="note" style="'+(st.bad?'color:#b3261e':'')+'">'+esc(st.msg)+'</p>';
+  if(!st.srv&&!st.err)return h+'<p class="sub">Memuat data…</p>';
+  if(!d.cand.length)return h+'<p class="sub">Semua staf aktif punya presensi atau pengajuan disetujui pada tanggal ini.</p>';
+  return h+'<div style="overflow:auto"><table><thead><tr><th>Staf</th><th>Status saat ini</th><th>Keputusan</th><th>Jam (bila lupa check-in)</th><th>Catatan</th><th></th></tr></thead><tbody>'+d.cand.map(([c,p])=>{const e=d.ev.get(c),r=st.draft[c]||{};return '<tr><td><b>'+esc(p.name)+'</b><div class="sub">'+esc(c)+' · '+esc(p.role)+'</div></td><td>'+(e?tagOf(e):'<span class="tag amber">Belum ditutup</span>')+'</td><td><select data-cdr="'+esc(c)+'|s"><option value="">- pilih -</option>'+OPT.map(o=>'<option'+(r.s===o?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select></td><td><input type="time" data-cdr="'+esc(c)+'|jam" value="'+esc(r.jam||'08:00')+'" style="width:110px"></td><td><input data-cdr="'+esc(c)+'|note" value="'+esc(r.note||'')+'" placeholder="Catatan (opsional)" style="min-width:160px"></td><td><button class="button" data-cdsave="'+esc(c)+'" type="button">Simpan</button></td></tr>'}).join('')+'</tbody></table></div>'}
+ function draw(){const b=$('wos-closeday');if(!b)return;const h=html();if(sig===h)return;sig=h;const ae=document.activeElement,k=ae&&ae.dataset&&ae.dataset.cdr,pos=ae&&ae.selectionStart;b.innerHTML=h;if(k){const el=b.querySelector('[data-cdr="'+k+'"]');if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(x){}}}}
+ async function save(code){
+  const S=sm()[code],r=st.draft[code]||{},day=st.day;if(!S)return;
+  if(!r.s){st.msg='Pilih keputusan untuk '+S.name+' dulu.';st.bad=true;draw();return}
+  const note=String(r.note||'').trim();
+  if(r.s==='Lupa check-in'){
+   const t=r.jam||'08:00',at=new Date(Date.parse(day+'T'+t+':00+08:00')).toISOString(),l=rj(AK,[]);
+   if(!confirm('Tambahkan presensi masuk '+S.name+' tanggal '+day+' pukul '+t+' WITA (manual)?'))return;
+   if(!l.some(x=>x.code===code&&x.day===day&&x.action==='Attendance in')){l.push({code,action:'Attendance in',day,at,manual:true});try{localStorage.setItem(AK,JSON.stringify(l))}catch(x){st.msg='Gagal menyimpan di perangkat ini.';st.bad=true;draw();return}}
+   try{if(window.__complianceSnapshot().events.some(e=>e.id===eid(day,code)&&e.status!=='batal'))await window.__wosCpApply({events:[Object.assign({},window.__complianceSnapshot().events.find(e=>e.id===eid(day,code)),{status:'batal',detail:'Dibatalkan: staf ternyata hadir (lupa check-in).'})]})}catch(x){}
+   st.msg='Presensi masuk '+S.name+' ditambahkan ('+t+').';st.bad=false;st.key='';delete st.draft[code];try{window.__renderDrm&&window.__renderDrm()}catch(x){}load(true);return}
+  const libur=r.s==='Libur/tidak dihitung';
+  if(!libur&&!confirm('Catat '+S.name+' sebagai '+r.s.toUpperCase()+' tanggal '+day+'? Ini masuk ke Compliance dan rekap kehadiran.'))return;
+  const ev={id:eid(day,code),day,code,type:r.s,detail:(libur?'Tidak dihitung (libur / sudah dikonfirmasi)':'Tidak hadir tanpa keterangan')+(note?' · '+note:''),status:libur?'batal':'valid',source:'Penutupan presensi',actor:me()||'SPV',createdAt:Date.now(),resolved:false};
+  try{await window.__wosCpApply({events:[ev]});const ok=(window.__complianceSnapshot().events||[]).some(e=>e.id===ev.id&&e.type===ev.type);
+   if(!ok){st.msg='Belum tersimpan (modul compliance sedang sibuk). Coba lagi sebentar lagi.';st.bad=true;draw();return}
+   st.msg=S.name+' dicatat: '+r.s+' ('+day+'). Tersinkron ke server dalam beberapa detik.';st.bad=false;delete st.draft[code];st.key='';load(true)}
+  catch(x){st.msg='Gagal menyimpan: '+(x&&x.message||x);st.bad=true;draw()}}
+ function mount(){
+  const pg=$('attendance');if(!pg||!isSpv())return;let b=$('wos-closeday');
+  if(!b){b=document.createElement('div');b.id='wos-closeday';b.className='card';b.style.margin='14px 0';const anchor=$('attendance-real-summary')||$('att-drill');if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(b,anchor.nextSibling);else pg.appendChild(b);
+   b.addEventListener('click',e=>{const x=e.target.closest('button');if(!x)return;if(x.dataset.cd==='reload'){load(true)}else if(x.dataset.cdsave)save(x.dataset.cdsave)});
+   b.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.cdr;if(!k)return;const[c,f]=k.split('|');(st.draft[c]=st.draft[c]||{})[f]=e.target.value});
+   b.addEventListener('change',e=>{const d=e.target.dataset||{};if(d.cdf==='day'&&e.target.value){st.day=e.target.value;st.srv=null;st.key='';st.msg='';sig='';draw();load(true)}else if(d.cdr){const[c,f]=d.cdr.split('|');(st.draft[c]=st.draft[c]||{})[f]=e.target.value;if(f==='s'){sig='';draw()}}});
+   load(true)}
+  draw()}
+ setInterval(()=>{try{if($('attendance')&&$('attendance').classList.contains('active')){mount();load(false)}}catch(e){}},1500);
 })();
 </script>
 <script>
