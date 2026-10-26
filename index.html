@@ -3803,6 +3803,22 @@ init();
   const items=pkItems();
   return window.WOSMon.render({title:'Monitor picking · hari ini',sub:'Norm ±'+PKN.sLine+' detik per baris item (dari riwayat kerja tim, 107 koli). Lambat bila lebih dari '+Math.round(PKN.sLine*PKN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+PKN.idleMin+' menit ditandai merah.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ lama picking koli yang selesai hari ini (koli lebih dari 4 jam dianggap lintas hari dan tidak dihitung).'})}
  window.WOSMonSrc=window.WOSMonSrc||{};window.WOSMonSrc.pick=()=>pkItems();
+ // ---- Kebutuhan packing per toko: untuk checker dan packer menyiapkan karung dan alat packing (hanya melihat; tanpa data kinerja picker)
+ const myRoleIds=()=>{try{const r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null'),pl=(r&&r.plans&&r.plans[today()])||{};return (pl[code()]||[]).map(x=>x.roleId)}catch(e){return[]}};
+ const canPackNeed=()=>canAdmin()||myRoleIds().some(x=>x==='checker'||x==='packer');
+ function packNeed(){
+  const dk=new Map(view('PICK_DOK').map(d=>[d.id,d])),by=new Map();
+  rngKoli(view('PICK_KOLI')).forEach(k=>{if(k.status==='Batal')return;const d=dk.get(k.dok);if(!d)return;const o=by.get(k.dok)||by.set(k.dok,{d,tot:0,pick:0,ver:0,pack:0,stg:0,out:0}).get(k.dok),s=k.status;o.tot++;
+   if(/^(Ditugaskan|Picking)$/.test(s))o.pick++;else if(/^(Siap verifikasi|Perbaikan|Siap TFS|Siap packing)$/.test(s))o.ver++;else if(s==='Selesai TFS')o.pack++;else if(s==='Staging')o.stg++;else o.out++});
+  const rows=[...by.values()].filter(o=>o.pick+o.ver+o.pack+o.stg>0).sort((a,b)=>String(a.d.kode).localeCompare(String(b.d.kode))||String(a.d.tanggal).localeCompare(String(b.d.tanggal)));
+  const T=rows.reduce((a,o)=>{a.tot+=o.tot;a.need+=o.pick+o.ver+o.pack;a.stg+=o.stg;a.out+=o.out;return a},{tot:0,need:0,stg:0,out:0});
+  let h='<div class="card" style="margin:0 0 12px"><h3 style="margin:0 0 2px">Kebutuhan packing per toko</h3><p class="sub" style="margin:0 0 8px">Jumlah koli tiap toko yang <b>masih harus dipacking</b> (belum staging), untuk menyiapkan karung dan alat packing. Diperbarui otomatis.</p>';
+  if(!rows.length)return h+'<p class="sub" style="margin:0">Tidak ada koli yang menunggu packing saat ini.</p></div>';
+  h+='<div class="mn-sum" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px"><div class="mn-k"><small>Toko aktif</small><b>'+rows.length+'</b></div><div class="mn-k" style="border-color:#f6d99a"><small>Perlu disiapkan (koli)</small><b style="color:#a35f00">'+T.need+'</b></div><div class="mn-k"><small>Sudah staging</small><b>'+T.stg+'</b></div><div class="mn-k"><small>Sudah dimuat / dikirim</small><b>'+T.out+'</b></div></div>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>Toko</th><th>Tgl SOQ</th><th>Kota</th><th>Total koli</th><th>Masih picking</th><th>Verifikasi / TFS</th><th>Siap packing</th><th>Sudah staging</th><th>Dimuat / kirim</th><th>Perlu disiapkan</th></tr></thead><tbody>'+rows.map(o=>{const need=o.pick+o.ver+o.pack,inC=typeof IN_CITY!=='undefined'&&IN_CITY.test(String(o.d.kode||''));
+   return '<tr><td><b>'+esc(o.d.kode||'')+'</b> '+esc(o.d.outlet||'')+'</td><td>'+esc(o.d.tanggal||'-')+'</td><td>'+(inC?'In city':'Out city')+'</td><td>'+o.tot+'</td><td>'+o.pick+'</td><td>'+o.ver+'</td><td>'+o.pack+'</td><td>'+o.stg+'</td><td>'+o.out+'</td><td><b style="color:'+(need?'#a35f00':'#14663a')+'">'+need+'</b></td></tr>'}).join('')+
+   '<tr style="font-weight:700"><td colspan="3">Total</td><td>'+T.tot+'</td><td colspan="5"></td><td>'+T.need+'</td></tr></tbody></table></div></div>';
+  return h}
  function listKoli(mode){
   const me=code(),adm=canAdmin();let list=rngKoli(view('PICK_KOLI'));
   if(mode==='pick')list=list.filter(k=>adm?(!filterOp||k.picker===filterOp):k.picker===me);else if(adm&&filterOp)list=list.filter(k=>k.picker===filterOp);
@@ -3810,6 +3826,7 @@ init();
   let h='';
   if(adm)h+='<div class="field" style="max-width:320px"><label for="ob-fop">Picker</label><select id="ob-fop"><option value="">Semua picker</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
   if(adm&&mode==='pick')h+=pkMonitor();
+  if(mode==='pick'&&canPackNeed())h+=packNeed();
   if(!list.length)return h+'<p class="sub">'+(mode==='pick'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap diverifikasi.')+'</p>';
   const by={};list.forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});
   return h+Object.keys(by).sort().reverse().map(dk=>{const d=view('PICK_DOK').find(x=>x.id===dk)||{kode:dk,outlet:'',tanggal:''};return '<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><div class="kl">'+by[dk].sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<button type="button" class="kb '+(STC[k.status]||'')+'" data-obopen="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc((k.picker_nama||k.picker||'').split(' ')[0])+'</small><small>'+esc(k.status)+'</small>'+ltTagOB(k)+'</button>').join('')+'</div>'+(adm&&mode==='pick'?adminKoli(dk,by[dk]):'')+'</div>'}).join('')}
