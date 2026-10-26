@@ -3212,7 +3212,7 @@ init();
   if(!sj.length)h+='<p class="note">Surat jalan untuk koli ini belum ada. Minta admin mengimpor surat jalan PO '+esc(po)+'.</p>';
   else h+='<div style="overflow:auto"><table><thead><tr><th>Item</th><th>Qty SJ</th><th>Hasil</th>'+(ro?'':'<th>Cek</th>')+'</tr></thead><tbody>'+sj.map(r=>{const c=cnt.get(String(r.seq));return '<tr><td>'+esc(r.item)+(isRejTipe(r.tipe)?' <span class="tag red">Reject</span>':'')+'</td><td><strong>'+esc(r.qty)+'</strong></td><td>'+(c?(c.status==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':'<span class="tag red">✗ '+(num(c.selisih)>0?'+':'')+c.selisih+' (actual '+esc(c.qty_actual)+')</span>'+(c.foto_id?' <a href="https://drive.google.com/file/d/'+esc(c.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')):'<span class="sub">belum dicek</span>')+'</td>'+(ro?'':'<td><button class="button" data-gok="'+esc(r.seq)+'" type="button">✓</button> <button class="button secondary" data-gno="'+esc(r.seq)+'" type="button" style="color:#b3261e">✗</button></td>')+'</tr>'}).join('')+'</tbody></table></div><p class="sub">Dicek '+sj.filter(r=>cnt.has(String(r.seq))).length+' dari '+sj.length+' baris · total SJ '+tot.s+' pcs · total actual '+tot.a+' pcs'+(tot.a!==tot.s?' · <strong style="color:#b3261e">selisih '+(tot.a-tot.s)+'</strong>':'')+'</p>';
   const extra=[...cnt.values()].filter(c=>!sj.some(r=>String(r.seq)===String(c.seq)));
-  if(extra.length)h+='<h4 style="margin:12px 0 4px">Item temuan (tidak ada di surat jalan)</h4><div style="overflow:auto"><table><thead><tr><th>Item</th><th>Qty</th><th>Tujuan</th><th>Keterangan</th><th></th></tr></thead><tbody>'+extra.map(c=>'<tr><td>'+esc(c.item)+'</td><td><strong>'+esc(c.qty_actual)+'</strong></td><td>'+(isRejCnt(c)?'<span class="tag red">Reject &rarr; Defect Handling</span>':'<span class="tag amber">Temuan &rarr; put away</span>')+'</td><td>'+esc(c.keterangan)+(c.foto_id?' <a href="https://drive.google.com/file/d/'+esc(c.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+'</td><td>'+(isSpv()&&!ro?'<button class="button secondary" data-gxdel="'+esc(c.id)+'" type="button" style="color:#b3261e">Hapus</button>':'')+'</td></tr>').join('')+'</tbody></table></div>';
+  if(extra.length)h+='<h4 style="margin:12px 0 4px">Item temuan (tidak ada di surat jalan)</h4><div style="overflow:auto"><table><thead><tr><th>Item</th><th>Qty</th><th>Tujuan</th><th>Keterangan</th><th></th></tr></thead><tbody>'+extra.map(c=>'<tr><td>'+esc(c.item)+'</td><td><strong>'+esc(c.qty_actual)+'</strong></td><td>'+(isRejCnt(c)?'<span class="tag red">Reject &rarr; Defect Handling</span>':'<span class="tag amber">Temuan &rarr; put away</span>')+'</td><td>'+esc(c.keterangan)+(c.foto_id?' <a href="https://drive.google.com/file/d/'+esc(c.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+(()=>{const o=sjOf(po).filter(r=>String(r.item).trim().toUpperCase()===String(c.item).trim().toUpperCase()&&Number(r.no_koli)!==Number(k));return o.length?'<br><span class="tag blue">Item ini ada di surat jalan PO (koli '+[...new Set(o.map(r=>r.no_koli))].join(', ')+'), cocokkan dengan jumlah koli tersebut</span>':''})()+'</td><td>'+(isSpv()&&!ro?'<button class="button secondary" data-gxdel="'+esc(c.id)+'" type="button" style="color:#b3261e">Hapus</button>':'')+'</td></tr>').join('')+'</tbody></table></div>';
   if(!ro)h+='<div class="ob-actions"><button class="button secondary" data-gextra="1" type="button">+ Item di luar surat jalan</button></div>';
   const rejN=[...cnt.values()].filter(c=>isRejCnt(c)&&num(c.qty_actual)>0);if(rejN.length)h+='<p class="note">'+rejN.length+' item reject ('+rejN.reduce((x,c)=>x+num(c.qty_actual),0)+' pcs) tidak di-put away dan tidak di-data entry, otomatis masuk tab Defect Handling.</p>';
   if(!ro&&sj.length)h+='<div class="ob-actions"><button class="button" data-gdone="1" type="button"'+(done?'':' disabled')+'>Selesai counting koli ini</button></div>';
@@ -4779,7 +4779,7 @@ init();
   if(!body||!body.isConnected)return;
   let h=(loadErr?'<p class="note" style="color:#b3261e">Data location control belum bisa dimuat: '+esc(loadErr)+'. Pastikan skrip Google gudang sudah diperbarui (setup lalu deploy versi baru).</p>':'')+(msg?'<p class="note" style="color:'+(msgBad?'#b3261e':'#1b7a46')+'">'+esc(msg)+'</p>':'');
   if(!stokRows.length&&loading)h+='<p class="sub">Memuat stok…</p>';
-  h+=tabName==='Layout'?drawLayout():tabName==='Stok Opname'?drawSO():tabName==='Cycle Count'?drawCC():tabName==='Internal Move'?drawMove():tabName==='Adjustment'?drawAdj():drawSaldo();
+  h+=tabName==='Layout'?drawLayout():tabName==='Stok Opname'?drawSO():tabName==='Cycle Count'?drawCC()+(window.WOSAcc?window.WOSAcc.shell():''):tabName==='Internal Move'?drawMove():tabName==='Adjustment'?drawAdj():drawSaldo();
   if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&(ae.id||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcrow||ae.dataset.lcs),sel=ae&&ae.selectionStart;body.dataset.sig=h;body.innerHTML=h;if(ae&&ae.dataset&&(ae.dataset.lcrow||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcs)){const k=ae.dataset.lcrow?'lcrow':ae.dataset.lcmv?'lcmv':ae.dataset.lcs?'lcs':'lcaf',el=body.querySelector('['+('data-'+k)+'="'+id+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(sel,sel)}catch(e){}}}else if(ae&&ae.id&&$(ae.id))$(ae.id).focus({preventScroll:true})}}
  function render(b,name){body=b;if(name!==tabName){cur=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('click',e=>{const t=e.target.closest('[data-lcrack],[data-lcbin],button');if(!t||!body||!body.contains(t))return;const d=t.dataset;
@@ -5455,6 +5455,7 @@ init();
     (ALL.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+chip('bad','perlu dibantu')+chip('warn','lambat')+chip('chk','perlu dicek')+chip('ok','sesuai norm')+chip('idle','tidak aktif')+'</div>'+
      (prob.length?prob.slice(0,10).map(i=>rw(i.go,av(i)+' <b>'+esc(i.name)+'</b> · <span class="tag amber">'+esc(i.act)+'</span> <span style="color:'+((ST[i.st]||{}).c||'#444')+'">'+esc(i.msg)+'</span>',i.idle==null?'':(i.idle<1?'baru saja':Math.round(i.idle)+' mnt lalu'))).join('')+(prob.length>10?'<p class="sub" style="margin:6px 0 0">+ '+(prob.length-10)+' lainnya. Buka monitor tiap kegiatan.</p>':''):'<p class="sub" style="margin:0">Tidak ada yang perlu dibantu atau dicek saat ini. Semua operator yang bekerja sesuai norm.</p>')
      :'<p class="sub" style="margin:0">Belum ada aktivitas counting, put away, atau picking hari ini.</p>')+'</div>'}catch(e){}
+  let accHtml='';try{if(window.WOSAcc){const af=rOn?(rg.f||'2026-10-01'):t0.slice(0,8)+'01',at=rOn?(rg.t||t0):t0;accHtml=window.WOSAcc.dash(af,at)}}catch(e){}
   const row=(g,icon,cls,txt,m)=>'<div class="d3-r'+(g?' d3-go':'')+'"'+(g?' data-go="'+esc(g)+'"':'')+'>'+(icon?'<i class="d3-dot '+(cls||'')+'" aria-hidden="true"></i>':'')+'<span>'+txt+'</span>'+(m?'<span class="m">'+m+'</span>':'')+'</div>';
   const panel=(k,title,badge,bc,body)=>'<details class="d3-p" data-k="'+k+'"'+(dsIsOpen(k)?' open':'')+'><summary>'+esc(title)+(badge!==''?'<span class="d3c '+(bc||'')+'">'+badge+'</span>':'')+'</summary><div class="d3-b">'+body+'</div></details>';
   const empty=m=>'<p class="sub" style="margin:4px 0 8px">'+m+'</p>';
@@ -5464,7 +5465,7 @@ init();
     '<div class="d3-card d3-go" data-go="attendance" title="Buka Attendance">'+ring(pc(hadir,staff),'#1D9E75','Attendance')+'<div><p class="d3-l">Attendance · hari ini</p><b>'+hadir+'/'+staff+'</b><p class="d3-s '+(late?'d3-wr':'d3-ok')+'">'+late+' terlambat · lihat detail</p></div></div>'+
     '<div class="d3-card d3-go" data-go="wms-inbound|Good Receipt" title="Buka Inbound">'+ring(pc(grDone,grDen),'#E07B39','GR selesai')+'<div><p class="d3-l" title="Pembilang = GR selesai hari ini. Penyebut = selesai hari ini ditambah semua koli GR yang masih berjalan dari tanggal mana pun.">Inbound · GR selesai hari ini</p><b>'+grDone+'/'+grDen+'</b><p class="d3-s">'+grOpen+' koli masih berjalan (semua tanggal, '+grOldOpen+' sisa hari sebelumnya) · '+rcvToday+' diterima hari ini</p>'+pcsLines(inDone,inAll)+'</div></div>'+
     '<div class="d3-card d3-go" data-go="wms-outbound|Verification Pick" title="Buka Outbound">'+ring(pc(okAct,koliAct.length),'#378ADD','Outbound lolos verifikasi')+'<div><p class="d3-l" title="Semua SOQ yang belum selesai diterima toko, dari tanggal mana pun.">Outbound · lolos verifikasi (SOQ aktif, semua tanggal)</p><b>'+okAct+'/'+koliAct.length+'</b><p class="d3-s">'+dokAct.length+' SOQ aktif · '+koliAct.length+' koli ('+koliActOld+' dari SOQ hari sebelumnya)</p>'+pcsLines(outOk,outAll)+'</div></div>'+
-   '</div>'+timHtml+
+   '</div>'+timHtml+accHtml+
    '<div class="d3-card"><div class="d3-mini">'+
     '<div class="d3-go" data-go="wms-outbound|Shipping"><p class="d3-l">On delivery</p><b>'+ship+'</b><p class="d3-s">koli menuju toko · semua tanggal</p></div>'+
     '<div class="d3-go" data-go="wms-outbound|Miss-Picking"><p class="d3-l">Miss-picking</p><b class="'+(miss?'d3-er':'d3-ok')+'">'+miss+'</b><p class="d3-s">terbuka · semua tanggal</p></div>'+
@@ -7110,6 +7111,57 @@ window.WOSMon=(function(){
    draw();loadHist(true)}
   return box}
  setInterval(()=>{if(document.hidden)return;const a=$('attendance');if(a&&a.classList.contains('active')){if(ensure()){draw();loadHist(false)}}else if($('wos-correct2')&&!isMaster())$('wos-correct2').remove()},2500);
+})();
+</script>
+<script>
+// Inventory Accuracy: hasil Cycle Count / Stok Opname (putaran hitung terakhir) dibanding stok sistem. Tiga indikator: By Item, By Qty, By Location. Tampil di Dashboard dan di Location Control > Cycle Count.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api;if(!A)return;
+ const {esc,view,call}=A;
+ const N=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0},U=s=>String(s==null?'':s).trim().toUpperCase(),nf=n=>Math.round(n).toLocaleString('id-ID');
+ const DR=window.WOSDR,wd=()=>DR.today(),ms=()=>wd().slice(0,8)+'01';
+ let srv={rows:[],from:'',to:'',at:0,busy:false};
+ try{if(!localStorage.getItem('wos-dr-v1-acc'))DR.set('acc',ms(),wd())}catch(e){}
+ function rowsAll(from,to){const m=new Map();srv.rows.forEach(r=>m.set(r.id,r));try{view('LC_COUNT').forEach(r=>m.set(r.id,r))}catch(e){}return [...m.values()].filter(r=>{const d=String(r.tanggal||'').slice(0,10);return d&&(!from||d>=from)&&(!to||d<=to)})}
+ async function load(from,to){if(srv.busy||(srv.from===from&&srv.to===to&&Date.now()-srv.at<60000))return;srv.busy=true;try{const r=await call({action:'list',tab:'LC_COUNT',from:from||'2026-10-01',to:to||wd()},true);if(r&&r.ok){srv.rows=r.rows||[];srv.from=from;srv.to=to;srv.at=Date.now()}}catch(e){}srv.busy=false;redraw()}
+ // putaran terakhir tiap bin + item pada tiap tugas hitung
+ function finals(rows){const last=new Map();rows.forEach(r=>{const k=r.task+'|'+U(r.item||r.sku);const o=last.get(k);if(!o||N(r.ronde)>N(o.ronde))last.set(k,r)});return [...last.values()].map(r=>({d:String(r.tanggal).slice(0,10),bin:r.bin,item:r.item||r.sku,sis:N(r.qty_sistem),hit:N(r.qty_hitung),sel:N(r.selisih!==''&&r.selisih!=null?r.selisih:N(r.qty_hitung)-N(r.qty_sistem)),oleh:r.oleh,ronde:N(r.ronde),task:r.task}))}
+ function calc(from,to){
+  const F=finals(rowsAll(from,to));
+  // keadaan terbaru tiap bin + item (bila dihitung berulang dalam rentang, yang terakhir dipakai)
+  const lat=new Map();F.forEach(x=>{const k=U(x.bin)+'|'+U(x.item),o=lat.get(k);if(!o||x.d>o.d||(x.d===o.d&&x.ronde>o.ronde))lat.set(k,x)});
+  const L=[...lat.values()],bins=new Map(),items=new Map();
+  L.forEach(x=>{const b=bins.get(U(x.bin))||bins.set(U(x.bin),{bin:x.bin,miss:false}).get(U(x.bin)),i=items.get(U(x.item))||items.set(U(x.item),{item:x.item,miss:false,plus:0,minus:0}).get(U(x.item));if(x.sel){b.miss=true;i.miss=true;if(x.sel>0)i.plus+=x.sel;else i.minus+=-x.sel}});
+  const sis=L.reduce((a,x)=>a+Math.abs(x.sis),0),miss=L.reduce((a,x)=>a+Math.abs(x.sel),0),plus=L.reduce((a,x)=>a+(x.sel>0?x.sel:0),0),minus=L.reduce((a,x)=>a+(x.sel<0?-x.sel:0),0);
+  const B=[...bins.values()],I=[...items.values()],pc=(a,b)=>b?Math.max(0,Math.round(1000*a/b)/10):null;
+  const days={};F.forEach(x=>{const o=days[x.d]||(days[x.d]={d:x.d,bins:new Set(),mbins:new Set(),lines:0,mlines:0,sis:0,miss:0});o.bins.add(U(x.bin));o.lines++;o.sis+=Math.abs(x.sis);o.miss+=Math.abs(x.sel);if(x.sel){o.mbins.add(U(x.bin));o.mlines++}});
+  return{n:L.length,
+   loc:{n:B.length,miss:B.filter(b=>b.miss).length,pct:pc(B.length-B.filter(b=>b.miss).length,B.length)},
+   item:{n:I.length,miss:I.filter(i=>i.miss).length,pct:pc(I.length-I.filter(i=>i.miss).length,I.length)},
+   qty:{n:sis,miss:miss,plus:plus,minus:minus,pct:pc(sis-miss,sis)},
+   days:Object.values(days).sort((a,b)=>b.d.localeCompare(a.d)),
+   misses:L.filter(x=>x.sel).sort((a,b)=>Math.abs(b.sel)-Math.abs(a.sel))}}
+ const tone=p=>p==null?'#8896ab':p>=98?'#1b7a46':p>=95?'#a35f00':'#b3261e';
+ const pct=p=>p==null?'-':String(p).replace('.',',')+'%';
+ function kpis(c){const k=(t,p,a,b,sub)=>'<div class="mn-k" style="border-color:'+tone(p)+'33"><small>'+t+'</small><b style="color:'+tone(p)+'">'+pct(p)+'</b><span class="sub" style="display:block">'+a+' dari '+b+' · '+sub+'</span></div>';
+  return '<div class="mn-sum" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'+
+   k('By Item',c.item.pct,'<b>'+(c.item.n-c.item.miss)+'</b> item hit','<b>'+c.item.n+'</b> item dihitung',c.item.miss+' item miss')+
+   k('By Qty',c.qty.pct,'<b>'+nf(c.qty.n-c.qty.miss)+'</b> pcs cocok','<b>'+nf(c.qty.n)+'</b> pcs sistem','selisih +'+nf(c.qty.plus)+' / -'+nf(c.qty.minus)+' pcs')+
+   k('By Location',c.loc.pct,'<b>'+(c.loc.n-c.loc.miss)+'</b> bin hit','<b>'+c.loc.n+'</b> bin dihitung',c.loc.miss+' bin miss')+'</div>'}
+ // kartu ringkas untuk Dashboard
+ function dash(from,to){load(from,to);const c=calc(from,to);
+  return '<div class="d3-card d3-go" data-go="wms-location|Cycle Count" title="Buka Cycle Count"><p class="d3-l" style="font-weight:700;color:var(--ink);font-size:13px;margin:0 0 8px">Inventory Accuracy <span class="d3-s" style="font-weight:400;margin-left:6px">hasil cycle count / opname '+esc(DR.fmt(from))+' s/d '+esc(DR.fmt(to))+'. Hit = tidak ada selisih.</span></p>'+(c.n?kpis(c):'<p class="sub" style="margin:0">Belum ada hasil hitung pada rentang ini.</p>')+'</div>'}
+ // panel lengkap di Location Control > Cycle Count
+ const shell=()=>'<div class="card" style="margin-top:12px" id="wos-acc"><h3 style="margin:0">Inventory Accuracy</h3><p class="sub" style="margin:0">Dihitung dari hasil cycle count / stok opname (putaran hitung terakhir tiap bin dan item) dibanding stok sistem. <b>Hit</b> = tidak ada selisih, <b>miss</b> = ada selisih plus atau minus.</p>'+DR.html('acc','Panel tanggal: rentang hasil hitung yang direkap.')+'<div id="wos-acc-body" style="margin-top:10px"></div></div>';
+ function body(){const r=DR.get('acc'),c=calc(r.f,r.t),
+  dayRows=c.days.map(d=>'<tr><td>'+esc(DR.fmt(d.d))+'</td><td>'+d.bins.size+'</td><td>'+(d.bins.size-d.mbins.size)+'</td><td>'+pct(d.bins.size?Math.round(1000*(d.bins.size-d.mbins.size)/d.bins.size)/10:null)+'</td><td>'+d.lines+'</td><td>'+(d.lines-d.mlines)+'</td><td>'+pct(d.lines?Math.round(1000*(d.lines-d.mlines)/d.lines)/10:null)+'</td><td>'+nf(d.sis)+'</td><td>'+nf(d.miss)+'</td><td>'+pct(d.sis?Math.max(0,Math.round(1000*(d.sis-d.miss)/d.sis)/10):null)+'</td></tr>').join(''),
+  missRows=c.misses.slice(0,100).map(x=>'<tr><td>'+esc(DR.fmt(x.d))+'</td><td>'+esc(x.bin)+'</td><td>'+esc(x.item)+'</td><td>'+nf(x.sis)+'</td><td>'+nf(x.hit)+'</td><td><b style="color:'+(x.sel>0?'#1b4fb3':'#b3261e')+'">'+(x.sel>0?'+':'')+x.sel+'</b></td><td>'+esc(x.oleh||'-')+'</td></tr>').join('');
+  return (c.n?kpis(c)+'<h4 style="margin:12px 0 4px">Per hari</h4><div style="overflow:auto"><table><thead><tr><th>Tanggal</th><th>Bin</th><th>Bin hit</th><th>By Location</th><th>Baris item</th><th>Item hit</th><th>By Item</th><th>Pcs sistem</th><th>Pcs selisih</th><th>By Qty</th></tr></thead><tbody>'+dayRows+'</tbody></table></div>'+
+   '<h4 style="margin:12px 0 4px">Yang miss ('+c.misses.length+' baris'+(c.misses.length>100?', 100 terbesar':'')+')</h4>'+(missRows?'<div style="overflow:auto;max-height:50vh"><table><thead><tr><th>Tanggal</th><th>Bin</th><th>Item</th><th>Sistem</th><th>Hasil hitung</th><th>Selisih</th><th>Penghitung</th></tr></thead><tbody>'+missRows+'</tbody></table></div>':'<p class="sub" style="margin:0">Tidak ada selisih pada rentang ini.</p>'):'<p class="sub" style="margin:0">Belum ada hasil hitung pada rentang ini.</p>')}
+ function redraw(){try{const b=document.getElementById('wos-acc-body');if(!b)return;const r=DR.get('acc');load(r.f,r.t);const h=body();if(b.dataset.sig!==h){b.dataset.sig=h;b.innerHTML=h}DR.status('acc')}catch(e){}}
+ DR.onChange('acc',redraw);
+ setInterval(redraw,3000);
+ window.WOSAcc={calc,dash,shell,redraw};
 })();
 </script>
 <script>
