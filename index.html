@@ -3234,33 +3234,49 @@ init();
  const grHelps=()=>{try{return (JSON.parse(localStorage.getItem(GTK)||'[]')||[]).filter(t=>t&&t.kind==='bantuan'&&t.status!=='selesai'&&t.day===today())}catch(e){return[]}};
  function grMonitor(){
   const td=today(),nowMs=Date.now(),by={};
-  view('GR_COUNT').forEach(c=>{if(String(c.seq||'').charAt(0)==='R'||String(c.tanggal||'').slice(0,10)!==td||!c.jam_wita||!c.operator)return;const t=grMs(td,c.jam_wita);if(t==null)return;(by[c.operator]=by[c.operator]||[]).push({t,q:num(c.qty_actual),ok:c.status==='Sesuai'})});
+  view('GR_COUNT').forEach(c=>{if(String(c.seq||'').charAt(0)==='R'||String(c.tanggal||'').slice(0,10)!==td||!c.jam_wita||!c.operator)return;const t=grMs(td,c.jam_wita);if(t==null)return;(by[c.operator]=by[c.operator]||[]).push({t,q:num(c.qty_actual),ok:c.status==='Sesuai',kk:poKey(c.po)+'|'+Number(c.no_koli)})});
   const asg=view('GR_ASSIGN').filter(a=>a.status!=='Batal'),ops=new Set(Object.keys(by));asg.forEach(a=>{if(a.status==='Counting'&&a.operator)ops.add(a.operator)});
-  const rows=[...ops].map(op=>{
+  const items=[...ops].map(op=>{
    const e=(by[op]||[]).sort((a,b)=>a.t-b.t),last=e.length?e[e.length-1]:null;
    const open=asg.filter(a=>a.operator===op&&a.status==='Counting').sort((a,b)=>String(b.mulai).localeCompare(String(a.mulai)))[0];
-   let prog=null;if(open){const po=poKey(open.po),tot=sjKoli(po,open.no_koli).length,done=cntOf(po,open.no_koli).filter(c=>String(c.seq||'').charAt(0)!=='R').length;prog={po,k:open.no_koli,tot,done}}
+   let prog=null;if(open){const po=poKey(open.po),tot=sjKoli(po,open.no_koli).length,done=cntOf(po,open.no_koli).filter(c=>String(c.seq||'').charAt(0)!=='R').length;prog={label:'PO '+po+' · koli '+open.no_koli,done,tot}}
    const ref=Math.max(last?last.t:0,open?(grIso(open.mulai)||0):0),idle=ref?Math.max(0,(nowMs-ref)/60000):null;
    let si=e.length-1;while(si>0&&e[si].t-e[si-1].t<=600000)si--;const w=e.slice(Math.max(si,e.length-8)),pace=w.length>=GRN.minLines?(w[w.length-1].t-w[0].t)/1000/(w.length-1):null;
-   const act=new Set(e.map(x=>Math.floor(x.t/60000))).size*60,lines=e.length,pcs=e.reduce((x,r)=>x+r.q,0),eff=act>0?grTarget(lines,pcs)/act*100:null;
+   const act=new Set(e.map(x=>Math.floor(x.t/60000))).size*60,lines=e.length,pcs=e.reduce((x,r)=>x+r.q,0),eff=act>0?grTarget(lines,pcs)/act*100:null,koliN=new Set(e.map(x=>x.kk)).size,selisih=e.filter(x=>!x.ok).length;
    let st='idle',msg='Tidak sedang menghitung';
-   if(open&&idle!=null&&idle>=GRN.idleMin){st='bad';msg='Tidak ada aktivitas '+Math.round(idle)+' mnt: cek / bantu'}
+   if(open&&idle!=null&&idle>=GRN.idleMin){st='bad';msg='Tidak ada aktivitas '+Math.round(idle)+' menit: cek atau bantu'}
    else if(pace!=null&&pace>GRN.sLine*GRN.vslow&&open){st='bad';msg='Sangat lambat: '+Math.round(pace)+' dtk/baris (norm '+GRN.sLine+')'}
    else if(pace!=null&&pace>GRN.sLine*GRN.slow&&open){st='warn';msg='Lambat: '+Math.round(pace)+' dtk/baris'}
    else if(pace!=null&&pace<GRN.fast&&w.length>=8&&w.filter(x=>x.ok).length>=w.length*0.9&&open){st='chk';msg='Sangat cepat ('+pace.toFixed(1)+' dtk/baris): pastikan dihitung fisik'}
-   else if(open){st='ok';msg='Normal'+(pace!=null?' ('+Math.round(pace)+' dtk/baris)':'')}
-   return{op,prog,idle,eff,lines,st,msg,pace,open:!!open}}).sort((a,b)=>({bad:0,warn:1,chk:2,ok:3,idle:4}[a.st]-{bad:0,warn:1,chk:2,ok:3,idle:4}[b.st])||a.op.localeCompare(b.op));
-  const cls={bad:'red',warn:'amber',chk:'purple',ok:'green',idle:''},helps=grHelps();
-  let h='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">Monitor kecepatan counting (hari ini)</h3><p class="sub" style="margin:0 0 8px">Norm awal dari riwayat kerja tim: ±'+GRN.sLine+' detik per baris item. Lambat bila lebih dari '+Math.round(GRN.sLine*GRN.slow)+' dtk/baris; koli yang sedang dibuka tanpa aktivitas ≥ '+GRN.idleMin+' menit ditandai merah. Efisiensi = target ÷ waktu aktif hari ini. Diperbarui otomatis.</p>';
-  if(helps.length)h+=helps.map(t=>'<div class="note" style="border-left:5px solid #b3261e;background:#fff1ef;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0"><span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button></div>').join('');
-  if(!rows.length)return h+'<p class="sub">Belum ada aktivitas counting hari ini.</p></div>';
-  return h+'<div style="overflow:auto"><table><thead><tr><th>Operator</th><th>Sedang</th><th>Progres</th><th>Terakhir aktif</th><th>Efisiensi</th><th>Status</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+esc(nameOf(r.op))+'</b></td><td>'+(r.prog?'PO '+esc(r.prog.po)+' · koli '+esc(r.prog.k):'-')+'</td><td>'+(r.prog?r.prog.done+' / '+(r.prog.tot||'?')+' baris':'-')+'</td><td>'+(r.idle==null?'-':r.idle<1?'baru saja':Math.round(r.idle)+' mnt lalu')+'</td><td>'+(r.eff==null?'-':'<span class="tag '+(r.eff>=85?'green':r.eff>=60?'amber':'red')+'">'+Math.round(r.eff)+'%</span> <span class="sub">'+r.lines+' baris</span>')+'</td><td><span class="tag '+cls[r.st]+'">'+esc(r.msg)+'</span></td></tr>').join('')+'</tbody></table></div></div>'}
+   else if(open){st='ok';msg='Sesuai norm'+(pace!=null?' ('+Math.round(pace)+' dtk/baris)':'')}
+   return{op,name:nameOf(op),st,msg,prog,ratio:pace!=null?pace/GRN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:GRN.sLine+' dtk/baris',idle,eff,stats:[['Koli',koliN],['Baris',lines],['Selisih',selisih]]}});
+  const helps=grHelps().map(t=>({html:'<span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button>'}));
+  return window.WOSMon.render({title:'Monitor kecepatan counting · hari ini',sub:'Norm ±'+GRN.sLine+' detik per baris item (dari riwayat kerja tim). Lambat bila lebih dari '+Math.round(GRN.sLine*GRN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+GRN.idleMin+' menit ditandai merah.',items,helps,avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ waktu aktif hari ini. Diperbarui otomatis.'})}
+ // ---- Monitor put away (norm sementara 45 dtk/baris: data riwayat baru 29 koli; akan dikoreksi setelah data bertambah)
+ const PAN={sLine:45,idleMin:15,slow:1.5,vslow:2.5,gapMax:25};
+ function paMonitor(){
+  const td=today(),nowMs=Date.now(),by={};
+  view('PUTAWAY').forEach(r=>{if(String(r.tanggal||'').slice(0,10)!==td||!r.operator||!r.jam_wita)return;const t=grMs(td,r.jam_wita);if(t==null)return;const k=poKey(r.po)+'|'+Number(r.no_koli),o=(by[r.operator]=by[r.operator]||{}),e=o[k]||(o[k]={t:0,rows:0,pcs:0});e.rows++;e.pcs+=num(r.qty);if(t>e.t)e.t=t});
+  const asg=view('GR_ASSIGN').filter(a=>a.status!=='Batal'),ops=new Set(Object.keys(by));asg.forEach(a=>{if(a.status==='Siap put away'&&a.operator)ops.add(a.operator)});
+  const items=[...ops].map(op=>{
+   const ks=Object.values(by[op]||{}).sort((a,b)=>a.t-b.t),last=ks.length?ks[ks.length-1]:null,ivs=[];
+   for(let i=1;i<ks.length;i++){const g=(ks[i].t-ks[i-1].t)/1000;if(g>=30&&g<=PAN.gapMax*60)ivs.push({g,rows:ks[i].rows})}
+   const w=ivs.slice(-6),paceL=w.length>=2?w.reduce((s,x)=>s+x.g,0)/w.reduce((s,x)=>s+x.rows,0):null,act=ivs.reduce((s,x)=>s+x.g,0),tgt=ivs.reduce((s,x)=>s+x.rows*PAN.sLine,0),eff=act>0?tgt/act*100:null;
+   const queue=asg.filter(a=>a.operator===op&&a.status==='Siap put away'),qLines=queue.reduce((s,a)=>s+sjKoli(poKey(a.po),a.no_koli).length,0),idle=last?Math.max(0,(nowMs-last.t)/60000):null,rows=ks.reduce((s,x)=>s+x.rows,0);
+   let st='idle',msg='Tidak ada antrian put away';
+   if(queue.length&&idle!=null&&idle>=PAN.idleMin){st='bad';msg=queue.length+' koli antri, tidak ada put away '+Math.round(idle)+' menit'}
+   else if(queue.length&&idle==null){st='warn';msg=queue.length+' koli antri, belum ada put away hari ini'}
+   else if(queue.length&&paceL!=null&&paceL>PAN.sLine*PAN.vslow){st='bad';msg='Sangat lambat: '+Math.round(paceL)+' dtk/baris (norm '+PAN.sLine+')'}
+   else if(queue.length&&paceL!=null&&paceL>PAN.sLine*PAN.slow){st='warn';msg='Lambat: '+Math.round(paceL)+' dtk/baris'}
+   else if(queue.length||paceL!=null){st='ok';msg=queue.length?queue.length+' koli antri, ritme sesuai norm':'Sesuai norm ('+Math.round(paceL)+' dtk/baris)'}
+   return{op,name:nameOf(op),st,msg,prog:queue.length?{label:queue.length+' koli antri put away ('+qLines+' baris)',done:0,tot:0}:null,ratio:paceL!=null?paceL/PAN.sLine:null,paceTxt:paceL!=null?Math.round(paceL)+' dtk/baris':'',normTxt:PAN.sLine+' dtk/baris',idle,eff,stats:[['Koli',ks.length],['Baris',rows]]}});
+  return window.WOSMon.render({title:'Monitor put away · hari ini',sub:'Norm sementara ±'+PAN.sLine+' detik per baris put away. Ritme dihitung dari selang simpan antar koli; ditandai merah bila ada antrian tetapi tidak ada put away ≥ '+PAN.idleMin+' menit.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Norm put away masih sementara (data riwayat baru 29 koli). Akan dikoreksi setelah data bertambah.'})}
  function listTugas(mode){
   const me=code(),admin=canAdmin(),all=admin||isViewer(),list=view('GR_ASSIGN').filter(a=>a.status!=='Batal'&&(all?(!filterOp||a.operator===filterOp):a.operator===me)&&(mode==='count'?['Ditugaskan','Counting','Siap put away','Selesai'].includes(a.status):a.status==='Siap put away'||a.status==='Selesai')).filter(a=>window.WOSDR.inR('inb',grDay(a)));
   const by={};list.forEach(a=>{(by[poKey(a.po)]=by[poKey(a.po)]||[]).push(a)});
   let h='';
   if(all)h+='<div class="field" style="max-width:320px"><label for="gr-fop">Operator</label><select id="gr-fop"><option value="">Semua operator</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
-  if(mode==='count'&&canAdmin())h+=grMonitor();
+  if(mode==='count'&&canAdmin())h+=grMonitor();else if(mode==='put'&&canAdmin())h+=paMonitor();
   const pos=Object.keys(by).sort();
   if(!pos.length)return h+'<p class="sub">'+(mode==='count'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap put away.')+'</p>';
   return h+pos.map(po=>'<div class="card" style="margin-top:10px">'+wipeBtn(po)+'<h3 style="margin:0">PO '+esc(po)+' <span class="sub">'+esc(vendorOfPo(po)||'')+'</span></h3>'+grPoLT(by[po])+'<div class="kl">'+by[po].sort((x,y)=>Number(x.no_koli)-Number(y.no_koli)).map(a=>'<button type="button" class="kb '+(STC[a.status]||'')+'" data-gopen="'+esc(po)+'|'+esc(a.no_koli)+'" title="'+esc(a.status+' - '+(a.operator_nama||a.operator))+'">'+(a.status==='Selesai'?'✓ ':'')+esc(a.no_koli)+'<small>'+esc(all?(a.operator_nama||a.operator).split(' ')[0]:a.status)+'</small>'+grLT(a)+warn(po,a.no_koli)+(isSpv()&&a.status!=='Selesai'?'<span class="kx" data-grdel="'+esc(po)+'|'+esc(a.no_koli)+'" title="Hapus penugasan koli ini">×</span>':'')+'</button>').join('')+'</div></div>').join('')+wipeAllCard()}
@@ -3725,12 +3741,35 @@ init();
  // L/T per koli: Pic = picking, VP = verifikasi (sejak selesai picking), TFS, STG = packing/staging, LD = loading (selang waktu antar tahap, termasuk antre)
  const obT=s=>{const t=Date.parse(s);return isFinite(t)?t:null},obD=(a,b)=>{a=obT(a);b=obT(b);if(a==null||b==null)return null;const m=Math.round((b-a)/60000);return m<0?0:m},obF=m=>m<1?'<1m':m>=60?Math.floor(m/60)+'j'+(m%60?m%60+'m':''):m+'m';
  const ltTagOB=k=>{const p=[['Pic',obD(k.mulai,k.selesai)],['VP',obD(k.selesai,k.vp_selesai)],['TFS',obD(k.vp_selesai,k.tfs_waktu)],['STG',obD(k.tfs_waktu,k.pack_waktu)],['LD',obD(k.pack_waktu,k.load_waktu)]].filter(x=>x[1]!=null).map(x=>x[0]+' '+obF(x[1]));return p.length?'<small class="lt">'+p.join(' · ')+'</small>':''};
+ // ---- Monitor picking (SPV/admin). Norm awal dari riwayat kerja 20-26 Okt 2026 (107 koli): ±120 dtk per baris item, pcs hampir tidak berpengaruh (R2=0,44)
+ const PKN={sLine:120,s100:1.5,idleMin:15,slow:1.5,vslow:2.5,fast:25,minLines:3,cap:240};
+ function pkMonitor(){
+  const td=today(),nowMs=Date.now(),wdy=iso=>{const t=obT(iso);return t==null?'':new Date(t+288e5).toISOString().slice(0,10)};
+  const by=new Map();view('PICK_ITEM').forEach(r=>{if(r.kategori==='OTHER')return;const k=r.dok+'|'+num(r.koli);(by.get(k)||by.set(k,[]).get(k)).push(r)});
+  const pk=view('PICK_KOLI').filter(k=>k.picker&&k.status!=='Batal'),ops=new Set();pk.forEach(k=>{if(k.status==='Picking'||(k.selesai&&wdy(k.selesai)===td))ops.add(k.picker)});
+  const items=[...ops].map(op=>{
+   const mine=pk.filter(k=>k.picker===op),open=mine.filter(k=>k.status==='Picking'&&k.mulai).sort((a,b)=>String(b.mulai).localeCompare(String(a.mulai)))[0],done=mine.filter(k=>k.selesai&&wdy(k.selesai)===td);
+   let tg=0,dur=0,lines=0,errs=0,lastEnd=0;
+   done.forEach(k=>{const it=by.get(k.dok+'|'+num(k.koli))||[],L=it.length,P=it.reduce((s,r)=>s+(num(r.qty_actual)||num(r.qty)),0),d=obD(k.mulai,k.selesai);lines+=L;errs+=it.filter(r=>r.vp==='Salah'||r.vp==='Dikoreksi').length;const e=obT(k.selesai);if(e&&e>lastEnd)lastEnd=e;if(d!=null&&d<=PKN.cap&&L){tg+=PKN.sLine*L+PKN.s100*P/100;dur+=d*60}});
+   const eff=dur>0?tg/dur*100:null;let prog=null,pace=null,idle=lastEnd?(nowMs-lastEnd)/60000:null;
+   if(open){const it=by.get(open.dok+'|'+num(open.koli))||[],dn=it.filter(r=>r.status==='Sesuai'||r.status==='Selisih'),dk=dokOf(open.dok),st0=obT(open.mulai);prog={label:'Koli '+open.koli+' · '+(dk.kode||'')+' '+(dk.outlet||''),done:dn.length,tot:it.length};
+    if(dn.length>=PKN.minLines&&st0)pace=(nowMs-st0)/1000/dn.length;let last=st0||0;
+    dn.forEach(r=>{const m=/^(\d+):(\d\d)/.exec(r.jam_pick||'');if(m){const t=Date.parse(td+'T'+String(m[1]).padStart(2,'0')+':'+m[2]+':00+08:00');if(isFinite(t)&&t>last&&t<=nowMs+60000)last=t}});idle=last?(nowMs-last)/60000:null}
+   let st='idle',msg='Tidak sedang picking';
+   if(open&&idle!=null&&idle>=PKN.idleMin){st='bad';msg='Tidak ada aktivitas '+Math.round(idle)+' menit: cek atau bantu'}
+   else if(open&&pace!=null&&pace>PKN.sLine*PKN.vslow){st='bad';msg='Sangat lambat: '+Math.round(pace)+' dtk/baris (norm '+PKN.sLine+')'}
+   else if(open&&pace!=null&&pace>PKN.sLine*PKN.slow){st='warn';msg='Lambat: '+Math.round(pace)+' dtk/baris'}
+   else if(open&&pace!=null&&pace<PKN.fast&&prog.done>=6){st='chk';msg='Sangat cepat ('+Math.round(pace)+' dtk/baris): cek apakah benar diambil'}
+   else if(open){st='ok';msg='Sesuai norm'+(pace!=null?' ('+Math.round(pace)+' dtk/baris)':'')}
+   return{op,name:(mine[0]&&mine[0].picker_nama)||op,st,msg,prog,ratio:pace!=null?pace/PKN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:PKN.sLine+' dtk/baris',idle,eff,stats:[['Koli selesai',done.length],['Baris',lines],['Koreksi VP',errs]]}});
+  return window.WOSMon.render({title:'Monitor picking · hari ini',sub:'Norm ±'+PKN.sLine+' detik per baris item (dari riwayat kerja tim, 107 koli). Lambat bila lebih dari '+Math.round(PKN.sLine*PKN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+PKN.idleMin+' menit ditandai merah.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ lama picking koli yang selesai hari ini (koli lebih dari 4 jam dianggap lintas hari dan tidak dihitung).'})}
  function listKoli(mode){
   const me=code(),adm=canAdmin();let list=rngKoli(view('PICK_KOLI'));
   if(mode==='pick')list=list.filter(k=>adm?(!filterOp||k.picker===filterOp):k.picker===me);else if(adm&&filterOp)list=list.filter(k=>k.picker===filterOp);
   if(mode==='vp'){list=list.filter(k=>['Siap verifikasi','Perbaikan','Siap TFS'].includes(k.status));ensureVp(list)}
   let h='';
   if(adm)h+='<div class="field" style="max-width:320px"><label for="ob-fop">Picker</label><select id="ob-fop"><option value="">Semua picker</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
+  if(adm&&mode==='pick')h+=pkMonitor();
   if(!list.length)return h+'<p class="sub">'+(mode==='pick'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap diverifikasi.')+'</p>';
   const by={};list.forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});
   return h+Object.keys(by).sort().reverse().map(dk=>{const d=view('PICK_DOK').find(x=>x.id===dk)||{kode:dk,outlet:'',tanggal:''};return '<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3><div class="kl">'+by[dk].sort((a,b)=>num(a.koli)-num(b.koli)).map(k=>'<button type="button" class="kb '+(STC[k.status]||'')+'" data-obopen="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc((k.picker_nama||k.picker||'').split(' ')[0])+'</small><small>'+esc(k.status)+'</small>'+ltTagOB(k)+'</button>').join('')+'</div>'+(adm&&mode==='pick'?adminKoli(dk,by[dk]):'')+'</div>'}).join('')}
@@ -6654,6 +6693,42 @@ window.WOSFoto=(function(){
  document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-wfopen]');if(b)openModal(b.dataset.wfopen)});
  window.addEventListener('wos-foto',paint);setInterval(paint,2000);
  return{url:url,avatar:avatar,open:openModal,paint:paint,initials:ini}})();
+</script>
+<script>
+// Komponen bersama "Monitor kinerja tim": ringkasan status, kartu per operator (foto, progres, pita kecepatan terhadap norm, efisiensi) dan banner bantuan.
+window.WOSMon=(function(){
+ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+ var ST={bad:{c:'#b3261e',bg:'#fdecea',t:'Perlu dibantu'},warn:{c:'#a35f00',bg:'#fff1d6',t:'Lambat'},chk:{c:'#6b3fa0',bg:'#f1e8fb',t:'Cek'},ok:{c:'#14663a',bg:'#e3f4e8',t:'Sesuai norm'},idle:{c:'#667085',bg:'#eef0f3',t:'Tidak aktif'}};
+ var ORDER={bad:0,warn:1,chk:2,ok:3,idle:4};
+ if(!document.getElementById('mn-style')){var s=document.createElement('style');s.id='mn-style';s.textContent=
+  '.mn{margin-bottom:14px}.mn-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}.mn-h h3{margin:0;font-size:18px}.mn-h p{margin:2px 0 0;font-size:12.5px;color:#667085}'+
+  '.mn-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}.mn-k{border-radius:14px;padding:10px 14px;border:1px solid #e5e7eb;background:#fff}.mn-k small{display:block;font-size:11.5px;color:#667085;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.mn-k b{font-size:26px;line-height:1.1}'+
+  '.mn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}.mn-c{border-radius:16px;border:1px solid #e5e7eb;background:#fff;padding:14px;position:relative;overflow:hidden}.mn-c:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--mc,#98a2b3)}'+
+  '.mn-top{display:flex;gap:10px;align-items:center}.mn-top b{font-size:15px;display:block;line-height:1.2}.mn-top span.s{font-size:12px;color:#667085}.mn-chip{margin-left:auto;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}'+
+  '.mn-msg{font-size:12.5px;margin:8px 0 6px;font-weight:600}.mn-lbl{display:flex;justify-content:space-between;font-size:11.5px;color:#667085;margin:6px 0 2px}'+
+  '.mn-bar{height:9px;border-radius:6px;background:#edeff2;overflow:hidden}.mn-bar i{display:block;height:100%;border-radius:6px;background:#2f6fdb}'+
+  '.mn-g{position:relative;height:11px;border-radius:6px;background:linear-gradient(90deg,#34a853 0,#34a853 50%,#fbbc04 50%,#fbbc04 83%,#ea4335 83%,#ea4335 100%)}.mn-g i{position:absolute;top:-4px;width:5px;height:19px;border-radius:3px;background:#101828;border:1px solid #fff;transform:translateX(-50%)}'+
+  '.mn-f{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.mn-f span{font-size:11.5px;background:#f4f5f7;border-radius:8px;padding:3px 8px;color:#344054}.mn-f b{color:#101828}'+
+  '.mn-help{border-left:5px solid #b3261e;background:#fff1ef;border-radius:10px;padding:10px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;font-size:13.5px}'+
+  'body.dark .mn-k,body.dark .mn-c{background:#14212d;border-color:#2a455b}body.dark .mn-f span{background:#1c2f3f;color:#cfe0ee}body.dark .mn-f b,body.dark .mn-top b{color:#e6eff6}';document.head.appendChild(s)}
+ function fmtIdle(m){return m==null?'-':m<1?'baru saja':Math.round(m)+' mnt lalu'}
+ // o: {title,sub,note,items:[{op,name,st,msg,prog:{label,done,tot},ratio,paceTxt,normTxt,idle,eff,stats:[[label,value]]}],helps:[{id,html}],avatar:fn(code,name)}
+ function render(o){
+  var items=(o.items||[]).slice().sort(function(a,b){return (ORDER[a.st]-ORDER[b.st])||String(a.name).localeCompare(b.name)}),cnt={bad:0,warn:0,chk:0,ok:0,idle:0};items.forEach(function(i){cnt[i.st]++});
+  var h='<div class="card mn"><div class="mn-h"><div><h3>'+esc(o.title)+'</h3><p>'+esc(o.sub||'')+'</p></div></div>';
+  if(o.helps&&o.helps.length)h+=o.helps.map(function(x){return '<div class="mn-help">'+x.html+'</div>'}).join('');
+  h+='<div class="mn-sum"><div class="mn-k"><small>Aktif / tercatat</small><b>'+items.length+'</b></div><div class="mn-k" style="border-color:#bfe3c9"><small>Sesuai norm</small><b style="color:#14663a">'+cnt.ok+'</b></div><div class="mn-k" style="border-color:#f6d99a"><small>Lambat / cek</small><b style="color:#a35f00">'+(cnt.warn+cnt.chk)+'</b></div><div class="mn-k" style="border-color:#f3b8b2"><small>Perlu dibantu</small><b style="color:#b3261e">'+cnt.bad+'</b></div><div class="mn-k"><small>Tidak aktif</small><b style="color:#667085">'+cnt.idle+'</b></div></div>';
+  if(!items.length)return h+'<p class="sub" style="margin:0">Belum ada aktivitas hari ini.</p></div>';
+  h+='<div class="mn-grid">'+items.map(function(i){var s=ST[i.st],av=o.avatar?o.avatar(i.op,i.name):'';
+   var pr=i.prog&&i.prog.tot?Math.min(100,Math.round(100*i.prog.done/i.prog.tot)):null;
+   var g=i.ratio!=null?'<div class="mn-lbl"><span>Kecepatan terhadap norm</span><span>'+esc(i.paceTxt||'')+'</span></div><div class="mn-g"><i style="left:'+Math.max(2,Math.min(98,i.ratio/3*100))+'%"></i></div><div class="mn-lbl" style="margin-top:3px"><span>lebih cepat</span><span>norm '+esc(i.normTxt||'')+'</span><span>lebih lambat</span></div>':'';
+   return '<div class="mn-c" style="--mc:'+s.c+'"><div class="mn-top">'+av+'<div><b>'+esc(i.name)+'</b><span class="s">'+(i.prog?esc(i.prog.label):'Tidak sedang mengerjakan koli')+'</span></div><span class="mn-chip" style="background:'+s.bg+';color:'+s.c+'">'+s.t+'</span></div>'+
+    '<div class="mn-msg" style="color:'+s.c+'">'+esc(i.msg)+'</div>'+
+    (pr!=null?'<div class="mn-lbl"><span>Progres koli</span><span>'+i.prog.done+' / '+i.prog.tot+' baris</span></div><div class="mn-bar"><i style="width:'+pr+'%"></i></div>':'')+g+
+    '<div class="mn-f"><span>Aktif terakhir <b>'+fmtIdle(i.idle)+'</b></span>'+(i.eff!=null?'<span>Efisiensi hari ini <b style="color:'+(i.eff>=85?'#14663a':i.eff>=60?'#a35f00':'#b3261e')+'">'+Math.round(i.eff)+'%</b></span>':'')+(i.stats||[]).map(function(x){return '<span>'+esc(x[0])+' <b>'+esc(x[1])+'</b></span>'}).join('')+'</div></div>'}).join('')+'</div>';
+  if(o.note)h+='<p class="sub" style="margin:10px 0 0;font-size:12px">'+esc(o.note)+'</p>';
+  return h+'</div>'}
+ return{render:render,ST:ST}})();
 </script>
 <script>
 // Video dan bukti dari Google Drive diputar langsung di aplikasi (jendela pemutar), seperti bukti 5R, tanpa pindah ke halaman Drive
