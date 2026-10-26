@@ -1105,11 +1105,11 @@ const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')|
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999'};
 const idStaffOf=code=>String((window.getEmployeeProfile?.(code)||{}).idStaff||EXTRA_ID[code]||'').trim().toUpperCase();
-const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
+const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracking','trackitem','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching','master','access'];
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['dashboard','wms-inbound','wms-outbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['dashboard','analysis','tracking','wms-inbound','wms-outbound'],SPVO:['dashboard','wms-location','wms-outbound','wms-inventory','tracking','analysis']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','trackitem','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance'],STORE:['tracking','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory','trackitem'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['dashboard','wms-inbound','wms-outbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['dashboard','analysis','tracking','trackitem','wms-inbound','wms-outbound'],SPVO:['dashboard','wms-location','wms-outbound','wms-inventory','tracking','trackitem','analysis']};
 // SPV Operational (terbatas): menu ini tampil tetapi terkunci (tidak bisa diklik); Coaching dan Evaluasi tidak ditampilkan sama sekali
 const LOCKED_PAGES={SPVO:['attendance','tugas','compliance','project','kaskecil','trip','wms-inbound','performance','master','access']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
@@ -6798,6 +6798,109 @@ window.WOSMon=(function(){
   if(o.note)h+='<p class="sub" style="margin:10px 0 0;font-size:12px">'+esc(o.note)+'</p>';
   return h+'</div>'}
  return{render:render,ST:ST}})();
+</script>
+<script>
+// Tracking Item: posisi satu item dari vendor sampai diterima toko (hanya melihat). Dari surat jalan, penerimaan koli, GR, put away, stok bin, SOQ, picking, dan pengiriman.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api,V3=window.WOSV3;if(!A||!V3||!V3.mkPage)return;
+ const {esc,view,call,poKey}=A;
+ const U=s=>String(s==null?'':s).trim().toUpperCase(),N=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0},nf=n=>Math.round(n).toLocaleString('id-ID');
+ const st={q:'',sel:'',stok:null,stokAt:0,stokBusy:false,err:''};
+ try{st.q=localStorage.getItem('wos-ti-q')||''}catch(e){}
+ let page=null;
+ const redraw=()=>{try{if(page&&page.classList.contains('active'))draw(page)}catch(e){}};
+ async function loadStok(force){if(st.stokBusy||(!force&&st.stok&&Date.now()-st.stokAt<60000))return;st.stokBusy=true;
+  try{const r=await call({action:'stok'},true);if(r&&r.ok){st.stok=r.rows||[];st.stokAt=Date.now();st.err=''}else st.err=(r&&r.error)||'stok belum bisa dimuat'}catch(e){st.err=String(e&&e.message||e)}
+  st.stokBusy=false;redraw()}
+ const allNames=()=>{const m=new Map(),add=n=>{n=String(n||'').trim().replace(/\s+/g,' ');if(n&&n.length>2&&!/^\(/.test(n)){const k=U(n);if(!m.has(k))m.set(k,n)}};
+  try{(window.WOSSku?window.WOSSku.names():[]).forEach(add)}catch(e){}view('SJ_ITEM').forEach(r=>add(r.item));view('PICK_ITEM').forEach(r=>add(r.item));(st.stok||[]).forEach(r=>add(r.item||r.sku));
+  return [...m.values()].sort((a,b)=>a.localeCompare(b,'id',{numeric:true}))};
+ function resolve(q){const t=U(q).split(/\s+/).filter(Boolean);if(!t.length)return{item:'',list:[]};const L=allNames(),ex=L.find(n=>U(n)===U(q).replace(/\s+/g,' '));if(ex)return{item:ex,list:[]};
+  const m=L.filter(n=>t.every(x=>U(n).includes(x)));return m.length===1?{item:m[0],list:[]}:{item:'',list:m.slice(0,24),n:m.length}}
+ const sm=a=>a.reduce((s,x)=>s+x.q,0);
+ function compute(item){
+  const K=U(item),koli=new Map(view('KOLI').map(k=>[U(poKey(k.po))+'|'+Number(k.no_koli),k])),ga=new Map(view('GR_ASSIGN').filter(a=>a.status!=='Batal').map(a=>[U(poKey(a.po))+'|'+Number(a.no_koli),a]));
+  const cnt=new Map();view('GR_COUNT').forEach(c=>{if(U(c.item)!==K||String(c.seq||'').charAt(0)==='R')return;const k=U(poKey(c.po))+'|'+Number(c.no_koli);cnt.set(k,(cnt.get(k)||0)+N(c.qty_actual))});
+  const S={s1:[],s2:[],s3:[],s5:[],s6:[],s7:[],done:0,bins:[],sj:0};
+  const agg=new Map();view('SJ_ITEM').forEach(r=>{if(U(r.item)!==K)return;const k=U(poKey(r.po))+'|'+Number(r.no_koli),o=agg.get(k)||agg.set(k,{po:poKey(r.po),k:Number(r.no_koli),q:0,eta:r.eta||'',awb:r.awb||'',kirim:r.tgl_kirim||''}).get(k);o.q+=N(r.qty);S.sj++});
+  agg.forEach((o,k)=>{const kr=koli.get(k),g=ga.get(k);if(kr&&kr.status==='Batal')return;
+   if(!kr||!/^(Datang|Diterima|Bermasalah)$/.test(kr.status))S.s1.push(o);
+   else if(!g)S.s2.push(Object.assign({},o,{tiba:String(kr.tanggal||'').slice(0,10),sts:kr.status==='Datang'?'belum divalidasi':kr.status==='Bermasalah'?'bermasalah':'siap GR'}));
+   else if(g.status!=='Selesai')S.s3.push(Object.assign({},o,{q:cnt.has(U(poKey(o.po))+'|'+o.k)?cnt.get(U(poKey(o.po))+'|'+o.k):o.q,sts:g.status,op:g.operator_nama||g.operator||''}));
+   else S.done+=o.q});
+  const kd=new Map(view('PICK_KOLI').map(k=>[k.dok+'|'+Number(k.koli),k])),dk=new Map(view('PICK_DOK').map(d=>[d.id,d])),grp=new Map();
+  const LBL={'Siap verifikasi':'menunggu verifikasi','Perbaikan':'perbaikan verifikasi','Siap TFS':'siap TFS','Siap packing':'siap packing','Selesai TFS':'siap packing','Staging':'di staging','Dimuat':'sudah dimuat'};
+  view('PICK_ITEM').forEach(r=>{if(U(r.item)!==K||r.kategori==='OTHER')return;const q=N(r.qty_actual)>0?N(r.qty_actual):N(r.qty);if(!(q>0))return;const k=r.koli?kd.get(r.dok+'|'+Number(r.koli)):null;if(k&&k.status==='Batal')return;
+   const d=dk.get(r.dok)||{},ss=k?k.status:'';let b,label;
+   if(!k||/^(Ditugaskan|Picking)$/.test(ss)){b='s5';label=!r.koli?'alokasi (belum dibagi koli)':ss==='Picking'?'sedang picking':'ditugaskan ke picker'}
+   else if(LBL[ss]){b='s5';label=LBL[ss]}
+   else if(ss==='Shipping'){b='s6';label='dalam pengiriman'}
+   else if(/^(Diterima|Diterima-Masalah|GR Selesai)$/.test(ss)){b='s7';label=ss==='Diterima-Masalah'?'diterima (bermasalah)':'diterima toko'}
+   else{b='s5';label=ss||'-'}
+   const key=b+'|'+r.dok+'|'+(r.koli||'')+'|'+label,o=grp.get(key)||grp.set(key,{b,dok:r.dok,kode:d.kode||'',outlet:d.outlet||r.outlet||'',koli:r.koli||'',label,q:0,tgl:d.tanggal||''}).get(key);o.q+=q});
+  grp.forEach(o=>S[o.b].push(o));
+  const bins=new Map();(st.stok||[]).forEach(r=>{if(U(r.item||r.sku)!==K&&U(r.sku)!==K)return;const s=N(r.saldo);if(s<=0)return;bins.set(r.bin,(bins.get(r.bin)||0)+s)});
+  S.bins=[...bins.entries()].map(([bin,q])=>({bin,q})).sort((a,b)=>b.q-a.q);
+  return S}
+ const cmpK=(a,b)=>Number(a)-Number(b)||0;
+ function tbl(head,rows,foot){return '<div style="overflow:auto"><table><thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+(foot?'<tr style="font-weight:700"><td colspan="'+(head.length-1)+'">Total</td><td>'+foot+'</td></tr>':'')+'</tbody></table></div>'}
+ function stages(S){
+  const poN=a=>new Set(a.map(x=>x.po)).size,toko=a=>new Set(a.map(x=>x.kode+'|'+x.outlet)).size;
+  return [
+   {n:1,t:'Dalam perjalanan dari vendor',c:'in',q:sm(S.s1),u:S.s1.length+' koli · '+poN(S.s1)+' PO',rows:()=>tbl(['PO','Koli','Pcs','Kirim / ETA','AWB'],S.s1.sort((a,b)=>String(a.po).localeCompare(b.po)||cmpK(a.k,b.k)).map(x=>[esc(x.po),x.k,nf(x.q),esc([x.kirim,x.eta].filter(Boolean).join(' / ')||'-'),esc(x.awb||'-')]),nf(sm(S.s1)))},
+   {n:2,t:'Tiba, menunggu GR',c:'in',q:sm(S.s2),u:S.s2.length+' koli · '+poN(S.s2)+' PO',rows:()=>tbl(['PO','Koli','Pcs','Tiba','Status'],S.s2.sort((a,b)=>String(a.po).localeCompare(b.po)||cmpK(a.k,b.k)).map(x=>[esc(x.po),x.k,nf(x.q),esc(x.tiba||'-'),'<span class="tag '+(x.sts==='siap GR'?'green':'amber')+'">'+esc(x.sts)+'</span>']),nf(sm(S.s2)))},
+   {n:3,t:'Sedang GR (counting / put away)',c:'in',q:sm(S.s3),u:S.s3.length+' koli · '+poN(S.s3)+' PO',rows:()=>tbl(['PO','Koli','Pcs','Status','Operator'],S.s3.sort((a,b)=>String(a.po).localeCompare(b.po)||cmpK(a.k,b.k)).map(x=>[esc(x.po),x.k,nf(x.q),'<span class="tag amber">'+esc(x.sts)+'</span>',esc(x.op||'-')]),nf(sm(S.s3)))},
+   {n:4,t:'Stok di gudang',c:'gd',q:sm(S.bins),u:S.bins.length+' bin',rows:()=>(st.stok?tbl(['Bin','Pcs'],S.bins.map(x=>[esc(x.bin),nf(x.q)]),nf(sm(S.bins)))+'<p class="sub" style="margin:6px 0 0">Stok termasuk barang yang sudah dialokasikan ke SOQ (juga terlihat di tahap 5).'+(S.done?' GR selesai dari surat jalan yang tercatat: '+nf(S.done)+' pcs.':'')+'</p>':'<p class="sub">'+(st.err?esc(st.err):'Memuat stok…')+'</p>')},
+   {n:5,t:'Diproses di DC (alokasi sampai loading)',c:'ou',q:sm(S.s5),u:toko(S.s5)+' toko',rows:()=>tbl(['Toko','Koli','Status','Pcs','Tgl SOQ'],S.s5.sort((a,b)=>String(a.kode).localeCompare(b.kode)||cmpK(a.koli,b.koli)).map(x=>[esc((x.kode?x.kode+' ':'')+x.outlet),esc(x.koli||'-'),'<span class="tag amber">'+esc(x.label)+'</span>',nf(x.q),esc(x.tgl||'-')]),nf(sm(S.s5)))},
+   {n:6,t:'Dalam pengiriman ke toko',c:'ou',q:sm(S.s6),u:toko(S.s6)+' toko',rows:()=>tbl(['Toko','Koli','Status','Pcs','Tgl SOQ'],S.s6.sort((a,b)=>String(a.kode).localeCompare(b.kode)||cmpK(a.koli,b.koli)).map(x=>[esc((x.kode?x.kode+' ':'')+x.outlet),esc(x.koli||'-'),'<span class="tag amber">'+esc(x.label)+'</span>',nf(x.q),esc(x.tgl||'-')]),nf(sm(S.s6)))},
+   {n:7,t:'Sudah diterima toko',c:'gd',q:sm(S.s7),u:toko(S.s7)+' toko',rows:()=>tbl(['Toko','Koli','Status','Pcs','Tgl SOQ'],S.s7.sort((a,b)=>String(a.kode).localeCompare(b.kode)||cmpK(a.koli,b.koli)).map(x=>[esc((x.kode?x.kode+' ':'')+x.outlet),esc(x.koli||'-'),'<span class="tag green">'+esc(x.label)+'</span>',nf(x.q),esc(x.tgl||'-')]),nf(sm(S.s7)))}]}
+ const CL={in:['#2f6fdb','#1d4fa8','#eaf1fd'],gd:['#1f9d6b','#127049','#e6f6ee'],ou:['#e08a1e','#9a5a05','#fff3e0']};
+ function csv(item,S){const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"',L=[['Item','Tahap','PO / Toko','Koli / Bin','Status','Pcs']];
+  S.s1.forEach(x=>L.push([item,'Dalam perjalanan dari vendor',x.po,x.k,'',x.q]));S.s2.forEach(x=>L.push([item,'Tiba, menunggu GR',x.po,x.k,x.sts,x.q]));S.s3.forEach(x=>L.push([item,'Sedang GR',x.po,x.k,x.sts,x.q]));
+  S.bins.forEach(x=>L.push([item,'Stok di gudang','',x.bin,'',x.q]));[['s5','Diproses di DC'],['s6','Dalam pengiriman ke toko'],['s7','Sudah diterima toko']].forEach(([k,t])=>S[k].forEach(x=>L.push([item,t,(x.kode?x.kode+' ':'')+x.outlet,x.koli,x.label,x.q])));
+  const b=new Blob(['﻿sep=;\r\n'+L.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Tracking-Item-'+item.replace(/[^A-Za-z0-9]+/g,'_')+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+ let cur={item:'',S:null};
+ function draw(s){
+  const b=s.querySelector('.ti-b');if(!b)return;let h='';
+  if(!st.q.trim()){h='<div class="card"><p class="sub" style="margin:0">Ketik nama item di kotak cari, misalnya <b>HITAM 24S PDK L</b>. Anda akan melihat berapa pcs yang sedang dalam perjalanan, menunggu atau sedang GR, ada di gudang, diproses di DC, dalam pengiriman ke toko, dan sudah diterima toko. Klik tiap kotak untuk melihat PO, koli, bin, atau toko tujuannya.</p></div>'}
+  else{const R=resolve(st.q);
+   if(!R.item){h='<div class="card">'+(R.list.length?'<p class="sub" style="margin:0 0 8px">'+R.n+' nama item cocok'+(R.n>R.list.length?' (menampilkan '+R.list.length+' pertama)':'')+'. Pilih salah satu:</p><div style="display:flex;gap:8px;flex-wrap:wrap">'+R.list.map(n=>'<button class="button secondary" data-tipick="'+esc(n)+'" type="button" style="padding:5px 12px">'+esc(n)+'</button>').join('')+'</div>':'<p class="sub" style="margin:0">Item "'+esc(st.q)+'" tidak ditemukan di data surat jalan, picking, maupun stok.</p>')+'</div>'}
+   else{const S=compute(R.item);cur={item:R.item,S};const G=stages(S),firstN=(G.find(x=>x.q>0)||G[0]).n;if(!st.sel||!G.find(x=>x.n==st.sel))st.sel=String(firstN);
+    let info='';try{if(window.WOSSku){const i=window.WOSSku.info(R.item);info='Kategori: '+esc(i.kategori)+(i.brand&&i.brand!=='-'?' · Brand: '+esc(i.brand):'')+(i.lengan?' · '+esc(i.lengan):'')+(i.ukuran?' · Ukuran '+esc(i.ukuran):'')}}catch(e){}
+    const card=x=>{const c=CL[x.c];return '<button type="button" data-tisel="'+x.n+'" style="text-align:left;cursor:pointer;border-radius:16px;padding:12px 14px;border:3px solid '+c[0]+';background:'+c[2]+';color:'+c[1]+';'+(st.sel==x.n?'box-shadow:0 0 0 4px rgba(181,83,42,.4);':'')+'"><small style="display:block;font-size:12.5px;font-weight:700;min-height:34px;line-height:1.25">'+x.n+'. '+esc(x.t)+'</small><b style="display:block;font-size:30px;line-height:1.1">'+nf(x.q)+'</b><span style="font-size:12.5px;opacity:.85">pcs · '+esc(x.u)+'</span></button>'};
+    const inc=(typeof window.__wosIncoming==='function'?window.__wosIncoming():[])||[],incK=inc.reduce((a,r)=>a+(r.miss?r.miss.length:0),0);
+    const sel=G.find(x=>x.n==st.sel);
+    h='<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><h3 style="margin:0;font-size:22px">'+esc(R.item)+'</h3><span class="sub">'+info+'</span></div><button class="button secondary" data-ticsv="1" type="button">⬇ Unduh semua rincian (Excel/CSV)</button></div>'+
+     '<p style="margin:12px 0 6px;font-size:12px;font-weight:800;letter-spacing:.08em;color:#1d4fa8">INBOUND · DARI VENDOR SAMPAI GUDANG</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">'+G.slice(0,4).map(card).join('')+'</div>'+
+     '<p style="margin:14px 0 6px;font-size:12px;font-weight:800;letter-spacing:.08em;color:#9a5a05">OUTBOUND · DARI GUDANG SAMPAI TOKO</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">'+G.slice(4).map(card).join('')+'</div></div>'+
+     '<div class="card" style="margin-top:12px"><h3 style="margin:0 0 8px;font-size:18px">'+sel.n+'. '+esc(sel.t)+' · '+nf(sel.q)+' pcs</h3>'+(sel.q>0||sel.n===4?sel.rows():'<p class="sub" style="margin:0">Tidak ada '+esc(R.item)+' pada tahap ini.</p>')+
+     (sel.n===1&&incK?'<p class="note" style="margin-top:10px">Catatan: ada <b>'+incK+' koli</b> dari <b>'+inc.length+' PO</b> yang masih dalam perjalanan ke DC tetapi surat jalannya belum diupload, sehingga isi itemnya belum bisa dihitung. Angka tahap 1 di atas hanya dari surat jalan yang sudah diupload.</p>':'')+'</div>'+
+     '<p class="sub" style="margin:8px 2px 0">Sumber: surat jalan, penerimaan koli, GR, put away, stok bin, SOQ, picking, dan status pengiriman. Hanya melihat, tidak bisa mengubah data.</p>'}}
+  if(s._sig!==h){s._sig=h;b.innerHTML=h}}
+ function go(q){st.q=String(q||'').trim();st.sel='';try{localStorage.setItem('wos-ti-q',st.q)}catch(e){}if(page){const i=page.querySelector('#ti-q');if(i)i.value=st.q;page._sig='';draw(page)}}
+ V3.mkPage('trackitem','Tracking Item','Tracking Item','Posisi satu item dari vendor sampai diterima toko','tracking',s=>{
+  page=s;s.innerHTML='<div class="toolbar"><div><h2>Tracking Item</h2><span class="sub">Posisi satu item: dalam perjalanan, GR, stok, diproses di DC, dalam pengiriman, dan diterima toko</span></div></div>'+
+   '<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="sub" style="flex:1;min-width:260px">Cari item<input id="ti-q" list="ti-dl" autocomplete="off" placeholder="Contoh: HITAM 24S PDK L" value="'+esc(st.q)+'" style="width:100%;font-size:16px;padding:8px 10px"></label><button class="button" data-ti="go" type="button">Lacak</button><button class="button secondary" data-ti="clr" type="button">Hapus</button></div><datalist id="ti-dl"></datalist></div><div class="ti-b"></div>';
+  const dl=s.querySelector('#ti-dl');const fillDl=()=>{if(dl&&!dl.dataset.f){dl.dataset.f='1';dl.innerHTML=allNames().slice(0,6000).map(n=>'<option value="'+esc(n)+'">').join('')}};
+  s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+   if(d.ti==='go'){go(s.querySelector('#ti-q').value);return}if(d.ti==='clr'){go('');return}
+   if(d.tipick){go(d.tipick);return}if(d.tisel){st.sel=d.tisel;s._sig='';draw(s);return}if(d.ticsv&&cur.S){csv(cur.item,cur.S)}});
+  s.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='ti-q'){e.preventDefault();go(e.target.value)}});
+  s.addEventListener('change',e=>{if(e.target.id==='ti-q')go(e.target.value)});
+  s.addEventListener('focusin',fillDl);
+  s._draw=()=>draw(s);s._show=()=>{try{const q=localStorage.getItem('wos-ti-q')||'';if(q!==st.q){st.q=q;st.sel='';const i=s.querySelector('#ti-q');if(i)i.value=q}}catch(x){}s._sig='';draw(s);V3.load(true);loadStok(true)}});
+ // kotak cari cepat di Dashboard (hanya untuk akun yang boleh membuka Tracking Item)
+ function mountDash(){const d=document.getElementById('dashboard'),nav=document.querySelector('.nav[data-page="trackitem"]'),ex=document.getElementById('wos-dash-find');
+  if(!d)return;if(!nav||nav.classList.contains('wos-hide')){if(ex)ex.remove();return}if(ex)return;
+  const b=document.createElement('div');b.id='wos-dash-find';b.className='card';b.style.marginBottom='14px';
+  b.innerHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="sub" style="flex:1;min-width:240px;margin:0">Lacak item (dari vendor sampai toko)<input id="wdf-q" list="ti-dl2" autocomplete="off" placeholder="Contoh: HITAM 24S PDK L" style="width:100%;font-size:15px;padding:7px 10px"></label><button class="button" id="wdf-go" type="button">Lacak item</button></div><datalist id="ti-dl2"></datalist>';
+  const dr=document.getElementById('wos-dash-dr');if(dr)d.insertBefore(b,dr);else d.prepend(b);
+  const go2=()=>{const v=b.querySelector('#wdf-q').value.trim();if(!v)return;try{localStorage.setItem('wos-ti-q',v)}catch(e){}nav.click()};
+  b.querySelector('#wdf-go').onclick=go2;b.querySelector('#wdf-q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();go2()}});b.querySelector('#wdf-q').addEventListener('change',go2);
+  b.querySelector('#wdf-q').addEventListener('focus',()=>{const dl=b.querySelector('#ti-dl2');if(dl&&!dl.dataset.f){dl.dataset.f='1';dl.innerHTML=allNames().slice(0,6000).map(n=>'<option value="'+esc(n)+'">').join('')}})}
+ setInterval(()=>{try{mountDash()}catch(e){}},2000);
+ setInterval(()=>{try{if(page&&page.classList.contains('active')&&!document.hidden){loadStok(false);draw(page)}}catch(e){}},15000);
+})();
 </script>
 <script>
 // Video dan bukti dari Google Drive diputar langsung di aplikasi (jendela pemutar), seperti bukti 5R, tanpa pindah ke halaman Drive
