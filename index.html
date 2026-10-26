@@ -3239,7 +3239,7 @@ init();
  const HELP_R=['Barang tidak ada di surat jalan','Qty tidak cocok / selisih banyak','Label atau barang rusak','Barang tercampur antar item','Lainnya'];
  const GTK='wos-tasks-v1';
  const grHelps=()=>{try{return (JSON.parse(localStorage.getItem(GTK)||'[]')||[]).filter(t=>t&&t.kind==='bantuan'&&t.status!=='selesai'&&t.day===today())}catch(e){return[]}};
- function grMonitor(){
+ function grItems(){
   const td=today(),nowMs=Date.now(),by={};
   view('GR_COUNT').forEach(c=>{if(String(c.seq||'').charAt(0)==='R'||String(c.tanggal||'').slice(0,10)!==td||!c.jam_wita||!c.operator)return;const t=grMs(td,c.jam_wita);if(t==null)return;(by[c.operator]=by[c.operator]||[]).push({t,q:num(c.qty_actual),ok:c.status==='Sesuai',kk:poKey(c.po)+'|'+Number(c.no_koli)})});
   const asg=view('GR_ASSIGN').filter(a=>a.status!=='Batal'),ops=new Set(Object.keys(by));asg.forEach(a=>{if(a.status==='Counting'&&a.operator)ops.add(a.operator)});
@@ -3257,11 +3257,13 @@ init();
    else if(pace!=null&&pace<GRN.fast&&w.length>=8&&w.filter(x=>x.ok).length>=w.length*0.9&&open){st='chk';msg='Sangat cepat ('+pace.toFixed(1)+' dtk/baris): pastikan dihitung fisik'}
    else if(open){st='ok';msg='Sesuai norm'+(pace!=null?' ('+Math.round(pace)+' dtk/baris)':'')}
    return{op,name:nameOf(op),st,msg,prog,ratio:pace!=null?pace/GRN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:GRN.sLine+' dtk/baris',idle,eff,stats:[['Koli',koliN],['Baris',lines],['Selisih',selisih]]}});
-  const helps=grHelps().map(t=>({html:'<span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button>'}));
+  return items}
+ function grMonitor(){
+  const items=grItems(),helps=grHelps().map(t=>({html:'<span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button>'}));
   return window.WOSMon.render({title:'Monitor kecepatan counting · hari ini',sub:'Norm ±'+GRN.sLine+' detik per baris item (dari riwayat kerja tim). Lambat bila lebih dari '+Math.round(GRN.sLine*GRN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+GRN.idleMin+' menit ditandai merah.',items,helps,avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ waktu aktif hari ini. Diperbarui otomatis.'})}
  // ---- Monitor put away (norm sementara 45 dtk/baris: data riwayat baru 29 koli; akan dikoreksi setelah data bertambah)
  const PAN={sLine:45,idleMin:15,slow:1.5,vslow:2.5,gapMax:25};
- function paMonitor(){
+ function paItems(){
   const td=today(),nowMs=Date.now(),by={};
   view('PUTAWAY').forEach(r=>{if(String(r.tanggal||'').slice(0,10)!==td||!r.operator||!r.jam_wita)return;const t=grMs(td,r.jam_wita);if(t==null)return;const k=poKey(r.po)+'|'+Number(r.no_koli),o=(by[r.operator]=by[r.operator]||{}),e=o[k]||(o[k]={t:0,rows:0,pcs:0});e.rows++;e.pcs+=num(r.qty);if(t>e.t)e.t=t});
   const asg=view('GR_ASSIGN').filter(a=>a.status!=='Batal'),ops=new Set(Object.keys(by));asg.forEach(a=>{if(a.status==='Siap put away'&&a.operator)ops.add(a.operator)});
@@ -3277,7 +3279,11 @@ init();
    else if(queue.length&&paceL!=null&&paceL>PAN.sLine*PAN.slow){st='warn';msg='Lambat: '+Math.round(paceL)+' dtk/baris'}
    else if(queue.length||paceL!=null){st='ok';msg=queue.length?queue.length+' koli antri, ritme sesuai norm':'Sesuai norm ('+Math.round(paceL)+' dtk/baris)'}
    return{op,name:nameOf(op),st,msg,prog:queue.length?{label:queue.length+' koli antri put away ('+qLines+' baris)',done:0,tot:0}:null,ratio:paceL!=null?paceL/PAN.sLine:null,paceTxt:paceL!=null?Math.round(paceL)+' dtk/baris':'',normTxt:PAN.sLine+' dtk/baris',idle,eff,stats:[['Koli',ks.length],['Baris',rows]]}});
+  return items}
+ function paMonitor(){
+  const items=paItems();
   return window.WOSMon.render({title:'Monitor put away · hari ini',sub:'Norm sementara ±'+PAN.sLine+' detik per baris put away. Ritme dihitung dari selang simpan antar koli; ditandai merah bila ada antrian tetapi tidak ada put away ≥ '+PAN.idleMin+' menit.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Norm put away masih sementara (data riwayat baru 29 koli). Akan dikoreksi setelah data bertambah.'})}
+ window.WOSMonSrc=window.WOSMonSrc||{};window.WOSMonSrc.count=()=>grItems();window.WOSMonSrc.put=()=>paItems();
  function listTugas(mode){
   const me=code(),admin=canAdmin(),all=admin||isViewer(),list=view('GR_ASSIGN').filter(a=>a.status!=='Batal'&&(all?(!filterOp||a.operator===filterOp):a.operator===me)&&(mode==='count'?['Ditugaskan','Counting','Siap put away','Selesai'].includes(a.status):a.status==='Siap put away'||a.status==='Selesai')).filter(a=>window.WOSDR.inR('inb',grDay(a)));
   const by={};list.forEach(a=>{(by[poKey(a.po)]=by[poKey(a.po)]||[]).push(a)});
@@ -3750,7 +3756,7 @@ init();
  const ltTagOB=k=>{const p=[['Pic',obD(k.mulai,k.selesai)],['VP',obD(k.selesai,k.vp_selesai)],['TFS',obD(k.vp_selesai,k.tfs_waktu)],['STG',obD(k.tfs_waktu,k.pack_waktu)],['LD',obD(k.pack_waktu,k.load_waktu)]].filter(x=>x[1]!=null).map(x=>x[0]+' '+obF(x[1]));return p.length?'<small class="lt">'+p.join(' · ')+'</small>':''};
  // ---- Monitor picking (SPV/admin). Norm awal dari riwayat kerja 20-26 Okt 2026 (107 koli): ±120 dtk per baris item, pcs hampir tidak berpengaruh (R2=0,44)
  const PKN={sLine:120,s100:1.5,idleMin:15,slow:1.5,vslow:2.5,fast:25,minLines:3,cap:240};
- function pkMonitor(){
+ function pkItems(){
   const td=today(),nowMs=Date.now(),wdy=iso=>{const t=obT(iso);return t==null?'':new Date(t+288e5).toISOString().slice(0,10)};
   const by=new Map();view('PICK_ITEM').forEach(r=>{if(r.kategori==='OTHER')return;const k=r.dok+'|'+num(r.koli);(by.get(k)||by.set(k,[]).get(k)).push(r)});
   const pk=view('PICK_KOLI').filter(k=>k.picker&&k.status!=='Batal'),ops=new Set();pk.forEach(k=>{if(k.status==='Picking'||(k.selesai&&wdy(k.selesai)===td))ops.add(k.picker)});
@@ -3769,7 +3775,11 @@ init();
    else if(open&&pace!=null&&pace<PKN.fast&&prog.done>=6){st='chk';msg='Sangat cepat ('+Math.round(pace)+' dtk/baris): cek apakah benar diambil'}
    else if(open){st='ok';msg='Sesuai norm'+(pace!=null?' ('+Math.round(pace)+' dtk/baris)':'')}
    return{op,name:(mine[0]&&mine[0].picker_nama)||op,st,msg,prog,ratio:pace!=null?pace/PKN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:PKN.sLine+' dtk/baris',idle,eff,stats:[['Koli selesai',done.length],['Baris',lines],['Koreksi VP',errs]]}});
+  return items}
+ function pkMonitor(){
+  const items=pkItems();
   return window.WOSMon.render({title:'Monitor picking · hari ini',sub:'Norm ±'+PKN.sLine+' detik per baris item (dari riwayat kerja tim, 107 koli). Lambat bila lebih dari '+Math.round(PKN.sLine*PKN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+PKN.idleMin+' menit ditandai merah.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ lama picking koli yang selesai hari ini (koli lebih dari 4 jam dianggap lintas hari dan tidak dihitung).'})}
+ window.WOSMonSrc=window.WOSMonSrc||{};window.WOSMonSrc.pick=()=>pkItems();
  function listKoli(mode){
   const me=code(),adm=canAdmin();let list=rngKoli(view('PICK_KOLI'));
   if(mode==='pick')list=list.filter(k=>adm?(!filterOp||k.picker===filterOp):k.picker===me);else if(adm&&filterOp)list=list.filter(k=>k.picker===filterOp);
@@ -5390,6 +5400,18 @@ init();
   ga.forEach(a=>{if(a.status==='Selesai'&&a.selesai)ev.push([toW(a.selesai),'GR koli '+a.no_koli+' PO '+a.po+' selesai ('+nmS(a.operator)+')','Inbound'])});
   pk.forEach(k=>{const l=D(k.dok);[['tfs_waktu','TFS selesai'],['pack_waktu','masuk staging'],['load_waktu','dimuat'],['rcv_waktu','diterima outlet']].forEach(f=>{if(k[f[0]])ev.push([toW(k[f[0]]),l+' koli '+k.koli+' '+f[1],'Outbound'])})});
   const evS=ev.filter(x=>rOn?inD(x[0].slice(0,10)):x[0].slice(0,10)===t).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,8);
+  // Pantauan Tim: gabungan counting, put away, dan picking; yang paling bermasalah di atas
+  let timHtml='';
+  try{const src=window.WOSMonSrc||{},ACT=[['count','Counting','wms-inbound|Good Receipt|Counting'],['put','Put Away','wms-inbound|Good Receipt|Put Away'],['pick','Picking','wms-outbound|Picking']],ALL=[];
+   ACT.forEach(([k,l,g])=>{try{(src[k]?src[k]():[]).forEach(i=>ALL.push(Object.assign({act:l,go:g},i)))}catch(e){}});
+   const rk={bad:0,warn:1,chk:2,ok:3,idle:4},cnt={bad:0,warn:0,chk:0,ok:0,idle:0};ALL.forEach(i=>cnt[i.st]++);
+   const prob=ALL.filter(i=>i.st==='bad'||i.st==='warn'||i.st==='chk').sort((a,b)=>rk[a.st]-rk[b.st]||String(a.name).localeCompare(b.name)),ST=(window.WOSMon&&window.WOSMon.ST)||{};
+   const chip=(k,t)=>cnt[k]?'<span class="d3-chip" style="background:'+(ST[k]?ST[k].bg:'#eee')+';color:'+(ST[k]?ST[k].c:'#444')+'">'+cnt[k]+' '+t+'</span>':'';
+   const av=i=>window.WOSFoto?window.WOSFoto.avatar(i.op,26,i.name):'',rw=(g,txt,m)=>'<div class="d3-r d3-go" data-go="'+esc(g)+'"><span>'+txt+'</span>'+(m?'<span class="m">'+m+'</span>':'')+'</div>';
+   timHtml='<div class="d3-card"><p class="d3-l" style="font-weight:700;color:var(--ink);font-size:13px;margin:0 0 8px">Pantauan tim · kecepatan kerja hari ini <span class="d3-s" style="font-weight:400;margin-left:6px">Counting, Put Away, dan Picking dibandingkan dengan norm. Klik untuk membuka monitor.</span></p>'+
+    (ALL.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+chip('bad','perlu dibantu')+chip('warn','lambat')+chip('chk','perlu dicek')+chip('ok','sesuai norm')+chip('idle','tidak aktif')+'</div>'+
+     (prob.length?prob.slice(0,10).map(i=>rw(i.go,av(i)+' <b>'+esc(i.name)+'</b> · <span class="tag amber">'+esc(i.act)+'</span> <span style="color:'+((ST[i.st]||{}).c||'#444')+'">'+esc(i.msg)+'</span>',i.idle==null?'':(i.idle<1?'baru saja':Math.round(i.idle)+' mnt lalu'))).join('')+(prob.length>10?'<p class="sub" style="margin:6px 0 0">+ '+(prob.length-10)+' lainnya. Buka monitor tiap kegiatan.</p>':''):'<p class="sub" style="margin:0">Tidak ada yang perlu dibantu atau dicek saat ini. Semua operator yang bekerja sesuai norm.</p>')
+     :'<p class="sub" style="margin:0">Belum ada aktivitas counting, put away, atau picking hari ini.</p>')+'</div>'}catch(e){}
   const row=(g,icon,cls,txt,m)=>'<div class="d3-r'+(g?' d3-go':'')+'"'+(g?' data-go="'+esc(g)+'"':'')+'>'+(icon?'<i class="d3-dot '+(cls||'')+'" aria-hidden="true"></i>':'')+'<span>'+txt+'</span>'+(m?'<span class="m">'+m+'</span>':'')+'</div>';
   const panel=(k,title,badge,bc,body)=>'<details class="d3-p" data-k="'+k+'"'+(dsIsOpen(k)?' open':'')+'><summary>'+esc(title)+(badge!==''?'<span class="d3c '+(bc||'')+'">'+badge+'</span>':'')+'</summary><div class="d3-b">'+body+'</div></details>';
   const empty=m=>'<p class="sub" style="margin:4px 0 8px">'+m+'</p>';
@@ -5399,7 +5421,7 @@ init();
     '<div class="d3-card d3-go" data-go="attendance" title="Buka Attendance">'+ring(pc(hadir,staff),'#1D9E75','Attendance')+'<div><p class="d3-l">Attendance · hari ini</p><b>'+hadir+'/'+staff+'</b><p class="d3-s '+(late?'d3-wr':'d3-ok')+'">'+late+' terlambat · lihat detail</p></div></div>'+
     '<div class="d3-card d3-go" data-go="wms-inbound|Good Receipt" title="Buka Inbound">'+ring(pc(grDone,grDen),'#E07B39','GR selesai')+'<div><p class="d3-l" title="Pembilang = GR selesai hari ini. Penyebut = selesai hari ini ditambah semua koli GR yang masih berjalan dari tanggal mana pun.">Inbound · GR selesai hari ini</p><b>'+grDone+'/'+grDen+'</b><p class="d3-s">'+grOpen+' koli masih berjalan (semua tanggal, '+grOldOpen+' sisa hari sebelumnya) · '+rcvToday+' diterima hari ini</p>'+pcsLines(inDone,inAll)+'</div></div>'+
     '<div class="d3-card d3-go" data-go="wms-outbound|Verification Pick" title="Buka Outbound">'+ring(pc(okAct,koliAct.length),'#378ADD','Outbound lolos verifikasi')+'<div><p class="d3-l" title="Semua SOQ yang belum selesai diterima toko, dari tanggal mana pun.">Outbound · lolos verifikasi (SOQ aktif, semua tanggal)</p><b>'+okAct+'/'+koliAct.length+'</b><p class="d3-s">'+dokAct.length+' SOQ aktif · '+koliAct.length+' koli ('+koliActOld+' dari SOQ hari sebelumnya)</p>'+pcsLines(outOk,outAll)+'</div></div>'+
-   '</div>'+
+   '</div>'+timHtml+
    '<div class="d3-card"><div class="d3-mini">'+
     '<div class="d3-go" data-go="wms-outbound|Shipping"><p class="d3-l">On delivery</p><b>'+ship+'</b><p class="d3-s">koli menuju toko · semua tanggal</p></div>'+
     '<div class="d3-go" data-go="wms-outbound|Miss-Picking"><p class="d3-l">Miss-picking</p><b class="'+(miss?'d3-er':'d3-ok')+'">'+miss+'</b><p class="d3-s">terbuka · semua tanggal</p></div>'+
@@ -6907,6 +6929,22 @@ window.WOSMon=(function(){
   b.querySelector('#wdf-q').addEventListener('focus',()=>{const dl=b.querySelector('#ti-dl2');if(dl&&!dl.dataset.f){dl.dataset.f='1';dl.innerHTML=allNames().slice(0,6000).map(n=>'<option value="'+esc(n)+'">').join('')}})}
  setInterval(()=>{try{mountDash()}catch(e){}},2000);
  setInterval(()=>{try{if(page&&page.classList.contains('active')&&!document.hidden){loadStok(false);draw(page)}}catch(e){}},15000);
+})();
+</script>
+<script>
+// Lencana merah "perlu dibantu" pada menu Inbound, Outbound, dan tab Counting, Put Away, Picking (hanya untuk SPV, Manager, dan admin).
+// Memakai atribut data-bdg + CSS ::after supaya teks tombol tidak berubah (pencarian tombol berdasarkan teks tetap berfungsi).
+(()=>{
+ if(!document.getElementById('bdg-style')){const s=document.createElement('style');s.id='bdg-style';s.textContent='[data-bdg]::after{content:attr(data-bdg);display:inline-block;margin-left:7px;min-width:18px;padding:0 6px;border-radius:999px;background:#b3261e;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;vertical-align:1px}';document.head.appendChild(s)}
+ const A=window.WOSGudang&&window.WOSGudang.api;
+ const set=(el,n)=>{if(!el)return;if(n>0){if(el.getAttribute('data-bdg')!==String(n))el.setAttribute('data-bdg',String(n))}else if(el.hasAttribute('data-bdg'))el.removeAttribute('data-bdg')};
+ function tick(){try{
+  if(document.hidden||!A||!window.WOSMonSrc)return;const lv=sessionStorage.getItem('wos-session-v1')||'';
+  if(!['supervisor','manager','admin'].includes(lv)||!A.canAdmin())return;
+  const S=window.WOSMonSrc,bad=k=>{try{return S[k]?S[k]().filter(i=>i.st==='bad').length:0}catch(e){return 0}},c=bad('count'),p=bad('put'),k=bad('pick');
+  set(document.querySelector('.nav[data-page="wms-inbound"]'),c+p);set(document.querySelector('.nav[data-page="wms-outbound"]'),k);
+  set(document.querySelector('[data-ph="gr"] [data-p="Counting"]'),c);set(document.querySelector('[data-ph="gr"] [data-p="Put Away"]'),p);set(document.querySelector('[data-ph="wms-outbound"] [data-p="Picking"]'),k)}catch(e){}}
+ setInterval(tick,6000);setTimeout(tick,3000);
 })();
 </script>
 <script>
