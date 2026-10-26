@@ -6947,8 +6947,8 @@ window.WOSMon=(function(){
      '<p class="sub" style="margin:8px 2px 0">Sumber: surat jalan, penerimaan koli, GR, put away, stok bin, SOQ, picking, dan status pengiriman. Hanya melihat, tidak bisa mengubah data.</p>'}}
   if(s._sig!==h){s._sig=h;b.innerHTML=h}}
  function go(q){st.q=String(q||'').trim();st.sel='';try{localStorage.setItem('wos-ti-q',st.q)}catch(e){}if(page){const i=page.querySelector('#ti-q');if(i)i.value=st.q;page._sig='';draw(page)}}
- V3.mkPage('trackitem','Tracking Item','Tracking Item','Posisi satu item dari vendor sampai diterima toko','tracking',s=>{
-  page=s;s.innerHTML='<div class="toolbar"><div><h2>Tracking Item</h2><span class="sub">Posisi satu item: dalam perjalanan, GR, stok, diproses di DC, dalam pengiriman, dan diterima toko</span></div></div>'+
+ V3.mkPage('trackitem','Item Search','Item Search','Posisi satu item dari vendor sampai diterima toko','tracking',s=>{
+  page=s;s.innerHTML='<div class="toolbar"><div><h2>Item Search</h2><span class="sub">Posisi satu item: dalam perjalanan, GR, stok, diproses di DC, dalam pengiriman, dan diterima toko</span></div></div>'+
    '<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="sub" style="flex:1;min-width:260px">Cari item<input id="ti-q" list="ti-dl" autocomplete="off" placeholder="Contoh: HITAM 24S PDK L" value="'+esc(st.q)+'" style="width:100%;font-size:16px;padding:8px 10px"></label><button class="button" data-ti="go" type="button">Lacak</button><button class="button secondary" data-ti="clr" type="button">Hapus</button></div><datalist id="ti-dl"></datalist></div><div class="ti-b"></div>';
   const dl=s.querySelector('#ti-dl');const fillDl=()=>{if(dl&&!dl.dataset.f){dl.dataset.f='1';dl.innerHTML=allNames().slice(0,6000).map(n=>'<option value="'+esc(n)+'">').join('')}};
   s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
@@ -6967,7 +6967,7 @@ window.WOSMon=(function(){
   const go2=()=>{const v=b.querySelector('#wdf-q').value.trim();if(!v)return;try{localStorage.setItem('wos-ti-q',v)}catch(e){}nav.click()};
   b.querySelector('#wdf-go').onclick=go2;b.querySelector('#wdf-q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();go2()}});b.querySelector('#wdf-q').addEventListener('change',go2);
   b.querySelector('#wdf-q').addEventListener('focus',()=>{const dl=b.querySelector('#ti-dl2');if(dl&&!dl.dataset.f){dl.dataset.f='1';dl.innerHTML=allNames().slice(0,6000).map(n=>'<option value="'+esc(n)+'">').join('')}})}
- setInterval(()=>{try{mountDash()}catch(e){}},2000);
+ setInterval(()=>{try{const x=document.getElementById('wos-dash-find');if(x)x.remove()}catch(e){}},2000);
  setInterval(()=>{try{if(page&&page.classList.contains('active')&&!document.hidden){loadStok(false);draw(page)}}catch(e){}},15000);
 })();
 </script>
