@@ -27,6 +27,7 @@ const TABS = {
   PUTAWAY: ['id','tanggal','po','no_koli','seq','item','bin','qty','operator','jam_wita'],
   MASTER_BIN: ['id','zona','tipe_rak','no_rak','level','bin','status','catatan'],
   MASTER_MOKA: ['id','data','catatan'],
+  MASTER_SKU: ['id','item','kategori','brand','jenis','status','catatan','diubah'],
   STOK_BIN: ['id','waktu_server','tanggal','jenis','bin','sku','item','qty_masuk','qty_keluar','referensi','pic_kode','catatan'],
   PICK_DOK: ['id','tanggal','kode','outlet','file','jumlah_item','total_qty','status','diunggah_oleh','waktu','ekspedisi','eta','tgl_soq','kode_outlet','alamat','metode','kategori'],
   PICK_KOLI: ['id','tanggal','dok','koli','picker','picker_nama','status','task_id','mulai','selesai','vp_oleh','vp_selesai','tfs_oleh','tfs_waktu','area','pack_oleh','pack_waktu','load_oleh','load_waktu','rcv_oleh','rcv_waktu','rcv_ket','rcv_nama'],
