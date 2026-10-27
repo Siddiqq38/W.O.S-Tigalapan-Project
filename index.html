@@ -3247,22 +3247,26 @@ init();
  function putScreen(){
   if(isViewer())return putView();
   const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k)||{},items=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&!isRejCnt(c)).sort((x,y)=>String(x.seq).localeCompare(String(y.seq),'en',{numeric:true})),bins=binList();
-  items.forEach(c=>{if(!pu[c.seq])pu[c.seq]=[{bin:'',qty:num(c.qty_actual)}]});
+  items.forEach(c=>{if(!pu[c.seq]){const sv=view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k)&&String(p.seq)===String(c.seq)),rows=sv.map(p=>({bin:p.bin,qty:num(p.qty)})),rem=num(c.qty_actual)-rows.reduce((x,r)=>x+r.qty,0);if(rem>0)rows.push({bin:'',qty:rem});pu[c.seq]=rows.length?rows:[{bin:'',qty:num(c.qty_actual)}]}});
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-gback="1" type="button">&larr; Kembali</button> <button class="button secondary" data-gsync="1" type="button">Muat ulang data</button></div><div class="card"><h3 style="margin:0">Put away · PO '+esc(po)+' · Koli '+k+'</h3><p class="sub">Isi bin tempat barang disimpan. Satu item boleh dipecah ke beberapa bin; jumlahnya harus sama dengan qty actual.'+(bins.length?'':' <strong>Master bin belum diimpor, bin diketik bebas.</strong>')+'</p><datalist id="gr-bins">'+bins.slice(0,3000).map(b=>'<option value="'+esc(b.id)+'">').join('')+'</datalist>';
   h+=items.map(c=>{const rows=pu[c.seq],sum=rows.reduce((x,r)=>x+num(r.qty),0),rem=num(c.qty_actual)-sum;return '<div style="border:1px solid #ddd;border-radius:10px;padding:10px;margin:8px 0"><strong>'+esc(c.item)+'</strong> <span class="sub">actual '+esc(c.qty_actual)+' pcs</span>'+rows.map((r,i)=>'<div class="rl-row" style="display:flex;gap:6px;margin-top:6px;align-items:center"><input list="gr-bins" data-pb="'+esc(c.seq)+'|'+i+'|bin" value="'+esc(r.bin)+'" placeholder="Bin, contoh A1.1" style="flex:2">'+(A.binLocked(U(r.bin))?'<span class="tag red">🔒 Bin di kunci</span>':'')+'<input type="number" inputmode="numeric" data-pb="'+esc(c.seq)+'|'+i+'|qty" value="'+esc(r.qty)+'" style="flex:1" placeholder="Qty">'+(rows.length>1?'<button class="button secondary" data-prm="'+esc(c.seq)+'|'+i+'" type="button">&times;</button>':'')+'</div>').join('')+'<div class="sub" style="margin-top:6px">'+(rem===0?'<span class="tag green">pas</span>':'<span class="tag '+(rem>0?'amber':'red')+'">'+(rem>0?'sisa '+rem:'lebih '+(-rem))+'</span>')+' <button class="button secondary" data-padd="'+esc(c.seq)+'" type="button">+ bin lain</button></div></div>'}).join('');
   if(!items.length)h+='<p class="note">Tidak ada item yang perlu di-put away pada koli ini'+(cntOf(po,k).length?' (semua item reject). Tekan Simpan untuk menyelesaikan.':'.')+'</p>';
   const rj=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&isRejCnt(c));if(rj.length)h+='<p class="note">'+rj.length+' item reject ('+rj.reduce((x,c)=>x+num(c.qty_actual),0)+' pcs) tidak di-put away, diteruskan ke Defect Handling.</p>';
-  h+='<div class="ob-actions"><button class="button" data-psave="1" type="button"'+(items.length||cntOf(po,k).length?'':' disabled')+'>Simpan put away</button></div></div>';return h}
- function savePut(_f){
+  h+='<div class="ob-actions"><button class="button" data-psave="1" type="button"'+(items.length||cntOf(po,k).length?'':' disabled')+'>Simpan put away (selesai)</button>'+(items.length?' <button class="button secondary" data-psavep="1" type="button">Simpan sebagian, lanjutkan nanti</button>':'')+'</div>'+(items.length?'<p class="sub" style="margin:6px 0 0">Belum selesai semua bin? Tekan <b>Simpan sebagian</b>. Bin yang sudah diisi tersimpan, boleh keluar ke koli lain, lalu kembali dan lanjutkan sisanya.</p>':'')+'</div>';return h}
+ function savePut(_f,part){
   const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k),items=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&!isRejCnt(c)),master=new Set(binList().map(b=>U(b.id))),out=[];
-  if(!_f){const bs=[];items.forEach(c=>(pu[c.seq]||[]).forEach(r=>{if(String(r.bin).trim())bs.push(U(r.bin))}));A.lockFresh(bs).then(lb=>{if(lb)return say('Bin '+lb+' DI KUNCI (cycle count / stok opname), tidak bisa dipakai put away. Pilih bin lain.',true);savePut(1)});return}
-  for(const c of items){const rows=(pu[c.seq]||[]).filter(r=>String(r.bin).trim()||num(r.qty));const sum=rows.reduce((x,r)=>x+num(r.qty),0);
-   if(sum!==num(c.qty_actual))return say('Jumlah bin untuk "'+c.item+'" ('+sum+') belum sama dengan qty actual ('+c.qty_actual+').',true);
+  if(!_f){const bs=[];items.forEach(c=>(pu[c.seq]||[]).forEach(r=>{if(String(r.bin).trim())bs.push(U(r.bin))}));A.lockFresh(bs).then(lb=>{if(lb)return say('Bin '+lb+' DI KUNCI (cycle count / stok opname), tidak bisa dipakai put away. Pilih bin lain.',true);savePut(1,part)});return}
+  for(const c of items){const rows=(pu[c.seq]||[]).filter(r=>part?String(r.bin).trim():(String(r.bin).trim()||num(r.qty)));const sum=rows.reduce((x,r)=>x+num(r.qty),0);
+   if(part&&sum>num(c.qty_actual))return say('Jumlah bin untuk "'+c.item+'" ('+sum+') melebihi qty actual ('+c.qty_actual+').',true);
+   if(!part&&sum!==num(c.qty_actual))return say('Jumlah bin untuk "'+c.item+'" ('+sum+') belum sama dengan qty actual ('+c.qty_actual+').',true);
    for(const r of rows){const b=U(r.bin);if(!b||!(num(r.qty)>0))return say('Lengkapi bin dan qty untuk "'+c.item+'".',true);if(master.size&&!master.has(b))return say('Bin "'+r.bin+'" tidak ada di master bin.',true);if(A.binLocked(b))return say('Bin '+b+' sedang dikunci (cycle count / stok opname), tidak bisa dipakai put away. Pilih bin lain.',true);out.push({c,bin:b,qty:num(r.qty)})}}
-  const old=view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k));old.forEach(p=>{enqDel('PUTAWAY',p.id);enqDel('STOK_BIN','SB|'+p.id)});
+  if(part&&!out.length)return say('Belum ada bin yang diisi. Isi minimal satu bin dengan qty lalu simpan.',true);
+  const old=view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k)),newIds=new Map(out.map(o=>[po+'|'+k+'|'+o.c.seq+'|'+o.bin,o])),oldMap=new Map(old.map(p=>[p.id,p]));
+  old.forEach(p=>{if(!newIds.has(p.id)||num(p.qty)!==newIds.get(p.id).qty){enqDel('PUTAWAY',p.id);enqDel('STOK_BIN','SB|'+p.id)}});
   const kr=view('KOLI').find(x=>poKey(x.po)===po&&Number(x.no_koli)===Number(k)),rd=kr&&kr.tanggal&&kr.tanggal<today()?kr.tanggal:'';
-  out.forEach(o=>{const id=po+'|'+k+'|'+o.c.seq+'|'+o.bin;enq('PUTAWAY',{id,tanggal:today(),po,no_koli:String(k),seq:String(o.c.seq),item:o.c.item,bin:o.bin,qty:String(o.qty),operator:code(),jam_wita:nowHM()});
+  out.forEach(o=>{const id=po+'|'+k+'|'+o.c.seq+'|'+o.bin,op0=oldMap.get(id);if(op0&&num(op0.qty)===o.qty)return;enq('PUTAWAY',{id,tanggal:today(),po,no_koli:String(k),seq:String(o.c.seq),item:o.c.item,bin:o.bin,qty:String(o.qty),operator:code(),jam_wita:nowHM()});
    enq('STOK_BIN',Object.assign({id:'SB|'+id,tanggal:rd||today(),jenis:'PUTAWAY',bin:o.bin,sku:U(o.c.item),item:o.c.item,qty_masuk:String(o.qty),qty_keluar:'0',referensi:po+' koli '+k,pic_kode:code(),catatan:rd?'umur stok mengikuti tanggal terima '+rd:''},rd?{waktu_server:rd+' 08:00:00'}:{}))});
+  if(part){const tot=items.reduce((x,c)=>x+num(c.qty_actual),0),got=out.reduce((x,o)=>x+o.qty,0);pu={};cur=null;tabName='Put Away';say('Put away koli '+k+' PO '+po+' tersimpan sebagian: '+got+' dari '+tot+' pcs. Sisanya bisa dilanjutkan nanti dengan membuka koli ini lagi.');return}
   if(a){enq('GR_ASSIGN',Object.assign({},a,{status:'Selesai',selesai:stIso()}));taskMaybeDone(a);deTask(po,a)}
   pu={};cur=null;tabName='Put Away';say('Put away koli '+k+' PO '+po+' tersimpan ('+out.length+' lokasi).')}
 
@@ -3532,6 +3536,7 @@ init();
   if(t.dataset.padd){const l=pu[t.dataset.padd];if(l)l.push({bin:'',qty:0});draw();return}
   if(t.dataset.prm){const[s,i]=t.dataset.prm.split('|');pu[s].splice(Number(i),1);draw();return}
   if(t.dataset.psave){savePut();return}
+  if(t.dataset.psavep){savePut(0,true);return}
   if(t.dataset.gcsv){csvOut(entryPo);return}
   if(t.dataset.gcsv1){csvOut(entryPo,t.dataset.gcsv1);return}
   if(t.dataset.gwipepo){wipeGR([poKey(t.dataset.gwipepo)],'PO '+t.dataset.gwipepo);return}
