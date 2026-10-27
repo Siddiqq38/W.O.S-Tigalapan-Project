@@ -20,6 +20,10 @@ body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba
 window.wosCat=function(n,sku){try{var W=window.WOSSku;if(!W||!n)return '';var i=W.info(n),k=String(i.kategori||'');if(!k)return '';var c=/^Support|^(GOODIE BAG|TOTEBAG|NEOPLAST|UNIMATE|STICKER|PLASTIK)$/.test(k)?'k4':/MYNO/.test(k)?'k3':/MAMU/.test(k)?'k2':/^(Defect|REJECT)$/i.test(k)||/^DEFECT/.test(k)?'k5':'k1',e=function(s){return String(s).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]})};return ' <span class="wos-cat '+c+'">'+e(k)+'</span>'+(sku&&i.sku?' <small class="sub">'+e(i.sku)+'</small>':'')}catch(x){return ''}};
 // Driver yang bertugas pada saat tertentu: role Driver di Role Harian yang jam-nya mencakup waktu itu, ditambah yang menekan tombol. Tanpa data role, hanya yang menekan.
 window.wosDrvCrew=function(iso,tapper){try{var t=Date.parse(iso);if(!isFinite(t))return tapper?[tapper]:[];var w=new Date(t+8*3600e3).toISOString(),day=w.slice(0,10),hm=w.slice(11,16),P=((JSON.parse(localStorage.getItem('wos-roles-v1')||'{}').plans)||{})[day]||{},out=[];Object.keys(P).forEach(function(c){if((P[c]||[]).some(function(s){return s.roleId==='driver'&&(!s.from||s.from<=hm)&&(!s.to||hm<s.to)}))out.push(c)});if(tapper&&out.indexOf(tapper)<0)out.push(tapper);return out}catch(x){return tapper?[tapper]:[]}};
+// Status kehadiran hari ini dari presensi: 'in' (check in atau lembur in terakhir), 'out' (sudah check out / lembur out), 'none' (belum check in), 'nodata' (presensi hari ini belum termuat di perangkat ini)
+window.wosDuty=function(c){try{var d=new Date(Date.now()+288e5).toISOString().slice(0,10),all=(JSON.parse(localStorage.getItem('wos-attendance-kpi-v1')||'[]')||[]).filter(function(r){return r&&r.day===d});if(!all.length)return 'nodata';var m=all.filter(function(r){return r.code===c}).sort(function(a,b){return String(a.at).localeCompare(String(b.at))});if(!m.length)return 'none';return /out$/.test(String(m[m.length-1].action))?'out':'in'}catch(x){return 'nodata'}};
+// Pantauan kerja dijeda untuk yang sudah check out atau belum check in; lembur in membuatnya aktif lagi, dan check in esok pagi menyalakannya lagi
+window.wosPause=function(items){return (items||[]).map(function(i){if(!i||!i.op)return i;var s=window.wosDuty(i.op);if(s==='in'||s==='nodata')return i;return Object.assign({},i,{st:'idle',msg:s==='out'?'Sudah check out, pemantauan dijeda':'Belum check in hari ini',idle:null,paused:true})})};
 window.wosSkuOf=function(n){try{return window.WOSSku?window.WOSSku.sku(n)||'':''}catch(x){return ''}};
 (function(){var s=document.createElement('style');s.textContent='.wos-cat{display:inline-block;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:9px;white-space:nowrap;vertical-align:middle}.wos-cat.k1{background:#e1f5ee;color:#085041}.wos-cat.k2{background:#fbeaf0;color:#72243e}.wos-cat.k3{background:#e6f1fb;color:#0c447c}.wos-cat.k4{background:#f1efe8;color:#444441}.wos-cat.k5{background:#fcebeb;color:#791f1f}';document.head.appendChild(s)})();
 // Panel tanggal bersama (Dari - Sampai + tombol cepat). Tiap halaman memakai kunci sendiri; rentang disimpan per perangkat.
@@ -3360,7 +3364,7 @@ init();
    return{op,name:nameOf(op),st,msg,prog,ratio:pace!=null?pace/GRN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:GRN.sLine+' dtk/baris',idle,eff,stats:[['Koli',koliN],['Baris',lines],['Selisih',selisih]]}});
   return items}
  function grMonitor(){
-  const items=grItems(),helps=grHelps().map(t=>({html:'<span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button>'}));
+  const items=wosPause(grItems()),helps=grHelps().map(t=>({html:'<span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button>'}));
   return window.WOSMon.render({title:'Monitor kecepatan counting · hari ini',sub:'Norm ±'+GRN.sLine+' detik per baris item (dari riwayat kerja tim). Lambat bila lebih dari '+Math.round(GRN.sLine*GRN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+GRN.idleMin+' menit ditandai merah.',items,helps,avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ waktu aktif hari ini. Diperbarui otomatis.'})}
  // ---- Monitor put away (norm sementara 45 dtk/baris: data riwayat baru 29 koli; akan dikoreksi setelah data bertambah)
  const PAN={sLine:45,idleMin:15,slow:1.5,vslow:2.5,gapMax:25};
@@ -3382,7 +3386,7 @@ init();
    return{op,name:nameOf(op),st,msg,prog:queue.length?{label:queue.length+' koli antri put away ('+qLines+' baris)',done:0,tot:0}:null,ratio:paceL!=null?paceL/PAN.sLine:null,paceTxt:paceL!=null?Math.round(paceL)+' dtk/baris':'',normTxt:PAN.sLine+' dtk/baris',idle,eff,stats:[['Koli',ks.length],['Baris',rows]]}});
   return items}
  function paMonitor(){
-  const items=paItems();
+  const items=wosPause(paItems());
   return window.WOSMon.render({title:'Monitor put away · hari ini',sub:'Norm sementara ±'+PAN.sLine+' detik per baris put away. Ritme dihitung dari selang simpan antar koli; ditandai merah bila ada antrian tetapi tidak ada put away ≥ '+PAN.idleMin+' menit.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Norm put away masih sementara (data riwayat baru 29 koli). Akan dikoreksi setelah data bertambah.'})}
  window.WOSMonSrc=window.WOSMonSrc||{};window.WOSMonSrc.count=()=>grItems();window.WOSMonSrc.put=()=>paItems();
  function listTugas(mode){
@@ -3881,7 +3885,7 @@ init();
    return{op,name:(mine[0]&&mine[0].picker_nama)||op,st,msg,prog,ratio:pace!=null?pace/PKN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:PKN.sLine+' dtk/baris',idle,eff,stats:[['Koli selesai',done.length],['Baris',lines],['Koreksi VP',errs]]}});
   return items}
  function pkMonitor(){
-  const items=pkItems();
+  const items=wosPause(pkItems());
   return window.WOSMon.render({title:'Monitor picking · hari ini',sub:'Norm ±'+PKN.sLine+' detik per baris item (dari riwayat kerja tim, 107 koli). Lambat bila lebih dari '+Math.round(PKN.sLine*PKN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+PKN.idleMin+' menit ditandai merah.',items,helps:[],avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ lama picking koli yang selesai hari ini (koli lebih dari 4 jam dianggap lintas hari dan tidak dihitung).'})}
  window.WOSMonSrc=window.WOSMonSrc||{};window.WOSMonSrc.pick=()=>pkItems();
  // ---- Kebutuhan packing per toko: untuk checker dan packer menyiapkan karung dan alat packing (hanya melihat; tanpa data kinerja picker)
@@ -5686,7 +5690,7 @@ init();
   // Pantauan Tim: gabungan counting, put away, dan picking; yang paling bermasalah di atas
   let timHtml='';
   try{const src=window.WOSMonSrc||{},ACT=[['count','Counting','wms-inbound|Good Receipt|Counting'],['put','Put Away','wms-inbound|Good Receipt|Put Away'],['pick','Picking','wms-outbound|Picking'],['vp','Verifikasi picking','wms-outbound|Verification Pick'],['tfs','TFS','wms-outbound|Transfer Stok (TFS ke MOKA)'],['pack','Packing','wms-outbound|Packing & Staging'],['load','Loading','wms-outbound|Loading']],ALL=[];
-   ACT.forEach(([k,l,g])=>{try{(src[k]?src[k]():[]).forEach(i=>ALL.push(Object.assign({act:l,go:g},i)))}catch(e){}});
+   ACT.forEach(([k,l,g])=>{try{wosPause(src[k]?src[k]():[]).forEach(i=>ALL.push(Object.assign({act:l,go:g},i)))}catch(e){}});
    const rk={bad:0,warn:1,chk:2,ok:3,idle:4},cnt={bad:0,warn:0,chk:0,ok:0,idle:0};ALL.forEach(i=>cnt[i.st]++);
    const prob=ALL.filter(i=>i.st==='bad'||i.st==='warn'||i.st==='chk').sort((a,b)=>rk[a.st]-rk[b.st]||String(a.name).localeCompare(b.name)),ST=(window.WOSMon&&window.WOSMon.ST)||{};
    const chip=(k,t)=>cnt[k]?'<span class="d3-chip" style="background:'+(ST[k]?ST[k].bg:'#eee')+';color:'+(ST[k]?ST[k].c:'#444')+'">'+cnt[k]+' '+t+'</span>':'';
@@ -6860,7 +6864,7 @@ init();
    else if(q>0&&idle==null&&!a.only){st='warn';msg=q+' '+a.what+', belum ada '+a.l+' hari ini'}
    else if(idle!=null){st='ok';msg=q?q+' '+a.what+', ritme baik':'Sesuai norm, tidak ada antrean'}
    return{op,name:nm(op),st,msg,idle,eff:null,ratio:null,stats:[]}})}
- window.WOSMonSrc=window.WOSMonSrc||{};ACTS.forEach(a=>{window.WOSMonSrc[a.k]=()=>build(a)});
+ window.WOSMonSrc=window.WOSMonSrc||{};ACTS.forEach(a=>{window.WOSMonSrc[a.k]=()=>window.wosPause(build(a))});
 })();
 </script>
 <script>
@@ -6870,7 +6874,7 @@ init();
  const me=()=>{try{return sessionStorage.getItem('wos-session-code')||''}catch(e){return ''}},lvl=()=>document.documentElement.dataset.wosRole||'';
  const TIP={bad:'Segera lanjutkan, atau minta bantuan SPV / Admin bila ada kendala.',warn:'Percepat ritme kerja mendekati norm.',chk:'Cek kembali hasil kerjamu.'};
  const OKLVL=()=>['OPERATOR','ADMIN'].includes(lvl());
- function items(){const c=me();if(!c)return[];const src=window.WOSMonSrc||{},out=[];[['count','Counting'],['put','Put Away'],['pick','Picking'],['vp','Verifikasi picking'],['tfs','TFS'],['pack','Packing'],['load','Loading']].forEach(([k,l])=>{try{(src[k]?src[k]():[]).forEach(i=>{if(i&&i.op===c)out.push(Object.assign({act:l},i))})}catch(e){}});return out}
+ function items(){const c=me();if(!c)return[];const src=window.WOSMonSrc||{},out=[];[['count','Counting'],['put','Put Away'],['pick','Picking'],['vp','Verifikasi picking'],['tfs','TFS'],['pack','Packing'],['load','Loading']].forEach(([k,l])=>{try{window.wosPause(src[k]?src[k]():[]).forEach(i=>{if(i&&i.op===c)out.push(Object.assign({act:l},i))})}catch(e){}});return out}
  function html(){
   const L=items(),ST=(window.WOSMon&&window.WOSMon.ST)||{},prob=L.filter(i=>TIP[i.st]),ok=L.filter(i=>i.st==='ok');
   if(!prob.length&&!ok.length)return '';
