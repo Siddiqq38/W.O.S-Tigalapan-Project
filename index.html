@@ -3577,7 +3577,7 @@ init();
  const narrowTab=()=>tabName==='Picking'||tabName==='Verification Pick';
  const refreshBar=()=>'<div class="ob-actions" style="margin:0 0 8px;align-items:center;gap:10px"><span class="sub">'+(loading?'Memuat data…':(loadedAt?'Diperbarui '+new Date(loadedAt+288e5).toISOString().slice(11,19)+' WITA · otomatis tiap beberapa detik':'Belum dimuat'))+'</span><button class="button secondary" data-obrefresh="1" type="button">&#8635; Muat ulang sekarang</button></div>';
  async function pull(force){
-  const dn=narrowTab()?7:30;
+  const dn=narrowTab()?7:(level()==='store'?14:30);
   if(loading||(!force&&Date.now()-loadedAt<(narrowTab()?5000:20000)&&loadedDays>=dn))return;loading=true;
   try{const f=back(dn),to=back(-14),q=['PICK_DOK:'+f+':'+to,'PICK_KOLI:'+f+':'+to,'PICK_ITEM:'+f+':'+to,'PICK_GR:'+f+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).concat(view('MASTER_EKSPEDISI').length?[]:['MASTER_EKSPEDISI::']).join(',');
    // periksa penanda versi di server dulu (ringan); tarik data penuh hanya bila ada perubahan
@@ -4026,7 +4026,8 @@ init();
  function dokGroups(set,all){const by={},sc=level()==='store'?storeCode():'';rngKoli(view('PICK_KOLI')).filter(k=>set.includes(k.status)&&(!sc||String(k.dok).split('|')[0]===sc)).forEach(k=>{(by[k.dok]=by[k.dok]||[]).push(k)});return Object.keys(by).sort().reverse().map(id=>({d:dokOf(id),ks:(all?koliOf(id):by[id]).slice().sort((a,b)=>num(a.koli)-num(b.koli))}))}
  const head=d=>'<h3 style="margin:0">'+esc(d.kode)+' · '+esc(d.outlet)+' <span class="sub">'+esc(d.tanggal)+'</span></h3>';
  const chip=(k,attr,extra)=>'<button type="button" class="kb '+(STC2[k.status]||'')+(extra||'')+'" '+attr+'="'+esc(k.id)+'" title="'+esc(k.status)+'">Koli '+esc(k.koli)+'<small>'+esc(k.status)+'</small>'+(k.area?'<small>'+esc(k.area)+'</small>':'')+ltTagOB(k)+'</button>';
- const none=t=>'<p class="sub">'+t+'</p>';
+ // sebelum data pertama selesai dimuat, jangan tampil "belum ada ..." (tampak seperti hasil kosong); tampilkan status muat atau galatnya
+ const none=t=>'<p class="sub">'+(!loadedAt?(loadErr?'Data belum bisa dimuat: '+esc(loadErr)+'. Tekan "Muat ulang sekarang".':'⏳ Memuat data… mohon tunggu beberapa detik, tidak perlu ditekan berulang. Bila lebih dari 1 menit, tekan "Muat ulang sekarang".'):t)+'</p>';
  // riwayat selesai per tahap (di paling atas tab), mengikuti panel tanggal; buka/tutup diingat per perangkat
  const HISTK='wos-ob-hist-v1',HIST_PASS=['Siap TFS','Siap packing','Selesai TFS','Staging','Dimuat','Shipping','Diterima','Diterima-Masalah','GR Selesai'];
  const HIST={
