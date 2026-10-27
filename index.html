@@ -5068,7 +5068,8 @@ init();
  const kinLbl=v=>v==null?['-','']:v>=85?['Sesuai norm','g']:v>=60?['Perlu dipantau','o']:['Perlu pembinaan','r'];
  const kinPct=v=>v==null?'-':Math.round(v)+'%',kinMin=s=>s==null?'-':s>=3600?Math.floor(s/3600)+'j '+Math.round(s%3600/60)+'m':Math.round(s/60)+' mnt';
  // bahan perbaikan otomatis dari kecepatan (vs norm) dan akurasi pada periode yang dipilih (pilih This Week untuk bahan perbaikan mingguan)
- function kinAdvice(who,K){
+ function kinAdvice(who,K){return ''}
+ function kinAdviceList(who,K){
   const A=[],per=x=>Math.round(x),sec=(a,n)=>n?Math.round(a/n):0,P=perfCalc(who);
   if(K.cnt&&K.cnt.eff!=null&&K.cnt.eff<85)A.push('Counting lebih lambat dari norm (efisiensi '+per(K.cnt.eff)+'%): rata-rata '+sec(K.cnt.act,K.cnt.lines)+' dtk per baris, norm 19 dtk. Siapkan area dan alat hitung sebelum mulai, hitung per bal.');
   if(K.cnt&&K.cnt.acc!=null&&K.cnt.acc<95)A.push('Hasil counting yang tidak sesuai surat jalan '+per(100-K.cnt.acc)+'% dari baris. Hitung ulang sebelum simpan bila qty beda dari surat jalan.');
@@ -5076,8 +5077,43 @@ init();
   if(K.pick&&K.pick.err>0)A.push('Ada '+K.pick.err+' temuan (koreksi verifikasi atau miss-picking di outlet) dari '+K.pick.lines+' baris picking. Cocokkan bin, item, dan qty sebelum menandai selesai.');
   if(P.selisih>0)A.push(P.selisih+' baris picking selisih dari rekomendasi bin. Bila barang tidak ada di bin yang disarankan, catat bin tempat mengambil agar masuk cycle count.');
   if(K.pa&&K.pa.eff!=null&&K.pa.eff<85)A.push('Put away lebih lambat dari norm (efisiensi '+per(K.pa.eff)+'%). Selesaikan koli antri lebih dulu dan kurangi jeda antar koli.');
-  if(!A.length&&!(K.cnt||K.pick||K.pa))return '';
-  return '<h4 style="margin:14px 0 6px">Bahan perbaikan</h4>'+(A.length?'<ul style="margin:0 0 0 18px">'+A.map(x=>'<li style="margin:3px 0">'+esc(x)+'</li>').join('')+'</ul>':'<p class="sub" style="margin:0;color:#1b7a46">Tidak ada temuan pada periode ini. Pertahankan kecepatan dan akurasinya.</p>')}
+  return A}
+ // akumulasi performa: kehadiran, ketepatan waktu, DRM, assign selesai, kecepatan, akurasi, dikurangi komplain / SOP / 5R
+ function perfAcc(who){
+  const [f,t]=perfRange(),rj=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}},WITA=288e5;
+  const att=rj('wos-attendance-kpi-v1',[]).filter(r=>r&&r.action==='Attendance in'&&r.day>=f&&r.day<=t),ins={};
+  att.forEach(r=>{if(r.code!==who)return;const tm=Date.parse(r.at);if(!(r.day in ins)||tm<ins[r.day])ins[r.day]=tm});
+  const workdays=new Set(att.map(r=>r.day)).size,present=Object.keys(ins).length,late=Object.values(ins).filter(tm=>(((tm+WITA)%864e5)/6e4)>490).length;
+  let D=null;try{D=window.getComplianceKpiData&&window.getComplianceKpiData()}catch(e){}
+  const ok=!!(D&&D.ready),days=ok?D.days.filter(r=>r.code===who&&r.day>=f&&r.day<=t&&!r.exempt):[],drmReq=days.length,drmYes=days.filter(r=>r.drm==='yes').length;
+  const evs=ok?D.events.filter(e=>e.code===who&&e.day>=f&&e.day<=t&&e.status==='valid'):[],comp=evs.filter(e=>/^Komplain/.test(e.type)).length,sop=evs.filter(e=>e.type==='SOP').length,r5=evs.filter(e=>/^(5R|Temuan 5R)$/.test(e.type)).length;
+  const tk=rj('wos-tasks-v1',[]).filter(x=>x&&x.to===who&&x.day>=f&&x.day<=t&&x.status!=='batal'),asg=tk.length,done=tk.filter(x=>x.status==='selesai').length;
+  const K=perfKin(who),P=perfCalc(who),miss=P.miss||0;
+  const C=[];if(workdays)C.push([present/workdays*100,25]);if(present)C.push([(present-late)/present*100,15]);if(drmReq)C.push([drmYes/drmReq*100,10]);if(asg)C.push([done/asg*100,15]);if(K.spd!=null)C.push([K.spd,15]);if(K.akur!=null)C.push([K.akur,15]);
+  const base=C.length?C.reduce((s,x)=>s+x[0]*x[1],0)/C.reduce((s,x)=>s+x[1],0):null,pen=Math.min(20,5*(comp+sop+miss))+Math.min(10,3*r5),score=base==null?null:Math.max(0,base-pen);
+  return{f,t,workdays,present,late,drmReq,drmYes,comp,sop,r5,asg,done,miss,K,base,pen,score,ok}}
+ function accCard(who){
+  const A=perfAcc(who),K=A.K,k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',pc=(a,b)=>b?Math.round(100*a/b)+'%':'-',cl=(a,b,g,o)=>!b?'':(a/b*100>=g?'g':a/b*100>=o?'o':'r');
+  const lb=kinLbl(A.score),rec=[];
+  if(A.workdays&&A.present/A.workdays<0.9)rec.push('Kehadiran '+pc(A.present,A.workdays)+' dari '+A.workdays+' hari kerja yang berjalan. Bila berhalangan, ajukan izin lewat SPV sebelum jam masuk supaya tercatat jelas.');
+  if(A.late>0)rec.push('Terlambat '+A.late+' hari (lewat 08.10). Berangkat lebih awal atau ajukan izin terlambat ke SPV sebelum jam masuk, target check-in sebelum 08.10.');
+  if(A.drmReq&&A.drmYes<A.drmReq)rec.push('Tidak ikut DRM '+(A.drmReq-A.drmYes)+' dari '+A.drmReq+' hari wajib. Hadir tepat waktu di DRM supaya pembagian role dan target hari itu jelas.');
+  if(A.asg&&A.done<A.asg)rec.push('Tugas yang diselesaikan '+A.done+' dari '+A.asg+' yang ditugaskan. Selesaikan tugas aktif lebih dulu dan tandai selesai, atau laporkan kendala ke SPV.');
+  if(A.comp)rec.push(A.comp+' komplain terverifikasi (miss picking / put away / lainnya). Cocokkan bin, item, dan qty sebelum menandai selesai.');
+  if(A.sop)rec.push(A.sop+' pelanggaran SOP terverifikasi. Pelajari kembali SOP kegiatan terkait dan minta arahan SPV.');
+  if(A.r5)rec.push('5R terlambat atau tidak lapor '+A.r5+' kali. Kirim bukti 5R sebelum pukul 18.00 WITA.');
+  if(A.miss)rec.push(A.miss+' temuan miss-picking di outlet pada periode ini. Periksa ulang item dan qty sebelum koli ditutup.');
+  kinAdviceList(who,K).forEach(x=>rec.push(x));
+  return '<h4 style="margin:18px 0 6px">Akumulasi performa</h4><div class="an-kpi">'+
+   k('Akumulasi performa',A.score==null?'-':Math.round(A.score),A.score==null?'belum cukup data pada periode ini':lb[0]+(A.pen?' · dikurangi '+Math.round(A.pen)+' poin (komplain, SOP, 5R)':''),lb[1])+
+   k('Kehadiran',A.workdays?A.present+' / '+A.workdays+' hari':'-',A.workdays?pc(A.present,A.workdays)+' dari hari kerja yang berjalan':'belum ada data presensi',cl(A.present,A.workdays,95,85))+
+   k('Ketepatan waktu',A.present?(A.present-A.late)+' / '+A.present+' hari':'-',A.late?A.late+' hari terlambat (lewat 08.10)':'tidak ada keterlambatan',A.present?(A.late?'o':'g'):'')+
+   k('DRM',A.drmReq?A.drmYes+' / '+A.drmReq+' hari':'-','hari wajib yang diikuti',cl(A.drmYes,A.drmReq,100,80))+
+   k('Assign selesai',A.asg?A.done+' / '+A.asg:'-','tugas selesai dari yang ditugaskan',cl(A.done,A.asg,90,70))+
+   k('Kecepatan kerja',kinPct(K.spd),'terhadap norm tim',K.spd==null?'':K.spd>=85?'g':K.spd>=60?'o':'r')+k('Ketepatan kerja',kinPct(K.akur),'akurasi picking dan counting',K.akur==null?'':K.akur>=85?'g':K.akur>=60?'o':'r')+
+   k('Komplain dan SOP',A.comp+A.sop+A.miss,'komplain '+A.comp+' · SOP '+A.sop+' · miss-picking outlet '+A.miss,(A.comp+A.sop+A.miss)?'r':'g')+'</div>'+
+   '<p class="sub" style="margin:6px 0 0">Skor = rata-rata berbobot (kehadiran 25, ketepatan waktu 15, DRM 10, assign selesai 15, kecepatan 15, ketepatan kerja 15; komponen tanpa data dilewati), dikurangi 5 poin per komplain, SOP, atau miss-picking dan 3 poin per pelanggaran 5R.</p>'+
+   '<h4 style="margin:14px 0 6px">Rekomendasi perbaikan</h4>'+(rec.length?'<ul style="margin:0 0 0 18px">'+rec.map(x=>'<li style="margin:3px 0">'+esc(x)+'</li>').join('')+'</ul>':'<p class="sub" style="margin:0;color:#1b7a46">Tidak ada temuan pada periode ini. Pertahankan kehadiran, ketepatan waktu, kecepatan, dan ketepatan kerjanya.</p>')}
  function kinCard(who){
   if(who==='*')return '';
   const K=perfKin(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',col=e=>e==null?'':e>=85?'g':e>=60?'o':'r';
@@ -5141,7 +5177,7 @@ init();
   return '<div class="an-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div style="display:flex;align-items:center;gap:12px">'+av+'<div><h3 style="margin:0">Performa · '+(who==='*'?'Seluruh tim dan gudang':esc(nameOf(who)))+'</h3><p class="sub" style="margin:0">'+(who==='*'?'':esc(perfRole(who))+' · ')+esc(P.f)+' s/d '+esc(P.t)+'</p></div></div><div>'+pb+'</div></div>'+
    (who!=='*'?'<div style="margin:8px 0 0"><button class="button secondary" data-perfshot="'+esc(who)+'" type="button">⬇ Unduh kartu performa (gambar)</button></div>':'')+
    (S.length?S.map(x=>'<h4 style="margin:14px 0 6px">'+esc(x.t)+'</h4><div class="an-kpi">'+x.items.map(i=>k(i[0],i[1],i[2],i[3])).join('')+'</div>'+(x.stores&&x.stores.length?'<div class="an-wrap" style="margin-top:8px"><table class="an-t"><thead><tr><th>Toko</th><th>Kode</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+x.stores.map(([o,e])=>'<tr><td>'+esc(o)+'</td><td>'+esc(e.kode)+'</td><td>'+e.koli+'</td><td>'+fmt(e.pcs)+'</td></tr>').join('')+'</tbody></table></div>':'')).join(''):'<p class="sub" style="margin-top:12px">Belum ada aktivitas kerja yang tercatat pada periode ini.</p>')+
-   (hasKin?kinCard(who):'')+(who==='*'?kinTable()+teamTable():'')+'</div>'}
+   (hasKin?kinCard(who):'')+(who!=='*'&&perfRole(who)!=='Supervisor'?accCard(who):'')+(who==='*'?kinTable()+teamTable():'')+'</div>'}
  // unduh kartu performa sebagai gambar (PNG)
  async function perfShot(who){
   try{
