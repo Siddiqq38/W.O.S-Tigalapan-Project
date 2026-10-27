@@ -1159,7 +1159,13 @@ const todayWita=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makass
 const hex=buf=>[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
 async function hash(p){if(!window.crypto?.subtle)throw Error('Browser perlu HTTPS atau localhost untuk login.');return hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p+SALT)))}
 const credHash=(code,p)=>hash(code+'|'+p);
-async function passwordOk(code,pass){const cred=readCreds()[code];if(cred)return cred.hash===await credHash(code,pass);if(ACC[code])return ACC[code].h===await credHash(code,pass);const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id}
+async function passwordOk(code,pass){
+ // password terbaru menang: ubahan di perangkat ini atau yang dibagikan lewat server (hash kosong = kembali ke password awal)
+ let srv=null;const sread=()=>{try{return (JSON.parse(localStorage.getItem('wos-cred-server-v1')||'{}')||{})[code]||null}catch(e){return null}};
+ try{if(window.WOSPullCreds)await Promise.race([window.WOSPullCreds(),new Promise(r=>setTimeout(r,4000))])}catch(e){}
+ srv=sread();let cred=readCreds()[code];
+ if(srv&&(!cred||String(srv.at)>String(cred.changedAt||'')))cred=srv.hash?{hash:srv.hash}:null;
+ if(cred)return cred.hash===await credHash(code,pass);if(ACC[code])return ACC[code].h===await credHash(code,pass);const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id}
 const getSession=()=>{try{const c=sessionStorage.getItem(CODEKEY);return c&&buildAccount(c)?c:null}catch(e){return null}};
 const displayName=a=>(ACC[a.code]&&ACC[a.code].name)||sm()[a.code]?.name||a.label;
 let me=null,account=null;
@@ -1269,7 +1275,7 @@ function openPassModal(){
  m.querySelector('form').onsubmit=async ev=>{ev.preventDefault();const msg=m.querySelector('#pw-msg'),o=m.querySelector('#pw-old').value,n=m.querySelector('#pw-new').value,n2=m.querySelector('#pw-new2').value;msg.style.color='#b3261e';
   try{if(!await passwordOk(account.code,o)){msg.textContent='Password saat ini salah.';return}
    if(n.length<6){msg.textContent='Password baru minimal 6 karakter.';return}if(n!==n2){msg.textContent='Ulangi password baru dengan sama.';return}if(n===o){msg.textContent='Password baru harus berbeda.';return}
-   const c=readCreds();c[account.code]={hash:await credHash(account.code,n),changedAt:new Date().toISOString()};if(!saveCreds(c)){msg.textContent='Gagal menyimpan di browser ini.';return}
+   const c=readCreds();c[account.code]={hash:await credHash(account.code,n),changedAt:new Date().toISOString()};if(!saveCreds(c)){msg.textContent='Gagal menyimpan di browser ini.';return}try{window.WOSCredPush&&window.WOSCredPush(account.code,c[account.code].hash,c[account.code].changedAt)}catch(e){}
    msg.style.color='#1b7a46';msg.textContent='Password diubah. Gunakan password baru saat login berikutnya.';setTimeout(()=>m.remove(),1400)}
   catch(e){msg.textContent=e.message||'Gagal mengubah password.'}};
  m.querySelector('#pw-old').focus({preventScroll:true});
@@ -1282,7 +1288,7 @@ function masterPanel(){
  if(!account||account.level!=='SPV'||impersonating()||!host){box?.remove();return}
  if(!box){box=document.createElement('div');box.id='wos-master-accounts';box.className='card';box.style.margin='14px 0';(host.querySelector('.toolbar')||host.firstChild).after(box);
   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const act=b.dataset.act,code=b.dataset.code;
-   if(act==='reset'){if(!confirm('Reset password '+code+' ke password awal (ID staff)?'))return;const c=readCreds();delete c[code];saveCreds(c);box.dataset.sig='';masterPanel()}
+   if(act==='reset'){if(!confirm('Reset password '+code+' ke password awal (ID staff)?'))return;const c=readCreds();delete c[code];saveCreds(c);try{window.WOSCredPush&&window.WOSCredPush(code,'')}catch(e){}box.dataset.sig='';masterPanel()}
    if(act==='as'){if(!confirm('Masuk sebagai '+displayName({code,label:''})+' ('+code+') untuk maintenance? Anda bisa kembali ke Supervisor dari sidebar.'))return;switchTo(code,account.code)}
    
    })}
@@ -1304,7 +1310,9 @@ function applyModes(){
 function refresh(){if(!account)return;navVisibility();operatorContent();lockAttendance()}
 
 function start(u){
- me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
+ me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}
+ // password yang diubah di perangkat ini sebelum fitur sinkron ada: kirim sekali agar perangkat lain ikut menerima
+ setTimeout(()=>{try{const c=readCreds()[u];if(c&&c.hash&&window.WOSCredPush&&!localStorage.getItem('wos-cred-pushed-'+u+'-'+c.changedAt)){window.WOSCredPush(u,c.hash,c.changedAt);localStorage.setItem('wos-cred-pushed-'+u+'-'+c.changedAt,'1')}}catch(e){}},4000);document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;
  accountBox();applyModes();refresh();masterPanel();setInterval(()=>{if(!document.hidden)masterPanel()},3000);
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
@@ -2067,7 +2075,11 @@ init();
  function fotoUpload(code,b64){if(!code||!b64)return;const q=queue();q.push({a:'photo',data:b64,name:'PROFIL-'+code+'.jpg',rowId:'FOTO|'+code,field:'foto_profil',code,date:today(),kategori:'Profil'});saveQ(q);flush()}
  function fotoDone(code,id){try{const m=rj('wos-foto-profil-v1',{});m[code]=id;raw.call(localStorage,'wos-foto-profil-v1',JSON.stringify(m));const l=rj('wos-foto-local-v1',{});delete l[code];raw.call(localStorage,'wos-foto-local-v1',JSON.stringify(l))}catch(e){}
   enq('append','KARYAWAN_STATUS',{id:'FOTO|'+code,kode_staf:code,nama:nm(code),status:'Foto',tgl_terakhir:'',keterangan:id,dicatat_oleh:sessionStorage.getItem('wos-session-code')||'',waktu:new Date().toISOString()});window.dispatchEvent(new Event('wos-foto'))}
- async function pullStatus(){if(pending('KARYAWAN_STATUS'))return;const r=await call({action:'list',tab:'KARYAWAN_STATUS'},true);if(!r.ok)return;
+ // password hasil "Ubah password" dibagikan ke semua perangkat (hanya hash, tab KARYAWAN_STATUS, status 'Password'); yang terbaru berlaku
+ function credStore(rows){try{const cm={};rows.forEach(x=>{if(x.status==='Password'&&x.kode_staf){const o={hash:String(x.keterangan||''),at:String(x.waktu||'')},p=cm[x.kode_staf];if(!p||p.at<o.at)cm[x.kode_staf]=o}});if(JSON.stringify(cm)!==JSON.stringify(rj('wos-cred-server-v1',{})))raw.call(localStorage,'wos-cred-server-v1',JSON.stringify(cm))}catch(e){}}
+ window.WOSPullCreds=async()=>{const r=await call({action:'list',tab:'KARYAWAN_STATUS'},true);if(r&&r.ok)credStore(r.rows||[])};
+ window.WOSCredPush=(code,hash,at)=>{if(!code)return;enq('append','KARYAWAN_STATUS',{id:'PWD|'+code,kode_staf:code,nama:nm(code),status:'Password',tgl_terakhir:'',keterangan:hash||'',dicatat_oleh:code,waktu:at||new Date().toISOString()})};
+ async function pullStatus(){if(pending('KARYAWAN_STATUS'))return;const r=await call({action:'list',tab:'KARYAWAN_STATUS'},true);if(!r.ok)return;credStore(r.rows);
   try{const fm={};r.rows.forEach(x=>{if(x.status==='Foto'&&x.kode_staf&&x.keterangan)fm[x.kode_staf]=x.keterangan});const cur=rj('wos-foto-profil-v1',{});if(JSON.stringify(fm)!==JSON.stringify(Object.assign({},cur,fm))||Object.keys(fm).length!==Object.keys(cur).length){raw.call(localStorage,'wos-foto-profil-v1',JSON.stringify(Object.assign({},cur,fm)));window.dispatchEvent(new Event('wos-foto'))}}catch(e){}
   const cur=rj(SK,{removed:[],out:{}}),next={removed:cur.removed||[],out:{}};r.rows.forEach(x=>{if(x.status==='Resign'&&x.kode_staf&&/^\d{4}-\d{2}-\d{2}/.test(x.tgl_terakhir||''))next.out[x.kode_staf]={at:x.waktu,last:String(x.tgl_terakhir).slice(0,10),note:x.keterangan||''}});
   const sg=o=>JSON.stringify(Object.keys(o.out).sort().map(k=>[k,o.out[k].last]));if(sg(next)===sg({out:cur.out||{}}))return;
