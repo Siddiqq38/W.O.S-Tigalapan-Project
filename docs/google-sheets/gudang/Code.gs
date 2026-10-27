@@ -45,7 +45,7 @@ const TABS = {
   KAS_KECIL: ['id','periode','jenis','tanggal','uraian','qty_req','satuan','on_hand','qty_apv','vendor','harga','total','status','pengaju','pic','disetujui_oleh','tgl_belanja','nota','catatan','waktu'],
   TRIP: ['id','tanggal','driver','driver_nama','kendaraan','rute','status','odo_awal','odo_akhir','waktu_mulai','waktu_selesai','catatan'],
   TRIP_TITIK: ['id','trip','tanggal','urut','titik','odo','waktu','jarak','menit','catatan'],
-  BBM_LOG: ['id','tanggal','driver','driver_nama','odo','liter','harga','total','spbu','trip','catatan','waktu'],
+  BBM_LOG: ['id','tanggal','driver','driver_nama','odo','liter','harga','total','spbu','trip','catatan','waktu','foto_id'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 
