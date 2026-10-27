@@ -5026,8 +5026,8 @@ init();
    const i=e.type==='change'&&e.target.dataset&&e.target.dataset.wrngf;if(i){const g=get(),v=e.target.value;if(!v)return false;set('custom',i==='from'?v:g.from,i==='to'?v:g.to);return true}return false};
   return{get,set,html,handle,ver:()=>ver}})();
  const perfRange=()=>{const g=window.WOSRng.get();return[g.from,g.to]};
- function perfCalc(who){
-  const [f,t]=perfRange(),inR=d=>{d=String(d||'').slice(0,10);return d>=f&&d<=t};
+ function perfCalc(who,fr,to){
+  const [f,t]=fr?[fr,to]:perfRange(),inR=d=>{d=String(d||'').slice(0,10);return d>=f&&d<=t};
   const dok=view('PICK_DOK'),pk=view('PICK_KOLI').filter(k=>(who==='*'||k.picker===who)&&inR(k.tanggal)),items=view('PICK_ITEM'),gr=view('PICK_GR');
   const mine=new Set(pk.map(k=>k.dok+'|'+num(k.koli)));
   const rows=items.filter(r=>r.kategori!=='OTHER'&&mine.has(r.dok+'|'+num(r.koli))&&(r.status==='Sesuai'||r.status==='Selisih'));
@@ -5079,8 +5079,8 @@ init();
   if(K.pa&&K.pa.eff!=null&&K.pa.eff<85)A.push('Put away lebih lambat dari norm (efisiensi '+per(K.pa.eff)+'%). Selesaikan koli antri lebih dulu dan kurangi jeda antar koli.');
   return A}
  // akumulasi performa: kehadiran, ketepatan waktu, DRM, assign selesai, kecepatan, akurasi, dikurangi komplain / SOP / 5R
- function perfAcc(who){
-  const [f,t]=perfRange(),rj=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}},WITA=288e5;
+ function perfAcc(who,fr,to){
+  const [f,t]=fr?[fr,to]:perfRange(),rj=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}},WITA=288e5;
   const att=rj('wos-attendance-kpi-v1',[]).filter(r=>r&&r.action==='Attendance in'&&r.day>=f&&r.day<=t),ins={};
   att.forEach(r=>{if(r.code!==who)return;const tm=Date.parse(r.at);if(!(r.day in ins)||tm<ins[r.day])ins[r.day]=tm});
   const workdays=new Set(att.map(r=>r.day)).size,present=Object.keys(ins).length,late=Object.values(ins).filter(tm=>(((tm+WITA)%864e5)/6e4)>490).length;
@@ -5088,13 +5088,16 @@ init();
   const ok=!!(D&&D.ready),days=ok?D.days.filter(r=>r.code===who&&r.day>=f&&r.day<=t&&!r.exempt):[],drmReq=days.length,drmYes=days.filter(r=>r.drm==='yes').length;
   const evs=ok?D.events.filter(e=>e.code===who&&e.day>=f&&e.day<=t&&e.status==='valid'):[],comp=evs.filter(e=>/^Komplain/.test(e.type)).length,sop=evs.filter(e=>e.type==='SOP').length,r5=evs.filter(e=>/^(5R|Temuan 5R)$/.test(e.type)).length;
   const tk=rj('wos-tasks-v1',[]).filter(x=>x&&x.to===who&&x.day>=f&&x.day<=t&&x.status!=='batal'),asg=tk.length,done=tk.filter(x=>x.status==='selesai').length;
-  const K=perfKin(who),P=perfCalc(who),miss=P.miss||0;
+  const K=perfKin(who,f,t),P=perfCalc(who,f,t),miss=P.miss||0;
   const C=[];if(workdays)C.push([present/workdays*100,25]);if(present)C.push([(present-late)/present*100,15]);if(drmReq)C.push([drmYes/drmReq*100,10]);if(asg)C.push([done/asg*100,15]);if(K.spd!=null)C.push([K.spd,15]);if(K.akur!=null)C.push([K.akur,15]);
   const base=C.length?C.reduce((s,x)=>s+x[0]*x[1],0)/C.reduce((s,x)=>s+x[1],0):null,pen=Math.min(20,5*(comp+sop+miss))+Math.min(10,3*r5),score=base==null?null:Math.max(0,base-pen);
   return{f,t,workdays,present,late,drmReq,drmYes,comp,sop,r5,asg,done,miss,K,base,pen,score,ok}}
  function accCard(who){
   const A=perfAcc(who),K=A.K,k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',pc=(a,b)=>b?Math.round(100*a/b)+'%':'-',cl=(a,b,g,o)=>!b?'':(a/b*100>=g?'g':a/b*100>=o?'o':'r');
-  const lb=kinLbl(A.score),rec=[];
+  const lb=kinLbl(A.score),rec=accRec(A,who),RK=perfRank(who);
+  return accHtml(A,K,k,pc,cl,lb,rec,RK)}
+ function accRec(A,who){
+  const K=A.K,rec=[],pc=(a,b)=>b?Math.round(100*a/b)+'%':'-';
   if(A.workdays&&A.present/A.workdays<0.9)rec.push('Kehadiran '+pc(A.present,A.workdays)+' dari '+A.workdays+' hari kerja yang berjalan. Bila berhalangan, ajukan izin lewat SPV sebelum jam masuk supaya tercatat jelas.');
   if(A.late>0)rec.push('Terlambat '+A.late+' hari (lewat 08.10). Berangkat lebih awal atau ajukan izin terlambat ke SPV sebelum jam masuk, target check-in sebelum 08.10.');
   if(A.drmReq&&A.drmYes<A.drmReq)rec.push('Tidak ikut DRM '+(A.drmReq-A.drmYes)+' dari '+A.drmReq+' hari wajib. Hadir tepat waktu di DRM supaya pembagian role dan target hari itu jelas.');
@@ -5104,8 +5107,23 @@ init();
   if(A.r5)rec.push('5R terlambat atau tidak lapor '+A.r5+' kali. Kirim bukti 5R sebelum pukul 18.00 WITA.');
   if(A.miss)rec.push(A.miss+' temuan miss-picking di outlet pada periode ini. Periksa ulang item dan qty sebelum koli ditutup.');
   kinAdviceList(who,K).forEach(x=>rec.push(x));
+  return rec}
+ // peringkat bulan berjalan (tanggal 1 sampai hari ini) di antara semua staf non-SPV; dihitung ulang paling cepat tiap 60 detik
+ let rkC={at:0,v:null};
+ function perfRank(who){
+  const td=new Date(Date.now()+288e5).toISOString().slice(0,10),f=td.slice(0,8)+'01';
+  if(!rkC.v||Date.now()-rkC.at>60000||rkC.f!==f){const S=typeof staffMaster!=='undefined'?staffMaster:{},list=[];Object.entries(S).forEach(([c,p])=>{if(p.out||p.role==='Supervisor')return;try{const A=perfAcc(c,f,td);if(A.score!=null)list.push({c,name:p.name,role:p.role||'',score:A.score})}catch(e){}});list.sort((a,b)=>b.score-a.score);rkC={at:Date.now(),v:list,f,td}}
+  const list=rkC.v,i=list.findIndex(x=>x.c===who);
+  if(i<0)return{list,f:rkC.f,td:rkC.td,rank:null,n:list.length};
+  const same=list.filter(x=>x.role===list[i].role),j=same.findIndex(x=>x.c===who);
+  return{list,f:rkC.f,td:rkC.td,rank:i+1,n:list.length,score:list[i].score,roleRank:j+1,roleN:same.length,role:list[i].role}}
+ function rankTable(){
+  const R=perfRank('*'),L=R.list;
+  return '<h4 style="margin:14px 0 6px">Peringkat akumulasi performa · bulan berjalan ('+esc(R.f)+' s/d '+esc(R.td)+')</h4>'+(L.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>#</th><th>Nama</th><th>Peran</th><th>Skor</th></tr></thead><tbody>'+L.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.role)+'</td><td><b>'+Math.round(x.score)+'</b></td></tr>').join('')+'</tbody></table></div><p class="sub">Skor dari kehadiran, ketepatan waktu, DRM, assign selesai, kecepatan, ketepatan kerja, dikurangi komplain, SOP, dan 5R. Peran berbeda punya jenis pekerjaan berbeda, jadi bandingkan terutama di dalam peran yang sama.</p>':'<p class="sub">Belum cukup data bulan ini.</p>')}
+ function accHtml(A,K,k,pc,cl,lb,rec,RK){
   return '<h4 style="margin:18px 0 6px">Akumulasi performa</h4><div class="an-kpi">'+
    k('Akumulasi performa',A.score==null?'-':Math.round(A.score),A.score==null?'belum cukup data pada periode ini':lb[0]+(A.pen?' · dikurangi '+Math.round(A.pen)+' poin (komplain, SOP, 5R)':''),lb[1])+
+   k('Peringkat bulan ini',RK.rank?'#'+RK.rank+' dari '+RK.n:'-',RK.rank?'semua staf · di peran '+RK.role+' #'+RK.roleRank+' dari '+RK.roleN+' (skor '+Math.round(RK.score)+', '+RK.f+' s/d '+RK.td+')':'belum cukup data bulan ini',RK.rank&&RK.rank<=3?'g':'')+
    k('Kehadiran',A.workdays?A.present+' / '+A.workdays+' hari':'-',A.workdays?pc(A.present,A.workdays)+' dari hari kerja yang berjalan':'belum ada data presensi',cl(A.present,A.workdays,95,85))+
    k('Ketepatan waktu',A.present?(A.present-A.late)+' / '+A.present+' hari':'-',A.late?A.late+' hari terlambat (lewat 08.10)':'tidak ada keterlambatan',A.present?(A.late?'o':'g'):'')+
    k('DRM',A.drmReq?A.drmYes+' / '+A.drmReq+' hari':'-','hari wajib yang diikuti',cl(A.drmYes,A.drmReq,100,80))+
@@ -5177,18 +5195,23 @@ init();
   return '<div class="an-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div style="display:flex;align-items:center;gap:12px">'+av+'<div><h3 style="margin:0">Performa · '+(who==='*'?'Seluruh tim dan gudang':esc(nameOf(who)))+'</h3><p class="sub" style="margin:0">'+(who==='*'?'':esc(perfRole(who))+' · ')+esc(P.f)+' s/d '+esc(P.t)+'</p></div></div><div>'+pb+'</div></div>'+
    (who!=='*'?'<div style="margin:8px 0 0"><button class="button secondary" data-perfshot="'+esc(who)+'" type="button">⬇ Unduh kartu performa (gambar)</button></div>':'')+
    (S.length?S.map(x=>'<h4 style="margin:14px 0 6px">'+esc(x.t)+'</h4><div class="an-kpi">'+x.items.map(i=>k(i[0],i[1],i[2],i[3])).join('')+'</div>'+(x.stores&&x.stores.length?'<div class="an-wrap" style="margin-top:8px"><table class="an-t"><thead><tr><th>Toko</th><th>Kode</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+x.stores.map(([o,e])=>'<tr><td>'+esc(o)+'</td><td>'+esc(e.kode)+'</td><td>'+e.koli+'</td><td>'+fmt(e.pcs)+'</td></tr>').join('')+'</tbody></table></div>':'')).join(''):'<p class="sub" style="margin-top:12px">Belum ada aktivitas kerja yang tercatat pada periode ini.</p>')+
-   (hasKin?kinCard(who):'')+(who!=='*'&&perfRole(who)!=='Supervisor'?accCard(who):'')+(who==='*'?kinTable()+teamTable():'')+'</div>'}
+   (hasKin?kinCard(who):'')+(who!=='*'&&perfRole(who)!=='Supervisor'?accCard(who):'')+(who==='*'?rankTable()+kinTable()+teamTable():'')+'</div>'}
  // unduh kartu performa sebagai gambar (PNG)
  async function perfShot(who){
   try{
    if(!window.html2canvas){await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='assets/vendor/html2canvas.min.js';sc.onload=res;sc.onerror=()=>rej(new Error('pustaka gambar gagal dimuat'));document.head.appendChild(sc)})}
-   const {P,S,f,t}=perfSecs(who),K=perfKin(who),nm=nameOf(who),av=window.WOSFoto?window.WOSFoto.avatar(who,84,nm):'',tot=K&&K.total!=null?Math.round(K.total):null,lb=kinLbl(K&&K.total),flat=[];
+   const {P,S,f,t}=perfSecs(who),K=perfKin(who),A=perfAcc(who),RK=perfRank(who),rec=accRec(A,who),nm=nameOf(who),av=window.WOSFoto?window.WOSFoto.avatar(who,84,nm):'',tot=A.score!=null?Math.round(A.score):null,lb=kinLbl(A.score),flat=[];
+   const pct=(a,b)=>b?Math.round(100*a/b)+'%':'-',tile=(l,v,s,c)=>'<div style="background:#fff;border:1px solid #eadfd7;border-radius:14px;padding:11px 14px"><div style="font-size:11px;font-weight:700;color:#8a7a70;text-transform:uppercase">'+esc(l)+'</div><div style="font-size:24px;font-weight:800;color:'+(c||'#1b2433')+'">'+esc(v)+'</div><div style="font-size:11px;color:#8a7a70">'+esc(s||'')+'</div></div>';
+   const accHtmlP='<div style="padding:4px 34px 6px;font-size:13px;font-weight:800;color:#b5532a;letter-spacing:1px">AKUMULASI PERFORMA</div><div style="padding:4px 34px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+
+    tile('Kehadiran',A.workdays?A.present+'/'+A.workdays+' hari':'-',pct(A.present,A.workdays))+tile('Ketepatan waktu',A.present?(A.present-A.late)+'/'+A.present+' hari':'-',A.late?A.late+' hari terlambat':'tidak terlambat',A.late?'#a35f00':'#1b7a46')+tile('DRM',A.drmReq?A.drmYes+'/'+A.drmReq+' hari':'-','hari wajib diikuti')+tile('Assign selesai',A.asg?A.done+'/'+A.asg:'-','tugas selesai')+
+    tile('Kecepatan kerja',kinPct(K.spd),'terhadap norm tim')+tile('Ketepatan kerja',kinPct(K.akur),'picking dan counting')+tile('Komplain dan SOP',A.comp+A.sop+A.miss,'komplain '+A.comp+' · SOP '+A.sop+' · miss '+A.miss,(A.comp+A.sop+A.miss)?'#b3261e':'#1b7a46')+tile('Peringkat bulan ini',RK.rank?'#'+RK.rank+' / '+RK.n:'-',RK.rank?'di peran '+RK.role+' #'+RK.roleRank+' / '+RK.roleN:'belum cukup data')+'</div>'+
+    '<div style="margin:0 34px 22px;background:#fff8f0;border:1px solid #f0dcc8;border-radius:14px;padding:12px 16px"><div style="font-size:12px;font-weight:800;color:#b5532a;margin-bottom:4px">REKOMENDASI PERBAIKAN</div>'+(rec.length?'<ul style="margin:0 0 0 18px;padding:0;font-size:12.5px;color:#334;line-height:1.5">'+rec.slice(0,6).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'<div style="font-size:12.5px;color:#1b7a46">Tidak ada temuan pada periode ini. Pertahankan.</div>')+'</div>';
    S.forEach(x=>x.items.forEach(i=>{if(!(String(i[1])==='0'||/^0 \//.test(i[1])))flat.push(i)}));
    const clr={g:'#1b7a46',o:'#a35f00',r:'#b3261e','':'#1b2433'};
    const box=document.createElement('div');box.style.cssText='position:fixed;left:-12000px;top:0;width:860px;font-family:Segoe UI,Arial,sans-serif';
-   box.innerHTML='<div id="pf-card" style="width:860px;background:linear-gradient(160deg,#fff7f0,#ffffff 40%);border-radius:28px;overflow:hidden;border:1px solid #ecd7c9"><div style="background:linear-gradient(120deg,#b5532a,#e0782b);color:#fff;padding:28px 34px;display:flex;align-items:center;gap:22px"><div style="background:#fff;border-radius:50%;padding:4px;display:flex">'+av+'</div><div style="flex:1"><div style="font-size:13px;letter-spacing:2px;opacity:.85">KARTU PERFORMA</div><div style="font-size:30px;font-weight:800;line-height:1.15">'+esc(nm)+'</div><div style="font-size:15px;opacity:.9;margin-top:2px">'+esc(perfRole(who))+' · '+esc(who)+'</div></div>'+(tot!=null?'<div style="background:#fff;color:#b5532a;border-radius:20px;padding:12px 22px;text-align:center"><div style="font-size:12px;font-weight:700;color:#8a7a70">SKOR KINERJA</div><div style="font-size:44px;font-weight:800;line-height:1">'+tot+'</div><div style="font-size:12px;font-weight:700;color:'+(lb[1]==='g'?'#1b7a46':lb[1]==='o'?'#a35f00':'#b3261e')+'">'+esc(lb[0])+'</div></div>':'')+'</div>'+
+   box.innerHTML='<div id="pf-card" style="width:860px;background:linear-gradient(160deg,#fff7f0,#ffffff 40%);border-radius:28px;overflow:hidden;border:1px solid #ecd7c9"><div style="background:linear-gradient(120deg,#b5532a,#e0782b);color:#fff;padding:28px 34px;display:flex;align-items:center;gap:22px"><div style="background:#fff;border-radius:50%;padding:4px;display:flex">'+av+'</div><div style="flex:1"><div style="font-size:13px;letter-spacing:2px;opacity:.85">KARTU PERFORMA</div><div style="font-size:30px;font-weight:800;line-height:1.15">'+esc(nm)+'</div><div style="font-size:15px;opacity:.9;margin-top:2px">'+esc(perfRole(who))+' · '+esc(who)+'</div></div>'+(tot!=null?'<div style="background:#fff;color:#b5532a;border-radius:20px;padding:12px 22px;text-align:center"><div style="font-size:12px;font-weight:700;color:#8a7a70">AKUMULASI PERFORMA</div><div style="font-size:44px;font-weight:800;line-height:1">'+tot+'</div><div style="font-size:12px;font-weight:700;color:'+(lb[1]==='g'?'#1b7a46':lb[1]==='o'?'#a35f00':'#b3261e')+'">'+esc(lb[0])+'</div></div>':'')+'</div>'+
     '<div style="padding:22px 34px 8px;color:#6b5d54;font-size:14px">Periode '+esc(f)+' s/d '+esc(t)+'</div><div style="padding:6px 34px 26px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'+(flat.length?flat.map(i=>'<div style="background:#fff;border:1px solid #eadfd7;border-radius:16px;padding:14px 16px"><div style="font-size:12px;font-weight:700;color:#8a7a70;text-transform:uppercase">'+esc(i[0])+'</div><div style="font-size:30px;font-weight:800;color:'+(clr[i[3]]||clr[''])+'">'+esc(i[1])+'</div><div style="font-size:12px;color:#8a7a70">'+esc(i[2])+'</div></div>').join(''):'<div style="grid-column:1/4;color:#8a7a70;padding:10px 0">Belum ada aktivitas kerja pada periode ini.</div>')+'</div>'+
-    (K&&(K.spd!=null||K.akur!=null)?'<div style="margin:0 34px 22px;display:flex;gap:12px"><div style="flex:1;background:#fff3e8;border-radius:14px;padding:12px 16px"><div style="font-size:12px;font-weight:700;color:#8a7a70">SKOR KECEPATAN</div><div style="font-size:26px;font-weight:800;color:#b5532a">'+kinPct(K.spd)+'</div></div><div style="flex:1;background:#eaf6ee;border-radius:14px;padding:12px 16px"><div style="font-size:12px;font-weight:700;color:#8a7a70">SKOR AKURASI</div><div style="font-size:26px;font-weight:800;color:#1b7a46">'+kinPct(K.akur)+'</div></div></div>':'')+
+    accHtmlP+(false?'<div style="margin:0 34px 22px;display:flex;gap:12px"><div style="flex:1;background:#fff3e8;border-radius:14px;padding:12px 16px"><div style="font-size:12px;font-weight:700;color:#8a7a70">SKOR KECEPATAN</div><div style="font-size:26px;font-weight:800;color:#b5532a">'+kinPct(K.spd)+'</div></div><div style="flex:1;background:#eaf6ee;border-radius:14px;padding:12px 16px"><div style="font-size:12px;font-weight:700;color:#8a7a70">SKOR AKURASI</div><div style="font-size:26px;font-weight:800;color:#1b7a46">'+kinPct(K.akur)+'</div></div></div>':'')+
     '<div style="background:#2b1d16;color:#e9d8cc;padding:12px 34px;font-size:12px;display:flex;justify-content:space-between"><span>W.O.S · DC 38 Tigalapan</span><span>Dibuat '+esc(new Date(Date.now()+288e5).toISOString().slice(0,10))+'</span></div></div>';
    document.body.appendChild(box);
    try{await new Promise(r=>setTimeout(r,400));const cv=await window.html2canvas(box.firstChild,{scale:2,backgroundColor:null,useCORS:true,logging:false}),a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download='Kartu-Performa-'+String(nm).replace(/[^A-Za-z0-9]+/g,'_')+'-'+f+'.png';document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),1500)}finally{box.remove()}
