@@ -4920,9 +4920,10 @@ init();
  const normMin=(re,cat,uom,fb)=>{try{const l=MasterNormStore.list().filter(r=>r.status==='Active'&&re.test(r.activity)&&(!uom||String(r.uom).toLowerCase()===uom)&&(!cat||String(r.category).toLowerCase()===cat.toLowerCase()));if(l.length)return Number(l[0].minutes)||fb}catch(e){}return fb};
  const catOf=name=>/\b(MAMU|MYNO)\b/i.test(name||'')?'Brand':'Reguler';
  V3.est={
-  count:(item,pcs)=>pcs*normMin(/good receipt|counting/i,catOf(item),'pcs',FB.count[catOf(item)]),
-  put:(item,pcs)=>pcs*normMin(/put ?away/i,catOf(item),'pcs',FB.put[catOf(item)]),
-  pick:(item,pcs)=>pcs*normMin(/^picking/i,catOf(item),'pcs',FB.pick[catOf(item)]),
+  // norm cadangan berbasis BARIS item dari riwayat kerja tim (counting 19 dtk, put away 45 dtk, picking 120 dtk per baris; pcs hampir tidak berpengaruh). Master Norm per pcs yang aktif tetap didahulukan.
+  count:(item,pcs)=>{const n=normMin(/good receipt|counting/i,catOf(item),'pcs',null);return n!=null?pcs*n:(19+4.5*pcs/100)/60},
+  put:(item,pcs)=>{const n=normMin(/put ?away/i,catOf(item),'pcs',null);return n!=null?pcs*n:45/60},
+  pick:(item,pcs)=>{const n=normMin(/^picking/i,catOf(item),'pcs',null);return n!=null?pcs*n:(120+1.5*pcs/100)/60},
   check:(item,pcs)=>pcs*normMin(/pick check/i,catOf(item),'pcs',FB.check[catOf(item)]),
   pack:koli=>koli*normMin(/packing/i,'reguler','koli',FB.pack),
   load:koli=>koli*normMin(/^loading/i,null,'koli',FB.load),
@@ -5201,7 +5202,7 @@ init();
  const sum=a=>a.reduce((x,y)=>x+y,0);
  // ---------- data ----------
  const AN={d:{},from:'',to:'',at:0,busy:false,err:'',att:[],stok:[]};
- const TABS=['KOLI','GR_COUNT','PUTAWAY','GR_ASSIGN','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','ADJUSTMENT','DATA_ENTRY'];
+ const TABS=['KOLI','GR_COUNT','PUTAWAY','GR_ASSIGN','SJ_ITEM','PICK_DOK','PICK_KOLI','PICK_ITEM','PICK_GR','LC_TASK','LC_COUNT','ADJUSTMENT','DATA_ENTRY'];
  async function anLoad(force){
   const from=st.from,to=st.to;if(AN.busy)return;if(!force&&AN.from&&AN.from<=from&&AN.to>=to&&Date.now()-AN.at<120000)return;AN.busy=true;V3.redraw();
   try{const f=from<back(400)?back(400):from,q=TABS.map(t=>t+':'+f+':'+back(-14)).concat(['PO_INFO::','MASTER_VENDOR::']).join(',');
@@ -5228,10 +5229,10 @@ init();
  const tabsRow=()=>'<div class="filters" style="margin-bottom:10px">'+TABSUI.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-antab="'+t+'" type="button"'+(anOk(t)?'':' disabled title="Tidak tersedia untuk akun ini" style="opacity:.45;cursor:not-allowed"')+'>'+t+(anOk(t)?'':' 🔒')+'</button>').join('')+'</div>';
  function bar(){return tabsRow()+'<div class="an-bar"><div class="an-rng">'+Object.keys(quick).map(k=>'<button data-anq="'+k+'" class="'+(RNG()&&RNG().get().p===quick[k]?'on':'')+'" type="button">'+k+'</button>').join('')+'</div><label class="sub" style="margin:0">Dari <input type="date" data-anf="from" value="'+st.from+'"></label><label class="sub" style="margin:0">Sampai <input type="date" data-anf="to" value="'+st.to+'"></label><label class="sub" style="margin:0">Kelompok <select data-anf="group">'+['hari','minggu','bulan','tahun'].map(x=>'<option'+(st.group===x?' selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'}
  function compute(){
-  const K=R('KOLI').filter(r=>within(r)),GC=R('GR_COUNT').filter(r=>within(r)),PA=R('PUTAWAY').filter(r=>within(r)),GA=R('GR_ASSIGN').filter(r=>within(r)),PD=R('PICK_DOK').filter(r=>within(r)),PK=R('PICK_KOLI').filter(r=>within(r)),PI=R('PICK_ITEM').filter(r=>within(r)),PG=R('PICK_GR').filter(r=>within(r)),LT=R('LC_TASK').filter(r=>within(r)),AD=R('ADJUSTMENT').filter(r=>within(r)),DE=R('DATA_ENTRY').filter(r=>within(r));
+  const K=R('KOLI').filter(r=>within(r)),GC=R('GR_COUNT').filter(r=>within(r)),PA=R('PUTAWAY').filter(r=>within(r)),GA=R('GR_ASSIGN').filter(r=>within(r)),PD=R('PICK_DOK').filter(r=>within(r)),PK=R('PICK_KOLI').filter(r=>within(r)),PI=R('PICK_ITEM').filter(r=>within(r)),PG=R('PICK_GR').filter(r=>within(r)),LT=R('LC_TASK').filter(r=>within(r)),LC=R('LC_COUNT').filter(r=>within(r)),AD=R('ADJUSTMENT').filter(r=>within(r)),DE=R('DATA_ENTRY').filter(r=>within(r));
   const kst=new Map();PK.forEach(k=>kst.set(k.dok+'|'+k.koli,k.status));
   const picked=PI.filter(r=>r.kategori!=='OTHER'&&r.status!=='Menunggu'&&r.status!=='Draft');
-  return{K,GC,PA,GA,PD,PK,PI,PG,LT,AD,DE,picked}}
+  return{K,GC,PA,GA,PD,PK,PI,PG,LT,LC,AD,DE,picked}}
  const dd=r=>r.tanggal;
  // ----- Inbound vs Outbound -----
  function tabIO(m,B){
@@ -5307,7 +5308,7 @@ init();
   mb.forEach(b=>{const z=b.zona||'-';const o=zone[z]||(zone[z]={n:0,u:0});o.n++;if(binUse.has(b.id))o.u++});
   // utilisasi tenaga kerja: beban estimasi dari norm dibanding jam kerja yang hadir (7 jam per orang per hari)
   const est={},add=(d,min)=>{if(d)est[d]=(est[d]||0)+min};
-  m.GC.forEach(r=>add(r.tanggal,V3.est.count(r.item,num(r.qty_actual))));m.PA.forEach(r=>add(r.tanggal,V3.est.put(r.item,num(r.qty))));m.picked.forEach(r=>add(r.tanggal,V3.est.pick(r.item,num(r.qty_actual))));
+  m.GC.forEach(r=>add(r.tanggal,V3.est.count(r.item,num(r.qty_actual))));m.PA.forEach(r=>add(r.tanggal,V3.est.put(r.item,num(r.qty))));m.picked.forEach(r=>add(r.tanggal,V3.est.pick(r.item,num(r.qty_actual))));(m.LC||[]).forEach(r=>add(r.tanggal,V3.est.cc(1)));
   const hadir={};AN.att.filter(r=>r.aksi==='Attendance in'&&r.simulasi!=='hapus'&&r.tanggal>=st.from&&r.tanggal<=st.to).forEach(r=>{(hadir[r.tanggal]=hadir[r.tanggal]||new Set()).add(r.kode_staf)});
   const dates=Object.keys(est).sort(),capD=d=>(hadir[d]?hadir[d].size:0)*420,uDay=dates.map(d=>capD(d)?pct(est[d],capD(d)):0),sumE=sum(dates.map(d=>est[d])),sumC=sum(dates.map(capD));
   let h='<div class="an-kpi">'+kpi('Utilisasi ruang (pcs)',tCap?pf(pct(tOn,tCap)):'-',fmt(tOn)+' dari kapasitas '+fmt(tCap)+' pcs')+kpi('Bin terisi',pf(pct(tU,tN)),tU+' dari '+tN+' bin')+kpi('Utilisasi tenaga kerja',sumC?pf(pct(sumE,sumC)):'-','beban estimasi norm / jam kerja hadir',pct(sumE,sumC)>100?'r':'g')+kpi('Beban kerja estimasi',V3.fm(sumE),dates.length+' hari ada aktivitas')+'</div>';
@@ -5325,6 +5326,7 @@ init();
   m.PK.forEach(k=>{if(k.status==='Batal')return;if(k.pack_oleh){const o=ot(k.pack_oleh);o.pack++;o.est+=V3.est.pack(1)}if(k.load_oleh&&LOADED.includes(k.status)){const o=ot(k.load_oleh);o.load++;o.est+=V3.est.load(1)}if(k.rcv_oleh){const o=ot(k.rcv_oleh);o.rcv++;o.est+=V3.est.load(1)}});
   (m.K||[]).forEach(k=>{if(k.pic_kode&&(k.status==='Diterima'||k.status==='Bermasalah')){const o=ot(k.pic_kode);o.unl++;o.est+=V3.est.unl(1)}});
   m.LT.filter(t=>['OK','Selisih'].includes(t.status)).forEach(t=>{ot(t.operator).lc++});
+  (m.LC||[]).forEach(r=>{if(r.oleh)ot(r.oleh).est+=V3.est.cc(1)});
   const t=Object.values(T).filter(x=>x.c).sort((a,b)=>b.est-a.est);
   const AD={},ad=c=>AD[c]||(AD[c]={c,dePo:new Set(),deSku:new Set(),dePcs:0,sqDok:0,sqSku:new Set(),sqPcs:0,tfK:0,tfSku:new Set(),tfPcs:0});
   (m.DE||[]).forEach(r=>{if(!r.oleh)return;const o=ad(r.oleh);o.dePo.add(r.po);o.deSku.add(U(r.item));o.dePcs+=num(r.qty)});
