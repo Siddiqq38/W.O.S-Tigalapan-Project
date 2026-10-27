@@ -2962,7 +2962,9 @@ init();
  setInterval(()=>{flush();if(sec.classList.contains('active'))pull()},15000);setInterval(()=>{try{if(queue().length)flush()}catch(e){}},8000);
  window.addEventListener('online',flush);
  try{mountMaster()}catch(e){}
- window.WOSGudang={api:{allowTab,storeCode,queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;replayJ(t);dv++}},rankStaff:o=>rankStaff(o),binLocked:id=>{const b=view('MASTER_BIN').find(x=>x.id===id);return !!b&&b.status==='Terkunci'}},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
+ window.WOSGudang={api:{allowTab,storeCode,queueLen:()=>queue().length,$,esc,view,enq,enqDel,call,poKey,compress,parseKoli,code,level,nameOf,canAdmin,today,nowHM,dayW,back,shrink,kmap,isFinal,vendorOfPo,totalOf,render,taskEdit,setMsg,activeEks,setData:(t,r)=>{const k=TABKEY[t];if(k){D[k]=r;replayJ(t);dv++}},rankStaff:o=>rankStaff(o),binLocked:id=>{const b=view('MASTER_BIN').find(x=>x.id===id);return !!b&&b.status==='Terkunci'},
+  // periksa status kunci bin langsung ke server (maks tiap 5 detik) sebelum transaksi; bila offline memakai data di perangkat
+  lockFresh:async bs=>{const L=(bs||[]).filter(Boolean).map(b=>String(b).toUpperCase());if(!L.length)return '';try{if(Date.now()-(window.__lfAt||0)>5000){const r=await call({action:'list',tab:'MASTER_BIN'},true);if(r&&r.ok){window.__lfAt=Date.now();const k=TABKEY.MASTER_BIN;if(k){D[k]=r.rows;replayJ('MASTER_BIN');dv++}}}}catch(e){}return L.find(b=>{const x=view('MASTER_BIN').find(y=>y.id===b);return !!x&&x.status==='Terkunci'})||''}},config:cfg,flush,pull,queue,status:()=>({state,err,queued:queue().length}),setConfig(url,token){localStorage.setItem(CK,JSON.stringify({url,token:token||cfg().token}))}};
 })();
 </script>
 <script>
@@ -3229,12 +3231,13 @@ init();
   const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k)||{},items=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&!isRejCnt(c)).sort((x,y)=>String(x.seq).localeCompare(String(y.seq),'en',{numeric:true})),bins=binList();
   items.forEach(c=>{if(!pu[c.seq])pu[c.seq]=[{bin:'',qty:num(c.qty_actual)}]});
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-gback="1" type="button">&larr; Kembali</button> <button class="button secondary" data-gsync="1" type="button">Muat ulang data</button></div><div class="card"><h3 style="margin:0">Put away · PO '+esc(po)+' · Koli '+k+'</h3><p class="sub">Isi bin tempat barang disimpan. Satu item boleh dipecah ke beberapa bin; jumlahnya harus sama dengan qty actual.'+(bins.length?'':' <strong>Master bin belum diimpor, bin diketik bebas.</strong>')+'</p><datalist id="gr-bins">'+bins.slice(0,3000).map(b=>'<option value="'+esc(b.id)+'">').join('')+'</datalist>';
-  h+=items.map(c=>{const rows=pu[c.seq],sum=rows.reduce((x,r)=>x+num(r.qty),0),rem=num(c.qty_actual)-sum;return '<div style="border:1px solid #ddd;border-radius:10px;padding:10px;margin:8px 0"><strong>'+esc(c.item)+'</strong> <span class="sub">actual '+esc(c.qty_actual)+' pcs</span>'+rows.map((r,i)=>'<div class="rl-row" style="display:flex;gap:6px;margin-top:6px;align-items:center"><input list="gr-bins" data-pb="'+esc(c.seq)+'|'+i+'|bin" value="'+esc(r.bin)+'" placeholder="Bin, contoh A1.1" style="flex:2">'+(A.binLocked(U(r.bin))?'<span class="tag red">🔒 terkunci</span>':'')+'<input type="number" inputmode="numeric" data-pb="'+esc(c.seq)+'|'+i+'|qty" value="'+esc(r.qty)+'" style="flex:1" placeholder="Qty">'+(rows.length>1?'<button class="button secondary" data-prm="'+esc(c.seq)+'|'+i+'" type="button">&times;</button>':'')+'</div>').join('')+'<div class="sub" style="margin-top:6px">'+(rem===0?'<span class="tag green">pas</span>':'<span class="tag '+(rem>0?'amber':'red')+'">'+(rem>0?'sisa '+rem:'lebih '+(-rem))+'</span>')+' <button class="button secondary" data-padd="'+esc(c.seq)+'" type="button">+ bin lain</button></div></div>'}).join('');
+  h+=items.map(c=>{const rows=pu[c.seq],sum=rows.reduce((x,r)=>x+num(r.qty),0),rem=num(c.qty_actual)-sum;return '<div style="border:1px solid #ddd;border-radius:10px;padding:10px;margin:8px 0"><strong>'+esc(c.item)+'</strong> <span class="sub">actual '+esc(c.qty_actual)+' pcs</span>'+rows.map((r,i)=>'<div class="rl-row" style="display:flex;gap:6px;margin-top:6px;align-items:center"><input list="gr-bins" data-pb="'+esc(c.seq)+'|'+i+'|bin" value="'+esc(r.bin)+'" placeholder="Bin, contoh A1.1" style="flex:2">'+(A.binLocked(U(r.bin))?'<span class="tag red">🔒 Bin di kunci</span>':'')+'<input type="number" inputmode="numeric" data-pb="'+esc(c.seq)+'|'+i+'|qty" value="'+esc(r.qty)+'" style="flex:1" placeholder="Qty">'+(rows.length>1?'<button class="button secondary" data-prm="'+esc(c.seq)+'|'+i+'" type="button">&times;</button>':'')+'</div>').join('')+'<div class="sub" style="margin-top:6px">'+(rem===0?'<span class="tag green">pas</span>':'<span class="tag '+(rem>0?'amber':'red')+'">'+(rem>0?'sisa '+rem:'lebih '+(-rem))+'</span>')+' <button class="button secondary" data-padd="'+esc(c.seq)+'" type="button">+ bin lain</button></div></div>'}).join('');
   if(!items.length)h+='<p class="note">Tidak ada item yang perlu di-put away pada koli ini'+(cntOf(po,k).length?' (semua item reject). Tekan Simpan untuk menyelesaikan.':'.')+'</p>';
   const rj=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&isRejCnt(c));if(rj.length)h+='<p class="note">'+rj.length+' item reject ('+rj.reduce((x,c)=>x+num(c.qty_actual),0)+' pcs) tidak di-put away, diteruskan ke Defect Handling.</p>';
   h+='<div class="ob-actions"><button class="button" data-psave="1" type="button"'+(items.length||cntOf(po,k).length?'':' disabled')+'>Simpan put away</button></div></div>';return h}
- function savePut(){
+ function savePut(_f){
   const {po,k}=cur,a=view('GR_ASSIGN').find(x=>x.id===po+'|'+k),items=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&!isRejCnt(c)),master=new Set(binList().map(b=>U(b.id))),out=[];
+  if(!_f){const bs=[];items.forEach(c=>(pu[c.seq]||[]).forEach(r=>{if(String(r.bin).trim())bs.push(U(r.bin))}));A.lockFresh(bs).then(lb=>{if(lb)return say('Bin '+lb+' DI KUNCI (cycle count / stok opname), tidak bisa dipakai put away. Pilih bin lain.',true);savePut(1)});return}
   for(const c of items){const rows=(pu[c.seq]||[]).filter(r=>String(r.bin).trim()||num(r.qty));const sum=rows.reduce((x,r)=>x+num(r.qty),0);
    if(sum!==num(c.qty_actual))return say('Jumlah bin untuk "'+c.item+'" ('+sum+') belum sama dengan qty actual ('+c.qty_actual+').',true);
    for(const r of rows){const b=U(r.bin);if(!b||!(num(r.qty)>0))return say('Lengkapi bin dan qty untuk "'+c.item+'".',true);if(master.size&&!master.has(b))return say('Bin "'+r.bin+'" tidak ada di master bin.',true);if(A.binLocked(b))return say('Bin '+b+' sedang dikunci (cycle count / stok opname), tidak bisa dipakai put away. Pilih bin lain.',true);out.push({c,bin:b,qty:num(r.qty)})}}
@@ -3902,7 +3905,8 @@ init();
  function taskMaybeDone(k){if(!k.task_id)return;taskEdit(arr=>{const t=arr.find(x=>x.id===k.task_id);if(t){t.status='selesai';t.doneAt=stIso()}})}
  function openKoli(id){const k=koliById(id);if(!k)return;if(tabName==='Picking'&&k.picker===code()&&(k.status==='Ditugaskan'||k.status==='Picking')){if(k.status==='Ditugaskan')updKoli(k,{status:'Picking',mulai:stIso()});taskAccept(k)}cur={mode:tabName==='Picking'?'pick':tabName==='Verification Pick'?'vp':tabName==='GR Outlet'?'gr':'tfs',id};if(cur.mode==='pick')refreshStok();else if(cur.mode==='vp'){vpTaskState(k,'diterima');LY.at=0;loadLayers()}pull(true);draw()}
  function stokOut(r,bin,sku,qty){if(!(qty>0)||!bin)return;enq('STOK_BIN',{id:'SB|PK|'+r.id,tanggal:today(),jenis:'PICKING',bin,sku:sku||U(r.item),item:r.item,qty_masuk:'0',qty_keluar:String(qty),referensi:r.dok+' koli '+r.koli,pic_kode:code(),catatan:''})}
- function pickRow(r,status,binA,qtyA,ket,video,cb){
+ function pickRow(r,status,binA,qtyA,ket,video,cb,_f){
+  if(!_f){A.lockFresh([binA,r.bin]).then(lb=>{if(lb){alert('Bin '+lb+' DI KUNCI (cycle count / stok opname). Tidak ada transaksi di bin ini sampai dibuka. Hubungi SPV atau Location Control.');try{draw()}catch(e){}return}pickRow(r,status,binA,qtyA,ket,video,cb,1)});return}
   {const lb=[binA,r.bin].find(b=>b&&A.binLocked(String(b).toUpperCase()));if(lb){alert('Bin '+lb+' sedang dikunci untuk cycle count / stok opname. Tidak ada transaksi di bin ini sampai dibuka. Hubungi SPV atau Location Control.');return}}
   const row=Object.assign({},r,{status,bin_actual:binA,qty_actual:String(qtyA),ket_pick:ket||'',picker:code(),jam_pick:nowHM()});
   const fin=()=>{enq('PICK_ITEM',row);stokOut(r,binA,r.sku,qtyA);if(cb)cb();draw();setTimeout(refreshStok,3500)};
@@ -4170,7 +4174,7 @@ init();
  let stokMap={};
  let binAtOb=0;
  async function refreshBins(){if(Date.now()-binAtOb<20000)return;binAtOb=Date.now();try{const r=await call({action:'list',tab:'MASTER_BIN'},true);if(r.ok){setData('MASTER_BIN',r.rows);draw()}}catch(e){}}
- const lockTag=r=>r.status==='Menunggu'&&r.bin&&A.binLocked(String(r.bin).toUpperCase())?'<div><span class="tag red">🔒 Bin terkunci, belum bisa diambil</span></div>':'';
+ const lockTag=r=>r.status==='Menunggu'&&r.bin&&A.binLocked(String(r.bin).toUpperCase())?'<div><span class="tag red">🔒 Bin di kunci, belum bisa diambil</span></div>':'';
  async function refreshStok(force){if(!force&&Date.now()-lastStokAt<60000)return;lastStokAt=Date.now();refreshBins();try{const r=await call({action:'stok'},true);if(r.ok){const m={};r.rows.forEach(x=>{m[x.bin+'|'+x.sku]=num(x.saldo)});stokMap=m;draw()}}catch(e){}loadLayers()}
  // asal PO per bin (FIFO): lapisan stok tiap bin dan item dari riwayat STOK_BIN (masuk put away dengan referensi PO, keluar mengurangi dari yang tertua)
  let LY={at:0,busy:false,map:new Map(),pk:new Map()};
@@ -4592,13 +4596,20 @@ init();
  // ---- task LC (stok opname dan cycle count)
  const taskBy=(jenis)=>tasks().filter(t=>t.jenis===jenis);
  function listTasks(jenis){
-  const adm=canAdmin(),me=code();let list=taskBy(jenis).filter(t=>adm?(!filterOp||t.operator===filterOp):t.operator===me).sort((a,b)=>cmpBin(a.bin,b.bin));
+  const adm=canAdmin(),me=code(),inAcc=t=>!window.WOSDR||window.WOSDR.inR('acc',String(t.tanggal||'').slice(0,10));let list=taskBy(jenis).filter(t=>adm?(!filterOp||t.operator===filterOp):t.operator===me).sort((a,b)=>cmpBin(a.bin,b.bin));
+  const hid=adm?list.filter(t=>!inAcc(t)&&!['OK','Selisih'].includes(t.status)).length:0;if(adm)list=list.filter(inAcc);
   if(!adm)list=list.filter(t=>!['OK','Selisih'].includes(t.status));
-  if(!list.length)return '<p class="sub">Belum ada task '+(jenis==='SO'?'stok opname':'cycle count')+'.</p>';
+  if(!list.length)return '<p class="sub">Belum ada task '+(jenis==='SO'?'stok opname':'cycle count')+(adm?' pada rentang tanggal ini':'')+'.</p>'+(hid?'<p class="sub">'+hid+' task belum selesai ada di luar rentang tanggal. Ubah panel tanggal untuk melihatnya.</p>':'');
   const by={};list.forEach(t=>{(by[t.operator_nama||t.operator]=by[t.operator_nama||t.operator]||[]).push(t)});
   const STC={'Menunggu':'','Hitung ulang':'dtm','OK':'ok','Selisih':'dtm'};
   return (adm?'<div class="field" style="max-width:300px"><label for="lc-fop">Operator</label><select id="lc-fop"><option value="">Semua</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>':'')+
-  Object.keys(by).map(n=>'<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(n)+' <span class="sub">'+by[n].length+' bin</span></h3><div class="kl">'+by[n].map(t=>'<button type="button" class="kb '+(STC[t.status]||'')+'" data-lcopen="'+esc(t.id)+'" title="'+esc(t.status)+'">'+esc(t.bin)+'<small>'+esc(t.status==='Hitung ulang'?'ulang':t.status)+'</small>'+(isItemTask(t)?'<small style="font-size:9px">'+esc(String(itemOfTask(t)).slice(0,14))+'</small>':'')+'</button>').join('')+'</div></div>').join('')}
+  Object.keys(by).map(n=>'<div class="card" style="margin-top:10px"><h3 style="margin:0">'+esc(n)+' <span class="sub">'+by[n].length+' bin</span></h3><div class="kl">'+by[n].map(t=>'<button type="button" class="kb '+(STC[t.status]||'')+'" data-lcopen="'+esc(t.id)+'" title="'+esc(t.status)+(isLockedBin(t.bin)?' · bin di kunci':'')+'"'+(isLockedBin(t.bin)?' style="border-color:#b3261e;box-shadow:inset 0 0 0 1px #b3261e"':'')+'>'+(isLockedBin(t.bin)?'🔒 ':'')+esc(t.bin)+'<small>'+esc(t.status==='Hitung ulang'?'ulang':t.status)+'</small>'+(isItemTask(t)?'<small style="font-size:9px">'+esc(String(itemOfTask(t)).slice(0,14))+'</small>':'')+'</button>').join('')+'</div></div>').join('')+(hid?'<p class="sub" style="margin-top:8px">'+hid+' task belum selesai ada di luar rentang tanggal. Ubah panel tanggal untuk melihatnya.</p>':'')}
+ function lockMenu(t){
+  const id=t.bin,lk=isLockedBin(id),mb=masterBins().find(x=>x.id===id),li=mb?lockInfo(mb):{},m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML='<div class="card" style="max-width:360px;width:100%;margin:0"><h3 style="margin:0 0 4px">Bin '+esc(id)+'</h3><p class="sub" style="margin:0 0 10px">'+(lk?'🔒 <b>Terkunci</b>'+(li.nama?' oleh '+esc(li.nama):'')+(li.why?' · '+esc(li.why):'')+'. Picking, put away, internal move, dan adjustment di bin ini ditolak.':'Bin belum dikunci. Kunci bin sebelum dihitung agar tidak ada transaksi selama cycle count.')+(mb?'':'<br><b style="color:#b3261e">Bin ini tidak ada di master bin, tidak bisa dikunci.</b>')+'</p><div style="display:flex;flex-direction:column;gap:8px"><button class="button" data-m="open" type="button">Buka task hitung</button>'+(mb?'<button class="button secondary" data-m="lock" type="button" style="'+(lk?'':'color:#b3261e;border-color:#b3261e')+'">'+(lk?'🔓 Buka kunci bin':'🔒 Kunci bin')+'</button>':'')+'<button class="button secondary" data-m="x" type="button">Tutup</button></div></div>';
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{const b=e.target.closest('button'),bg=e.target===m;if(!b&&!bg)return;const v=b&&b.dataset.m;m.remove();if(v==='open'){cur={mode:'count',id:t.id};pull(true);draw()}else if(v==='lock')setLock(id,!lk)})}
  function opSelect(id){return '<select id="'+id+'">'+'<option value="">Pilih operator</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'">'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</select>'}
  function mkTask(bin,jenis,op,putaran,itemKey){const id='LC|'+jenis+'|'+today()+'|'+bin+(itemKey?'|'+itemKey:'');enq('LC_TASK',{id,tanggal:today(),jenis,bin,operator:op,operator_nama:nameOf(op),status:'Menunggu',ronde:'1',hasil:'',mulai:'',selesai:'',dibuat_oleh:code(),putaran:putaran||sem(today())});return id}
  function soProgress(){
@@ -4618,9 +4629,11 @@ init();
   if(n)taskEdit(arr=>arr.push({id:'TL-'+Math.random().toString(36).slice(2,8),day:today(),at:stIso(),title:label+' · '+skus.length+' item',qty:n+' bin',by:code(),to:op,status:'baru',kind:'lc'}));
   return n}
  // ---- stok opname: by lokasi (bin) atau by item
+ const lcRange=()=>{if(!window.WOSDR||!canAdmin())return '';setTimeout(()=>window.WOSDR.status('acc'),0);return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Panel tanggal</h3>'+window.WOSDR.html('acc','Pilih rentang: daftar task dan laporan Inventory Accuracy di bawah mengikuti tanggal ini.')+'</div>'};
+ if(window.WOSDR)window.WOSDR.onChange('acc',()=>{try{draw()}catch(e){}});
  function drawSO(){
   if(cur&&cur.mode==='count')return drawCount();
-  let h=canAdmin()?modeTabs(soMode,'so',['lokasi','By lokasi (bin)'],['item','By item']):'';
+  let h=lcRange()+(canAdmin()?modeTabs(soMode,'so',['lokasi','By lokasi (bin)'],['item','By item']):'');
   if(soMode==='item'&&canAdmin()){
    const found=findItems(lcItem).slice(0,60),lc=lastItemCount();
    h+='<div class="card"><h3 style="margin:0">Stok opname by item</h3><p class="sub">Cari item, centang, lalu buat task: operator menghitung item itu di semua bin yang berisinya (hitung buta, dua ronde bila selisih).</p>'+itemDatalist()+
@@ -4637,7 +4650,7 @@ init();
  function itemMoves(){const m=new Map();moves.forEach(r=>{if(!r.sku||/SALDO|ADJUST/.test(r.jenis||''))return;const k=U(r.sku),e=m.get(k)||m.set(k,{n:0,inb:0,out:0,int:0}).get(k);e.n++;if(/PUTAWAY|INBOUND/.test(r.jenis))e.inb++;else if(/PICK/.test(r.jenis))e.out++;else if(/MOVE/.test(r.jenis))e.int++});return m}
  function drawCC(){
   if(cur&&cur.mode==='count')return drawCount();
-  loadMoves();let h=canAdmin()?modeTabs(ccMode,'cc',['bin','By bin'],['item','By item (rekomendasi otomatis)']):'';
+  loadMoves();let h=lcRange()+(canAdmin()?modeTabs(ccMode,'cc',['bin','By bin'],['item','By item (rekomendasi otomatis)']):'');
   if(ccMode==='item'&&canAdmin()){
    const mv2=itemMoves(),lc=lastItemCount(),ix=itemIdx(),openSku=new Set(tasks().filter(t=>isItemTask(t)&&!['OK','Selisih'].includes(t.status)).map(itemOfTask));
    const all=[...ix.values()].filter(x=>!openSku.has(x.sku)).map(x=>{const m=mv2.get(U(x.sku))||{n:0,inb:0,out:0,int:0},d=daysAgo(lc.get(U(x.sku)));return Object.assign({},x,{m,d,score:m.n*2+Math.min(d,365)/15+(d===9999?10:0)})});
@@ -4793,7 +4806,7 @@ init();
   if(d.lcadj){adjForm.bin=d.lcadj;adjForm.sku='';tabName='Adjustment';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lctask){const m=G.modal('<h3>Task hitung bin '+esc(d.lctask)+'</h3><label style="font-weight:600">Operator</label>'+opSelect('lc-mop')+'<div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-mok" type="button">Buat task cycle count</button><button class="button secondary" id="lc-mx" type="button">Batal</button></div>');m.querySelector('#lc-mx').onclick=()=>m.remove();m.querySelector('#lc-mok').onclick=()=>{const op=m.querySelector('#lc-mop').value;if(!op)return;mkTask(d.lctask,'CC',op);m.remove();say('Task cycle count bin '+d.lctask+' dibuat.')};return}
   if(d.lcback){cur=null;draw();return}
-  if(d.lcopen){const k=tasks().find(x=>x.id===d.lcopen);if(k&&(k.operator===code()||canAdmin())){cur={mode:'count',id:k.id};pull(true);draw()}return}
+  if(d.lcopen){const k=tasks().find(x=>x.id===d.lcopen);if(k&&(k.operator===code()||canAdmin())){if(canLock()){lockMenu(k);return}cur={mode:'count',id:k.id};pull(true);draw()}return}
   if(d.lcadd){const s=cnt[cur.id];s.rows.push({sku:'',qty:''});draw();return}
   if(d.lcrm!=null){cnt[cur.id].rows.splice(Number(d.lcrm),1);draw();return}
   if(d.lcsave){const k=tasks().find(x=>x.id===cur.id);if(k)saveCount(k);return}
@@ -7152,7 +7165,7 @@ window.WOSMon=(function(){
  function dash(from,to){load(from,to);const c=calc(from,to);
   return '<div class="d3-card d3-go" data-go="wms-location|Cycle Count" title="Buka Cycle Count"><p class="d3-l" style="font-weight:700;color:var(--ink);font-size:13px;margin:0 0 8px">Inventory Accuracy <span class="d3-s" style="font-weight:400;margin-left:6px">hasil cycle count / opname '+esc(DR.fmt(from))+' s/d '+esc(DR.fmt(to))+'. Hit = tidak ada selisih.</span></p>'+(c.n?kpis(c):'<p class="sub" style="margin:0">Belum ada hasil hitung pada rentang ini.</p>')+'</div>'}
  // panel lengkap di Location Control > Cycle Count
- const shell=()=>'<div class="card" style="margin-top:12px" id="wos-acc"><h3 style="margin:0">Inventory Accuracy</h3><p class="sub" style="margin:0">Dihitung dari hasil cycle count / stok opname (putaran hitung terakhir tiap bin dan item) dibanding stok sistem. <b>Hit</b> = tidak ada selisih, <b>miss</b> = ada selisih plus atau minus.</p>'+DR.html('acc','Panel tanggal: rentang hasil hitung yang direkap.')+'<div id="wos-acc-body" style="margin-top:10px"></div></div>';
+ const shell=()=>'<div class="card" style="margin-top:12px" id="wos-acc"><h3 style="margin:0">Inventory Accuracy</h3><p class="sub" style="margin:0">Dihitung dari hasil cycle count / stok opname (putaran hitung terakhir tiap bin dan item) dibanding stok sistem. <b>Hit</b> = tidak ada selisih, <b>miss</b> = ada selisih plus atau minus.</p><div id="wos-acc-body" style="margin-top:10px"></div></div>';
  function body(){const r=DR.get('acc'),c=calc(r.f,r.t),
   dayRows=c.days.map(d=>'<tr><td>'+esc(DR.fmt(d.d))+'</td><td>'+d.bins.size+'</td><td>'+(d.bins.size-d.mbins.size)+'</td><td>'+pct(d.bins.size?Math.round(1000*(d.bins.size-d.mbins.size)/d.bins.size)/10:null)+'</td><td>'+d.lines+'</td><td>'+(d.lines-d.mlines)+'</td><td>'+pct(d.lines?Math.round(1000*(d.lines-d.mlines)/d.lines)/10:null)+'</td><td>'+nf(d.sis)+'</td><td>'+nf(d.miss)+'</td><td>'+pct(d.sis?Math.max(0,Math.round(1000*(d.sis-d.miss)/d.sis)/10):null)+'</td></tr>').join(''),
   missRows=c.misses.slice(0,100).map(x=>'<tr><td>'+esc(DR.fmt(x.d))+'</td><td>'+esc(x.bin)+'</td><td>'+esc(x.item)+'</td><td>'+nf(x.sis)+'</td><td>'+nf(x.hit)+'</td><td><b style="color:'+(x.sel>0?'#1b4fb3':'#b3261e')+'">'+(x.sel>0?'+':'')+x.sel+'</b></td><td>'+esc(x.oleh||'-')+'</td></tr>').join('');
