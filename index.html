@@ -3221,7 +3221,7 @@ init();
   if(!ro)h+='<div class="ob-actions"><button class="button secondary" data-gextra="1" type="button">+ Item di luar surat jalan</button></div>';
   const rejN=[...cnt.values()].filter(c=>isRejCnt(c)&&num(c.qty_actual)>0);if(rejN.length)h+='<p class="note">'+rejN.length+' item reject ('+rejN.reduce((x,c)=>x+num(c.qty_actual),0)+' pcs) tidak di-put away dan tidak di-data entry, otomatis masuk tab Defect Handling.</p>';
   if(!ro&&sj.length)h+='<div class="ob-actions"><button class="button" data-gdone="1" type="button"'+(done?'':' disabled')+'>Selesai counting koli ini</button></div>';
-  if(a.status==='Siap put away')h+='<p class="note">Counting selesai. Lanjutkan di tab <strong>Put Away</strong>.</p>';
+  if(a.status==='Siap put away'){const pa=view('PUTAWAY').some(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k));h+='<p class="note">Counting selesai. Lanjutkan di tab <strong>Put Away</strong>.'+(canAdmin()&&!isViewer()?(pa?' Put away koli ini sudah ada, jadi counting tidak bisa dibuka kembali. Hapus hasil put away dulu bila perlu dikoreksi.':'</p><div class="ob-actions"><button class="button secondary" data-greopen="1" type="button">Buka kembali counting (koreksi hasil)</button></div><p class="sub" style="margin:4px 0 0">Status kembali ke Counting. Hasil yang sudah tercatat tetap ada dan bisa diubah lewat tombol ✓ / ✗, atau tambah item di luar surat jalan. Selesaikan counting lagi setelah dikoreksi.'):'')+'</p>'}
   return h+'</div>'}
 
  // ---- put away
@@ -3512,6 +3512,7 @@ init();
   if(t.dataset.gback){cur=null;pu={};msg='';draw();return}
   if(t.dataset.gok){const{po,k}=cur,r=sjKoli(po,k).find(x=>String(x.seq)===t.dataset.gok);if(r)countRow(po,k,r,'Sesuai','','',null);return}
   if(t.dataset.gno){const{po,k}=cur,r=sjKoli(po,k).find(x=>String(x.seq)===t.dataset.gno);if(r)selisihModal(po,k,r);return}
+  if(t.dataset.greopen){const{po,k}=cur;if(!canAdmin())return;if(view('PUTAWAY').some(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(k)))return say('Put away koli ini sudah ada, counting tidak bisa dibuka kembali.',true);if(!confirm('Buka kembali counting PO '+po+' koli '+k+'?\n\nStatus kembali ke Counting supaya hasil bisa dikoreksi. Operator perlu menekan "Selesai counting koli ini" lagi.'))return;updAsg(po,k,{status:'Counting'});say('Counting koli '+k+' dibuka kembali. Koreksi hasilnya lalu selesaikan counting lagi.');return}
   if(t.dataset.gdone){const{po,k}=cur;updAsg(po,k,{status:'Siap put away'});say('Counting koli '+k+' selesai. Lanjutkan di tab Put Away.');return}
   if(t.dataset.padd){const l=pu[t.dataset.padd];if(l)l.push({bin:'',qty:0});draw();return}
   if(t.dataset.prm){const[s,i]=t.dataset.prm.split('|');pu[s].splice(Number(i),1);draw();return}
