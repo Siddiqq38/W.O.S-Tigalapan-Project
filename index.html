@@ -4172,7 +4172,7 @@ init();
   const sc=level()==='store'?storeCode():'';const list=view('PICK_GR').filter(g=>g.status==='Salah'&&(!sc||String(g.dok).split('|')[0]===sc)).sort((a,b)=>(a.resolusi?1:0)-(b.resolusi?1:0)||String(b.jam).localeCompare(String(a.jam)));
   if(!list.length)return none('Belum ada miss-picking dari GR outlet.');
   const open=list.filter(g=>!g.resolusi).length;
-  return '<p class="sub">Selisih hasil GR outlet tercatat sebagai miss picking. Belum diselesaikan: <strong>'+open+'</strong> dari '+list.length+'.</p><div style="overflow:auto"><table><thead><tr><th>Outlet / koli</th><th>Item</th><th>SOQ / DC / GR</th><th>Masalah</th><th>Status</th></tr></thead><tbody>'+list.map(g=>'<tr><td>'+esc(g.outlet)+'<div class="sub">'+esc(g.dok.split('|')[0])+' · koli '+esc(g.koli)+'</div></td><td>'+esc(g.item)+(g.item_gr&&g.item_gr!==g.item?'<div class="sub">datang: '+esc(g.item_gr)+'</div>':'')+'</td><td>'+esc(g.soq)+' / '+esc(g.qty_dc)+' / <strong>'+esc(g.qty_gr)+'</strong></td><td><span class="tag red">Miss picking</span><div class="sub">'+esc(g.ket)+' · '+esc(g.oleh)+'</div>'+(g.foto_id?' <a href="https://drive.google.com/file/d/'+esc(g.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+'</td><td>'+(g.resolusi?'<span class="tag green">Selesai</span><div class="sub">'+esc(g.resolusi_ket)+' · '+esc(g.resolusi_oleh)+'</div>':(canAdmin()?'<button class="button" data-obres="'+esc(g.id)+'" type="button">Tandai selesai</button>':'<span class="tag amber">Menunggu DC 38</span>'))+'</td></tr>').join('')+'</tbody></table></div>'}
+  return '<p class="sub">Selisih hasil GR outlet tercatat sebagai miss picking. Belum diselesaikan: <strong>'+open+'</strong> dari '+list.length+'.</p><div style="overflow:auto"><table><thead><tr><th>Outlet / koli</th><th>Item</th><th>SOQ / DC / GR</th><th>Masalah</th><th>Status</th></tr></thead><tbody>'+list.map(g=>'<tr><td>'+esc(g.outlet)+'<div class="sub">'+esc(g.dok.split('|')[0])+' · koli '+esc(g.koli)+'</div></td><td>'+esc(g.item)+(g.item_gr&&g.item_gr!==g.item?'<div class="sub">datang: '+esc(g.item_gr)+'</div>':'')+'</td><td>'+esc(g.soq)+' / '+esc(g.qty_dc)+' / <strong>'+esc(g.qty_gr)+'</strong></td><td><span class="tag red">Miss picking</span><div class="sub">'+esc(g.ket)+' · '+esc(g.oleh)+'</div>'+(g.foto_id?' <a href="https://drive.google.com/file/d/'+esc(g.foto_id)+'/view" target="_blank" rel="noopener">video</a>':'')+'</td><td>'+(g.resolusi?'<span class="tag green">Selesai</span><div class="sub">'+esc(g.resolusi_ket)+' · '+esc(g.resolusi_oleh)+'</div>':(canAdmin()?'<button class="button" data-obres="'+esc(g.id)+'" type="button">Tindak lanjut</button>':'<span class="tag amber">Menunggu DC 38</span>'))+'</td></tr>').join('')+'</tbody></table></div>'}
 
  let stokMap={};
  let binAtOb=0;
@@ -7178,6 +7178,84 @@ window.WOSMon=(function(){
  DR.onChange('acc',redraw);
  setInterval(redraw,3000);
  window.WOSAcc={calc,dash,shell,redraw};
+})();
+</script>
+<script>
+// Ending Balance: head to head stok WOS (jumlah semua bin per item) dengan Ending dari laporan Inventory Summary MOKA (diimpor admin dari CSV). Tampil sebagai tab di Inventory.
+(()=>{
+ const A=window.WOSGudang&&window.WOSGudang.api;if(!A)return;
+ const {esc,call,code,level,today}=A;
+ const N=v=>{const n=Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0},nf=n=>Math.round(n).toLocaleString('id-ID');
+ const norm=s=>String(s==null?'':s).trim().replace(/\s+/g,' '),U=s=>norm(s).toUpperCase();
+ const LK='wos-moka-end-v1';
+ const rj=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}};
+ const st={moka:rj(LK,null),srv:null,stok:null,stokAt:0,busy:false,msg:'',bad:false,q:'',f:'diff',lim:300,active:false,sig:''};
+ const canImport=()=>(level()==='supervisor'||level()==='admin')&&!(window.WOSRO&&window.WOSRO());
+ // ---- csv
+ function parseCsv(t){t=String(t).replace(/^﻿/,'');const first=t.split(/\r?\n/).find(l=>l.trim()&&!/^sep=/i.test(l))||'',d=first.indexOf('\t')>=0?'\t':(first.split(';').length>first.split(',').length?';':',');
+  const out=[];let row=[],cell='',q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){cell+='"';i++}else q=false}else cell+=c}else if(c==='"')q=true;else if(c===d){row.push(cell);cell=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(x=>x.trim()))out.push(row);row=[]}else cell+=c}
+  row.push(cell);if(row.some(x=>x.trim()))out.push(row);return out.filter(r=>!/^sep=/i.test(String(r[0]||'')))}
+ // ---- data
+ async function loadStok(force){if(st.busy||(!force&&st.stok&&Date.now()-st.stokAt<60000))return;st.busy=true;try{const r=await call({action:'stok'},true);if(r&&r.ok){st.stok=r.rows||[];st.stokAt=Date.now()}else{st.msg='Stok WOS belum bisa dimuat: '+((r&&r.error)||'');st.bad=true}}catch(e){st.msg='Stok WOS belum bisa dimuat: '+(e&&e.message||e);st.bad=true}st.busy=false;draw()}
+ async function loadSrv(){try{const r=await call({action:'list',tab:'MOKA_ENDING'},true);if(r&&r.ok){const rows={};let meta=null;(r.rows||[]).forEach(x=>{if(x.id==='__META')meta={file:x.file,tgl:x.tanggal,oleh:x.oleh,waktu:x.waktu};else rows[x.id]={item:x.item,kat:x.kategori,end:N(x.ending)}});st.srv={ok:true,rows,meta}}else st.srv={ok:false}}catch(e){st.srv={ok:false}}draw()}
+ const mokaData=()=>{if(st.srv&&st.srv.ok&&Object.keys(st.srv.rows).length)return{rows:st.srv.rows,meta:st.srv.meta,from:'server'};if(st.moka)return{rows:st.moka.rows,meta:st.moka.meta,from:'perangkat'};return null};
+ function compare(){const M=mokaData();if(!M||!st.stok)return null;const W=new Map();st.stok.forEach(r=>{const n=norm(r.item||r.sku);if(!n)return;const k=U(n),o=W.get(k)||W.set(k,{item:n,q:0}).get(k);o.q+=N(r.saldo)});
+  const keys=new Set([...W.keys(),...Object.keys(M.rows)]),L=[];
+  keys.forEach(k=>{const w=W.get(k),m=M.rows[k],wq=w?w.q:0,mq=m?m.end:0;if(!wq&&!mq)return;const d=wq-mq;L.push({k,item:(m&&m.item)||(w&&w.item)||k,kat:(m&&m.kat)||'',w:wq,m:mq,d,only:!m?'wos':!w?'moka':''})});
+  L.sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)||a.item.localeCompare(b.item,'id',{numeric:true}));
+  const diff=L.filter(x=>x.d!==0);return{L,M,tot:{n:L.length,hit:L.length-diff.length,w:L.reduce((a,x)=>a+x.w,0),m:L.reduce((a,x)=>a+x.m,0),plus:diff.reduce((a,x)=>a+(x.d>0?x.d:0),0),minus:diff.reduce((a,x)=>a+(x.d<0?-x.d:0),0),onlyW:L.filter(x=>x.only==='wos').length,onlyM:L.filter(x=>x.only==='moka').length}}}
+ // ---- impor
+ async function importFile(file){
+  if(!canImport()){st.msg='Hanya Admin atau Supervisor yang bisa mengimpor data Moka.';st.bad=true;draw();return}
+  try{const R=parseCsv(await file.text());if(R.length<2)throw new Error('File kosong atau tidak terbaca.');
+   const h=R[0].map(x=>U(x)),iN=h.findIndex(x=>/^NAME\s*-?\s*VARIANT$/.test(x)||x==='NAME'||x==='ITEM NAME'),iC=h.findIndex(x=>x==='CATEGORY'),iE=h.findIndex(x=>x==='ENDING');
+   if(iN<0||iE<0)throw new Error('Kolom "Name - Variant" dan "Ending" tidak ditemukan di baris pertama.');
+   const rows={};let n=0,zero=0;R.slice(1).forEach(r=>{const nm=norm(r[iN]);if(!nm)return;const e=N(r[iE]);n++;if(!e){zero++;return}rows[U(nm)]={item:nm,kat:iC>=0?norm(r[iC]):'',end:e}});
+   const dm=/(\d{1,2})[-.\/](\d{1,2})[-.\/](\d{4})/.exec(file.name),tgl=dm?dm[3]+'-'+dm[2].padStart(2,'0')+'-'+dm[1].padStart(2,'0'):today(),meta={file:file.name,tgl,oleh:code(),waktu:new Date().toISOString()};
+   const cnt=Object.keys(rows).length;if(!cnt)throw new Error('Tidak ada item dengan Ending lebih dari 0.');
+   if(!confirm('Impor data Moka: '+n+' baris, '+cnt+' item dengan Ending lebih dari 0 ('+zero+' baris Ending 0 dilewati).\nData Moka sebelumnya diganti. Lanjutkan?'))return;
+   st.moka={rows,meta};try{localStorage.setItem(LK,JSON.stringify(st.moka))}catch(e){}
+   st.busy=true;st.msg='Menyimpan…';st.bad=false;draw();
+   if(st.srv&&st.srv.ok){ // simpan ke server agar terlihat semua akun; item lama yang tidak ada di file baru dinolkan
+    const ops=[{action:'append',tab:'MOKA_ENDING',row:{id:'__META',item:file.name,kategori:'',ending:'0',tanggal:tgl,file:file.name,oleh:code(),waktu:meta.waktu}}];
+    Object.keys(rows).forEach(k=>ops.push({action:'append',tab:'MOKA_ENDING',row:{id:k,item:rows[k].item,kategori:rows[k].kat,ending:String(rows[k].end),tanggal:tgl,file:file.name,oleh:code(),waktu:meta.waktu}}));
+    Object.keys(st.srv.rows).forEach(k=>{if(!rows[k])ops.push({action:'append',tab:'MOKA_ENDING',row:{id:k,item:st.srv.rows[k].item,kategori:st.srv.rows[k].kat,ending:'0',tanggal:tgl,file:file.name,oleh:code(),waktu:meta.waktu}})});
+    for(let i=0;i<ops.length;i+=40){st.msg='Menyimpan ke server… '+i+' / '+ops.length;draw();const r=await call({action:'batch',ops:ops.slice(i,i+40)});if(!(r&&r.ok))throw new Error((r&&r.error)||'gagal menyimpan ke server')}
+    await loadSrv();st.msg='Selesai: '+cnt+' item Moka tersimpan di server.'}
+   else st.msg=cnt+' item Moka tersimpan di perangkat ini. Agar terlihat di semua akun, skrip gudang terbaru perlu di-deploy lalu impor ulang.';
+   st.bad=false;loadStok(true)}
+  catch(e){st.msg='Gagal impor: '+(e&&e.message||e);st.bad=true}st.busy=false;draw()}
+ // ---- tampilan
+ const kpi=(t,v,s,c)=>'<div class="mn-k" style="'+(c?'border-color:'+c+'55':'')+'"><small>'+t+'</small><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b><span class="sub" style="display:block">'+s+'</span></div>';
+ function csvOut(C){const rows=['sep=;','Item;Category Moka;WOS;Moka (Ending);Selisih (WOS - Moka);Keterangan'].concat(C.L.map(x=>[x.item,x.kat,x.w,x.m,x.d,x.d===0?'Cocok':x.only==='wos'?'Hanya di WOS':x.only==='moka'?'Hanya di Moka':x.d>0?'WOS lebih':'Moka lebih'].map(v=>{v=String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(';')));
+  const b=new Blob(['﻿'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Ending-Balance-'+today()+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+ function html(){
+  const C=compare(),M=mokaData();
+  let h='<div class="card"><h3 style="margin:0">Ending Balance · WOS vs MOKA</h3><p class="sub" style="margin:2px 0 8px">Head to head stok per item. <b>WOS</b> = jumlah saldo semua bin untuk item itu. <b>MOKA</b> = kolom <b>Ending</b> dari laporan Inventory Summary Moka (Name - Variant = item). Moka tidak punya bin, jadi WOS dijumlahkan per item.</p>'+
+   '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+(canImport()?'<label class="button" style="cursor:pointer">Impor CSV Moka<input type="file" data-ebfile="1" accept=".csv,.txt,text/csv" hidden></label>':'<span class="sub">Impor data Moka hanya oleh Admin atau Supervisor.</span>')+'<button class="button secondary" data-eb="ref" type="button"'+(st.busy?' disabled':'')+'>Muat ulang stok WOS</button>'+(C?'<button class="button secondary" data-eb="csv" type="button">Unduh hasil (CSV)</button>':'')+'</div>'+
+   (M&&M.meta?'<p class="sub" style="margin:0 0 8px">Data Moka: <b>'+esc(M.meta.file||'-')+'</b> · tanggal laporan '+esc(M.meta.tgl||'-')+(M.meta.oleh?' · diimpor '+esc(M.meta.oleh):'')+' · '+esc(M.from==='server'?'tersimpan di server':'hanya di perangkat ini')+'</p>':'')+
+   (st.msg?'<p class="note" style="'+(st.bad?'color:#b3261e':'')+'">'+esc(st.msg)+'</p>':'');
+  if(!M)return h+'<p class="sub" style="margin:0">Belum ada data Moka. '+(canImport()?'Ekspor Inventory Summary dari Moka ke CSV, lalu tekan Impor CSV Moka.':'Minta admin mengimpor data Moka.')+'</p></div>';
+  if(!C)return h+'<p class="sub" style="margin:0">Memuat stok WOS…</p></div>';
+  const t=C.tot,pc=t.n?Math.round(1000*t.hit/t.n)/10:0,tone=pc>=98?'#1b7a46':pc>=95?'#a35f00':'#b3261e',f=U(st.q).split(' ').filter(Boolean);
+  const list=C.L.filter(x=>(st.f==='all'||(st.f==='diff'?x.d!==0:x.d===0))&&f.every(w=>U(x.item+' '+x.kat).includes(w)));
+  h+='<div class="mn-sum" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px">'+kpi('Item dibandingkan',nf(t.n),'gabungan item WOS dan Moka')+kpi('Cocok',pc.toString().replace('.',',')+'%',nf(t.hit)+' dari '+nf(t.n)+' item',tone)+kpi('Stok WOS',nf(t.w)+' pcs','semua bin')+kpi('Ending Moka',nf(t.m)+' pcs','dari file Moka')+kpi('Selisih',(t.w-t.m>0?'+':'')+nf(t.w-t.m)+' pcs','plus '+nf(t.plus)+' · minus '+nf(t.minus),t.w===t.m?'':'#b3261e')+'</div>'+
+   (t.onlyW||t.onlyM?'<p class="sub" style="margin:0 0 8px">'+(t.onlyW?'<b>'+t.onlyW+'</b> item hanya ada di WOS (tidak ada di file Moka). ':'')+(t.onlyM?'<b>'+t.onlyM+'</b> item hanya ada di Moka (WOS 0 atau nama berbeda). ':'')+'Cek penulisan nama item bila seharusnya sama.</p>':'')+
+   '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:8px"><label class="sub" style="flex:1;min-width:220px">Cari item atau category<input data-ebq="1" value="'+esc(st.q)+'" autocomplete="off" style="width:100%"></label><label class="sub">Tampilkan<select data-ebf="1" style="display:block"><option value="diff"'+(st.f==='diff'?' selected':'')+'>Yang selisih</option><option value="ok"'+(st.f==='ok'?' selected':'')+'>Yang cocok</option><option value="all"'+(st.f==='all'?' selected':'')+'>Semua</option></select></label></div>'+
+   (list.length?'<div style="overflow:auto;max-height:65vh"><table><thead><tr><th>Item</th><th>Category (Moka)</th><th>WOS</th><th>Moka</th><th>Selisih</th><th>Keterangan</th></tr></thead><tbody>'+list.slice(0,st.lim).map(x=>'<tr><td><b>'+esc(x.item)+'</b></td><td>'+esc(x.kat||'-')+'</td><td>'+nf(x.w)+'</td><td>'+nf(x.m)+'</td><td><b style="color:'+(x.d===0?'#1b7a46':x.d>0?'#1b4fb3':'#b3261e')+'">'+(x.d>0?'+':'')+nf(x.d)+'</b></td><td>'+(x.d===0?'<span class="tag green">Cocok</span>':x.only==='wos'?'<span class="tag amber">Hanya di WOS</span>':x.only==='moka'?'<span class="tag amber">Hanya di Moka</span>':x.d>0?'<span class="tag blue">WOS lebih</span>':'<span class="tag red">Moka lebih</span>')+'</td></tr>').join('')+'</tbody></table></div>'+(list.length>st.lim?'<div class="ob-actions"><button class="button secondary" data-eb="more" type="button">Tampilkan 300 lagi ('+nf(list.length-st.lim)+' tersisa)</button></div>':''):'<p class="sub" style="margin:0">Tidak ada baris yang cocok dengan filter.</p>');
+  return h+'</div>'}
+ function draw(){const box=document.getElementById('wos-eb');if(!box||!st.active)return;const h=html();if(box.dataset.sig===h)return;box.dataset.sig=h;const ae=document.activeElement,isq=ae&&ae.dataset&&ae.dataset.ebq,pos=isq?ae.selectionStart:0;box.innerHTML=h;if(isq){const e=box.querySelector('[data-ebq]');if(e){e.focus();try{e.setSelectionRange(pos,pos)}catch(z){}}}}
+ function setActive(on){const sec=document.getElementById('wms-inventory');if(!sec)return;st.active=on;sec.querySelectorAll('[data-i]').forEach(b=>{if(on)b.classList.remove('active')});const eb=sec.querySelector('[data-ebtab]');if(eb)eb.classList.toggle('active',on);
+  const q=document.getElementById('inv-q'),qf=q&&q.closest('.field'),body=document.getElementById('inv-body'),box=document.getElementById('wos-eb');if(qf)qf.style.display=on?'none':'';if(body)body.style.display=on?'none':'';if(box)box.style.display=on?'':'none';
+  if(on){box.dataset.sig='';loadStok(false);if(!st.srv)loadSrv();draw()}}
+ function mount(){const sec=document.getElementById('wms-inventory');if(!sec||sec.querySelector('[data-ebtab]'))return;const fl=sec.querySelector('.filters'),body=document.getElementById('inv-body');if(!fl||!body)return;
+  const b=document.createElement('button');b.className='filter';b.type='button';b.dataset.ebtab='1';b.textContent='Ending Balance';fl.appendChild(b);
+  const box=document.createElement('div');box.id='wos-eb';box.style.display='none';body.after(box);
+  sec.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.ebtab){setActive(true);return}if(t.dataset.i!==undefined&&st.active){setActive(false);return}
+   if(!st.active)return;const d=t.dataset.eb;if(d==='ref'){loadStok(true);loadSrv()}else if(d==='csv'){const C=compare();if(C)csvOut(C)}else if(d==='more'){st.lim+=300;draw()}},true);
+  sec.addEventListener('input',e=>{if(e.target.dataset&&e.target.dataset.ebq){st.q=e.target.value;st.lim=300;draw()}});
+  sec.addEventListener('change',e=>{const t=e.target;if(t.dataset&&t.dataset.ebf){st.f=t.value;st.lim=300;draw()}else if(t.dataset&&t.dataset.ebfile&&t.files[0]){importFile(t.files[0]);t.value=''}})}
+ setInterval(()=>{try{mount();if(st.active)draw()}catch(e){}},1500);
 })();
 </script>
 <script>
