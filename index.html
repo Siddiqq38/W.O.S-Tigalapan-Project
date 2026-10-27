@@ -5041,11 +5041,11 @@ init();
    miss:gr.filter(g=>mine.has(g.dok+'|'+num(g.koli))&&g.status&&!/sesuai|ok|selesai/i.test(g.status)).length,
    recv:kol.length,recvBad:kol.filter(k=>k.status==='Bermasalah').length,cKoli:new Set(gc.map(r=>r.po+'|'+r.no_koli)).size,cPcs:gc.reduce((a,r)=>a+num(r.qty_actual),0),pKoli:new Set(pa.map(r=>r.po+'|'+r.no_koli)).size,pPcs:pa.reduce((a,r)=>a+num(r.qty),0),lc:lc.length}}
  // ---- Kecepatan dan akurasi kerja (norm dari riwayat kerja tim) + skor kinerja dengan bobot KPI
- const KPN={cnt:{l:19,p:4.5},pick:{l:120,p:1.5},pa:{l:45},cap:240,gap:25};
+ const KPN={cnt:{l:19,p:4.5},pick:{l:120,p:1.5},pa:{l:45},tfs:{l:24},de:{l:28},cap:240,gap:25}; // tfs: 24 dtk per baris item (riwayat 200 koli, 2.527 baris); data entry: 28 dtk per baris (riwayat tipis, 27 selang, sementara)
  const kbw=()=>{try{const o=JSON.parse(localStorage.getItem('wos-kpi-bobot-v1')||'null');if(o&&o.kec>=0&&o.akur>=0&&(o.kec+o.akur)>0)return o}catch(e){}return{kec:50,akur:50}};
  function perfKin(who,fr,to){
   const [f,t]=fr?[fr,to]:perfRange(),inR=d=>{d=String(d||'').slice(0,10);return d>=f&&d<=t},wd=s=>{const x=Date.parse(s);return isFinite(x)?new Date(x+288e5).toISOString().slice(0,10):''};
-  const out={cnt:null,pick:null,pa:null};
+  const out={cnt:null,pick:null,pa:null,tfs:null,de:null};
   // counting: waktu aktif = menit yang punya input; target = 19 dtk per baris (+4,5 dtk per 100 pcs)
   const gc=view('GR_COUNT').filter(r=>(who==='*'||r.operator===who)&&inR(r.tanggal)&&String(r.seq||'').charAt(0)!=='R'&&r.jam_wita);
   if(gc.length){const sets=new Set();let lines=0,pcs=0,ok=0;gc.forEach(r=>{const m=/^(\d+):(\d\d)/.exec(r.jam_wita);if(!m)return;sets.add(r.operator+'|'+String(r.tanggal).slice(0,10)+'|'+((+m[1])*60+(+m[2])));lines++;pcs+=num(r.qty_actual);if(r.status==='Sesuai')ok++});
@@ -5059,7 +5059,16 @@ init();
   const by={};view('PUTAWAY').forEach(r=>{if(!(who==='*'||r.operator===who)||!inR(r.tanggal)||!r.jam_wita)return;const m=/^(\d+):(\d\d)/.exec(r.jam_wita);if(!m)return;const key=r.operator+'|'+String(r.tanggal).slice(0,10),k=r.po+'|'+r.no_koli,o=(by[key]=by[key]||{}),e=o[k]||(o[k]={t:0,rows:0}),tm=(+m[1])*60+(+m[2]);e.rows++;if(tm>e.t)e.t=tm});
   {let act=0,tgt=0,rows=0,koli=0;Object.values(by).forEach(o=>{const ks=Object.values(o).sort((a,b)=>a.t-b.t);koli+=ks.length;ks.forEach(x=>rows+=x.rows);for(let i=1;i<ks.length;i++){const g=(ks[i].t-ks[i-1].t)*60;if(g>=30&&g<=KPN.gap*60){act+=g;tgt+=KPN.pa.l*ks[i].rows}}});
    if(koli)out.pa={koli,rows,act,tgt,eff:act?tgt/act*100:null,acc:null}}
-  const sp=[out.cnt,out.pick,out.pa].filter(x=>x&&x.eff!=null&&x.tgt>0),spd=sp.length?sp.reduce((s,x)=>s+Math.min(100,x.eff)*x.tgt,0)/sp.reduce((s,x)=>s+x.tgt,0):null;
+  // TFS ke Moka (admin outbound): selang antar koli selesai TFS per admin per hari (20 dtk sampai 25 menit); target = 24 dtk per baris item koli
+  {const ln=new Map();view('PICK_ITEM').forEach(r=>{if(r.kategori==='OTHER')return;const k=r.dok+'|'+num(r.koli);ln.set(k,(ln.get(k)||0)+1)});
+   const b2={};view('PICK_KOLI').forEach(k=>{if(k.status==='Batal'||!k.tfs_oleh||!k.tfs_waktu||!(who==='*'||k.tfs_oleh===who))return;const d=wd(k.tfs_waktu),tm=Date.parse(k.tfs_waktu);if(!inR(d)||!isFinite(tm))return;(b2[k.tfs_oleh+'|'+d]=b2[k.tfs_oleh+'|'+d]||[]).push([tm,ln.get(k.dok+'|'+num(k.koli))||0])});
+   let act=0,tgt=0,koli=0,rows=0;Object.values(b2).forEach(a=>{a.sort((x,y)=>x[0]-y[0]);koli+=a.length;a.forEach(x=>rows+=x[1]);for(let i=1;i<a.length;i++){const g=(a[i][0]-a[i-1][0])/1000;if(g>=20&&g<=KPN.gap*60){act+=g;tgt+=KPN.tfs.l*a[i][1]}}});
+   if(koli)out.tfs={koli,rows,act,tgt,eff:act?tgt/act*100:null,acc:null}}
+  // data entry Moka (admin inbound): selang antar baris di-entry (3 detik sampai 10 menit); target = 28 dtk per baris
+  {const b3={};view('DATA_ENTRY').forEach(r=>{if(!(who==='*'||r.oleh===who)||!r.jam||!inR(r.tanggal))return;const tm=Date.parse(r.jam);if(!isFinite(tm))return;const key=r.oleh+'|'+String(r.tanggal).slice(0,10);(b3[key]=b3[key]||[]).push(tm)});
+   let act=0,tgt=0,rows=0;Object.values(b3).forEach(a=>{a.sort((x,y)=>x-y);rows+=a.length;for(let i=1;i<a.length;i++){const g=(a[i]-a[i-1])/1000;if(g>=3&&g<=600){act+=g;tgt+=KPN.de.l}}});
+   if(rows)out.de={rows,act,tgt,eff:act?tgt/act*100:null,acc:null}}
+  const sp=[out.cnt,out.pick,out.pa,out.tfs,out.de].filter(x=>x&&x.eff!=null&&x.tgt>0),spd=sp.length?sp.reduce((s,x)=>s+Math.min(100,x.eff)*x.tgt,0)/sp.reduce((s,x)=>s+x.tgt,0):null;
   const ac=[];if(out.pick&&out.pick.lines)ac.push([Math.max(0,Math.min(100,100-(out.pick.err/out.pick.lines-0.01)*2500)),out.pick.lines]);if(out.cnt&&out.cnt.lines)ac.push([out.cnt.acc,out.cnt.lines]);
   const akur=ac.length?ac.reduce((s,x)=>s+x[0]*x[1],0)/ac.reduce((s,x)=>s+x[1],0):null,w=kbw();
   const total=spd!=null&&akur!=null?(spd*w.kec+akur*w.akur)/(w.kec+w.akur):(spd!=null?spd:akur);
@@ -5076,6 +5085,8 @@ init();
   if(K.pick&&K.pick.eff!=null&&K.pick.eff<85)A.push('Picking lebih lambat dari norm (efisiensi '+per(K.pick.eff)+'%): rata-rata '+sec(K.pick.act,K.pick.lines)+' dtk per baris, norm 120 dtk. Urutkan pengambilan sesuai rak dan hindari bolak-balik.');
   if(K.pick&&K.pick.err>0)A.push('Ada '+K.pick.err+' temuan (koreksi verifikasi atau miss-picking di outlet) dari '+K.pick.lines+' baris picking. Cocokkan bin, item, dan qty sebelum menandai selesai.');
   if(P.selisih>0)A.push(P.selisih+' baris picking selisih dari rekomendasi bin. Bila barang tidak ada di bin yang disarankan, catat bin tempat mengambil agar masuk cycle count.');
+  if(K.tfs&&K.tfs.eff!=null&&K.tfs.eff<85)A.push('TFS ke Moka lebih lambat dari norm (efisiensi '+per(K.tfs.eff)+'%): rata-rata '+sec(K.tfs.act,K.tfs.rows)+' dtk per baris, norm 24 dtk. Siapkan file dan tab Moka sebelum mulai, salin item dan qty tanpa jeda.');
+  if(K.de&&K.de.eff!=null&&K.de.eff<85)A.push('Data entry Moka lebih lambat dari norm (efisiensi '+per(K.de.eff)+'%). Gunakan file import per PO dan kerjakan berurutan per item.');
   if(K.pa&&K.pa.eff!=null&&K.pa.eff<85)A.push('Put away lebih lambat dari norm (efisiensi '+per(K.pa.eff)+'%). Selesaikan koli antri lebih dulu dan kurangi jeda antar koli.');
   return A}
  // akumulasi performa: kehadiran, ketepatan waktu, DRM, assign selesai, kecepatan, akurasi, dikurangi komplain / SOP / 5R
@@ -5091,7 +5102,7 @@ init();
   const K=perfKin(who,f,t),P=perfCalc(who,f,t),miss=P.miss||0;
   const C=[];if(workdays)C.push([present/workdays*100,25]);if(present)C.push([(present-late)/present*100,15]);if(drmReq)C.push([drmYes/drmReq*100,10]);if(asg)C.push([done/asg*100,15]);if(K.spd!=null)C.push([K.spd,15]);if(K.akur!=null)C.push([K.akur,15]);
   const base=C.length?C.reduce((s,x)=>s+x[0]*x[1],0)/C.reduce((s,x)=>s+x[1],0):null,pen=Math.min(20,5*(comp+sop+miss))+Math.min(10,3*r5),score=base==null?null:Math.max(0,base-pen);
-  return{f,t,workdays,present,late,drmReq,drmYes,comp,sop,r5,asg,done,miss,K,base,pen,score,ok}}
+  return{who,f,t,workdays,present,late,drmReq,drmYes,comp,sop,r5,asg,done,miss,K,base,pen,score,ok}}
  function accCard(who){
   const A=perfAcc(who),K=A.K,k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',pc=(a,b)=>b?Math.round(100*a/b)+'%':'-',cl=(a,b,g,o)=>!b?'':(a/b*100>=g?'g':a/b*100>=o?'o':'r');
   const lb=kinLbl(A.score),rec=accRec(A,who),RK=perfRank(who);
@@ -5117,13 +5128,21 @@ init();
   if(i<0)return{list,f:rkC.f,td:rkC.td,rank:null,n:list.length};
   const same=list.filter(x=>x.role===list[i].role),j=same.findIndex(x=>x.c===who);
   return{list,f:rkC.f,td:rkC.td,rank:i+1,n:list.length,score:list[i].score,roleRank:j+1,roleN:same.length,role:list[i].role}}
+ // tren mingguan: skor akumulasi minggu ini (Senin sampai hari ini) dibanding minggu lalu (Senin sampai Minggu)
+ function perfTrend(who){
+  const dd=s=>new Date(Date.parse(s+'T00:00:00Z')),iso=d=>d.toISOString().slice(0,10),td=new Date(Date.now()+288e5).toISOString().slice(0,10),mon=new Date(dd(td).getTime()-((dd(td).getUTCDay()+6)%7)*864e5),pm=new Date(mon.getTime()-7*864e5),pe=new Date(mon.getTime()-864e5);
+  let cur=null,prev=null;try{cur=perfAcc(who,iso(mon),td).score;prev=perfAcc(who,iso(pm),iso(pe)).score}catch(e){}
+  return{cur,prev,delta:cur!=null&&prev!=null?cur-prev:null,f:iso(mon),pf:iso(pm)}}
+ function trendTile(k,TR){
+  const d=TR.delta,arrow=d==null?'':d>=1?'▲ +'+Math.round(d):d<=-1?'▼ '+Math.round(d):'▬ stabil';
+  return k('Tren mingguan',d==null?'-':arrow,d==null?'butuh data minggu ini dan minggu lalu':'skor minggu ini '+Math.round(TR.cur)+' vs minggu lalu '+Math.round(TR.prev),d==null?'':d>=1?'g':d<=-1?'r':'o')}
  function rankTable(){
   const R=perfRank('*'),L=R.list;
   return '<h4 style="margin:14px 0 6px">Peringkat akumulasi performa · bulan berjalan ('+esc(R.f)+' s/d '+esc(R.td)+')</h4>'+(L.length?'<div class="an-wrap"><table class="an-t"><thead><tr><th>#</th><th>Nama</th><th>Peran</th><th>Skor</th></tr></thead><tbody>'+L.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.role)+'</td><td><b>'+Math.round(x.score)+'</b></td></tr>').join('')+'</tbody></table></div><p class="sub">Skor dari kehadiran, ketepatan waktu, DRM, assign selesai, kecepatan, ketepatan kerja, dikurangi komplain, SOP, dan 5R. Peran berbeda punya jenis pekerjaan berbeda, jadi bandingkan terutama di dalam peran yang sama.</p>':'<p class="sub">Belum cukup data bulan ini.</p>')}
  function accHtml(A,K,k,pc,cl,lb,rec,RK){
   return '<h4 style="margin:18px 0 6px">Akumulasi performa</h4><div class="an-kpi">'+
    k('Akumulasi performa',A.score==null?'-':Math.round(A.score),A.score==null?'belum cukup data pada periode ini':lb[0]+(A.pen?' · dikurangi '+Math.round(A.pen)+' poin (komplain, SOP, 5R)':''),lb[1])+
-   k('Peringkat bulan ini',RK.rank?'#'+RK.rank+' dari '+RK.n:'-',RK.rank?'semua staf · di peran '+RK.role+' #'+RK.roleRank+' dari '+RK.roleN+' (skor '+Math.round(RK.score)+', '+RK.f+' s/d '+RK.td+')':'belum cukup data bulan ini',RK.rank&&RK.rank<=3?'g':'')+
+   k('Peringkat bulan ini',RK.rank?'#'+RK.rank+' dari '+RK.n:'-',RK.rank?'semua staf · di peran '+RK.role+' #'+RK.roleRank+' dari '+RK.roleN+' (skor '+Math.round(RK.score)+', '+RK.f+' s/d '+RK.td+')':'belum cukup data bulan ini',RK.rank&&RK.rank<=3?'g':'')+trendTile(k,perfTrend(A.who))+
    k('Kehadiran',A.workdays?A.present+' / '+A.workdays+' hari':'-',A.workdays?pc(A.present,A.workdays)+' dari hari kerja yang berjalan':'belum ada data presensi',cl(A.present,A.workdays,95,85))+
    k('Ketepatan waktu',A.present?(A.present-A.late)+' / '+A.present+' hari':'-',A.late?A.late+' hari terlambat (lewat 08.10)':'tidak ada keterlambatan',A.present?(A.late?'o':'g'):'')+
    k('DRM',A.drmReq?A.drmYes+' / '+A.drmReq+' hari':'-','hari wajib yang diikuti',cl(A.drmYes,A.drmReq,100,80))+
@@ -5142,6 +5161,7 @@ init();
    (K.cnt?k('Counting',kinPct(K.cnt.eff),K.cnt.koli+' koli · '+K.cnt.lines+' baris · aktif '+kinMin(K.cnt.act)+' (target '+kinMin(K.cnt.tgt)+')',col(K.cnt.eff)):'')+
    (K.pick?k('Picking',kinPct(K.pick.eff),K.pick.koli+' koli · '+K.pick.lines+' baris · '+kinMin(K.pick.act)+' (target '+kinMin(K.pick.tgt)+')',col(K.pick.eff)):'')+
    (K.pa?k('Put away',kinPct(K.pa.eff),K.pa.koli+' koli · '+K.pa.rows+' baris · norm sementara',col(K.pa.eff)):'')+
+   (K.tfs?k('TFS ke Moka',kinPct(K.tfs.eff),K.tfs.koli+' koli · '+K.tfs.rows+' baris · aktif '+kinMin(K.tfs.act)+' (target '+kinMin(K.tfs.tgt)+')',col(K.tfs.eff)):'')+(K.de?k('Data entry Moka',kinPct(K.de.eff),K.de.rows+' baris · norm 28 dtk/baris (sementara)',col(K.de.eff)):'')+
    (K.pick?k('Akurasi picking',kinPct(K.pick.acc),K.pick.err+' temuan dari '+K.pick.lines+' baris',K.pick.err?'o':'g'):'')+(K.cnt?k('Kesesuaian counting',kinPct(K.cnt.acc),'baris sesuai surat jalan (indikatif)',''):'')+
    '</div>'+kinAdvice(who,K)+'<p class="sub" style="margin:6px 0 0">Efisiensi 100% = tepat norm; lebih dari 100% dihitung 100 untuk skor. Norm dari riwayat kerja tim: counting 19 dtk/baris, picking 120 dtk/baris, put away 45 dtk/baris (sementara).</p>'+
    (level()==='supervisor'?'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:8px"><label class="sub">Bobot kecepatan (%)<input type="number" min="0" max="100" data-kbw="kec" value="'+K.w.kec+'" style="width:90px;display:block"></label><label class="sub">Bobot akurasi (%)<input type="number" min="0" max="100" data-kbw="akur" value="'+K.w.akur+'" style="width:90px;display:block"></label><span class="sub">Bobot KPI tersimpan di perangkat ini.</span></div>':'')}
@@ -5191,7 +5211,7 @@ init();
  function perfCard(who){
   const {P,S}=perfSecs(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',fmt=n=>Math.round(n).toLocaleString('id-ID');
   const pb=window.WOSRng.html(),av=who!=='*'&&window.WOSFoto?window.WOSFoto.avatar(who,52,nameOf(who)):'';
-  const K=who==='*'?null:perfKin(who),hasKin=who==='*'||(K&&(K.cnt||K.pick||K.pa));
+  const K=who==='*'?null:perfKin(who),hasKin=who==='*'||(K&&(K.cnt||K.pick||K.pa||K.tfs||K.de));
   return '<div class="an-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div style="display:flex;align-items:center;gap:12px">'+av+'<div><h3 style="margin:0">Performa · '+(who==='*'?'Seluruh tim dan gudang':esc(nameOf(who)))+'</h3><p class="sub" style="margin:0">'+(who==='*'?'':esc(perfRole(who))+' · ')+esc(P.f)+' s/d '+esc(P.t)+'</p></div></div><div>'+pb+'</div></div>'+
    (who!=='*'?'<div style="margin:8px 0 0"><button class="button secondary" data-perfshot="'+esc(who)+'" type="button">⬇ Unduh kartu performa (gambar)</button></div>':'')+
    (S.length?S.map(x=>'<h4 style="margin:14px 0 6px">'+esc(x.t)+'</h4><div class="an-kpi">'+x.items.map(i=>k(i[0],i[1],i[2],i[3])).join('')+'</div>'+(x.stores&&x.stores.length?'<div class="an-wrap" style="margin-top:8px"><table class="an-t"><thead><tr><th>Toko</th><th>Kode</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+x.stores.map(([o,e])=>'<tr><td>'+esc(o)+'</td><td>'+esc(e.kode)+'</td><td>'+e.koli+'</td><td>'+fmt(e.pcs)+'</td></tr>').join('')+'</tbody></table></div>':'')).join(''):'<p class="sub" style="margin-top:12px">Belum ada aktivitas kerja yang tercatat pada periode ini.</p>')+
@@ -5204,7 +5224,7 @@ init();
    const pct=(a,b)=>b?Math.round(100*a/b)+'%':'-',tile=(l,v,s,c)=>'<div style="background:#fff;border:1px solid #eadfd7;border-radius:14px;padding:11px 14px"><div style="font-size:11px;font-weight:700;color:#8a7a70;text-transform:uppercase">'+esc(l)+'</div><div style="font-size:24px;font-weight:800;color:'+(c||'#1b2433')+'">'+esc(v)+'</div><div style="font-size:11px;color:#8a7a70">'+esc(s||'')+'</div></div>';
    const accHtmlP='<div style="padding:4px 34px 6px;font-size:13px;font-weight:800;color:#b5532a;letter-spacing:1px">AKUMULASI PERFORMA</div><div style="padding:4px 34px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+
     tile('Kehadiran',A.workdays?A.present+'/'+A.workdays+' hari':'-',pct(A.present,A.workdays))+tile('Ketepatan waktu',A.present?(A.present-A.late)+'/'+A.present+' hari':'-',A.late?A.late+' hari terlambat':'tidak terlambat',A.late?'#a35f00':'#1b7a46')+tile('DRM',A.drmReq?A.drmYes+'/'+A.drmReq+' hari':'-','hari wajib diikuti')+tile('Assign selesai',A.asg?A.done+'/'+A.asg:'-','tugas selesai')+
-    tile('Kecepatan kerja',kinPct(K.spd),'terhadap norm tim')+tile('Ketepatan kerja',kinPct(K.akur),'picking dan counting')+tile('Komplain dan SOP',A.comp+A.sop+A.miss,'komplain '+A.comp+' · SOP '+A.sop+' · miss '+A.miss,(A.comp+A.sop+A.miss)?'#b3261e':'#1b7a46')+tile('Peringkat bulan ini',RK.rank?'#'+RK.rank+' / '+RK.n:'-',RK.rank?'di peran '+RK.role+' #'+RK.roleRank+' / '+RK.roleN:'belum cukup data')+'</div>'+
+    tile('Kecepatan kerja',kinPct(K.spd),'terhadap norm tim')+tile('Ketepatan kerja',kinPct(K.akur),'picking dan counting')+tile('Komplain dan SOP',A.comp+A.sop+A.miss,'komplain '+A.comp+' · SOP '+A.sop+' · miss '+A.miss,(A.comp+A.sop+A.miss)?'#b3261e':'#1b7a46')+tile('Peringkat bulan ini',RK.rank?'#'+RK.rank+' / '+RK.n:'-',RK.rank?'di peran '+RK.role+' #'+RK.roleRank+' / '+RK.roleN:'belum cukup data')+(()=>{const TR=perfTrend(who),d=TR.delta;return tile('Tren mingguan',d==null?'-':d>=1?'▲ +'+Math.round(d):d<=-1?'▼ '+Math.round(d):'▬ stabil',d==null?'butuh 2 minggu data':'minggu ini '+Math.round(TR.cur)+' vs lalu '+Math.round(TR.prev),d==null?'':d>=1?'#1b7a46':d<=-1?'#b3261e':'#a35f00')})()+'</div>'+
     '<div style="margin:0 34px 22px;background:#fff8f0;border:1px solid #f0dcc8;border-radius:14px;padding:12px 16px"><div style="font-size:12px;font-weight:800;color:#b5532a;margin-bottom:4px">REKOMENDASI PERBAIKAN</div>'+(rec.length?'<ul style="margin:0 0 0 18px;padding:0;font-size:12.5px;color:#334;line-height:1.5">'+rec.slice(0,6).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'<div style="font-size:12.5px;color:#1b7a46">Tidak ada temuan pada periode ini. Pertahankan.</div>')+'</div>';
    S.forEach(x=>x.items.forEach(i=>{if(!(String(i[1])==='0'||/^0 \//.test(i[1])))flat.push(i)}));
    const clr={g:'#1b7a46',o:'#a35f00',r:'#b3261e','':'#1b2433'};
