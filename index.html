@@ -5067,6 +5067,17 @@ init();
  window.WOSKin=perfKin;
  const kinLbl=v=>v==null?['-','']:v>=85?['Sesuai norm','g']:v>=60?['Perlu dipantau','o']:['Perlu pembinaan','r'];
  const kinPct=v=>v==null?'-':Math.round(v)+'%',kinMin=s=>s==null?'-':s>=3600?Math.floor(s/3600)+'j '+Math.round(s%3600/60)+'m':Math.round(s/60)+' mnt';
+ // bahan perbaikan otomatis dari kecepatan (vs norm) dan akurasi pada periode yang dipilih (pilih This Week untuk bahan perbaikan mingguan)
+ function kinAdvice(who,K){
+  const A=[],per=x=>Math.round(x),sec=(a,n)=>n?Math.round(a/n):0,P=perfCalc(who);
+  if(K.cnt&&K.cnt.eff!=null&&K.cnt.eff<85)A.push('Counting lebih lambat dari norm (efisiensi '+per(K.cnt.eff)+'%): rata-rata '+sec(K.cnt.act,K.cnt.lines)+' dtk per baris, norm 19 dtk. Siapkan area dan alat hitung sebelum mulai, hitung per bal.');
+  if(K.cnt&&K.cnt.acc!=null&&K.cnt.acc<95)A.push('Hasil counting yang tidak sesuai surat jalan '+per(100-K.cnt.acc)+'% dari baris. Hitung ulang sebelum simpan bila qty beda dari surat jalan.');
+  if(K.pick&&K.pick.eff!=null&&K.pick.eff<85)A.push('Picking lebih lambat dari norm (efisiensi '+per(K.pick.eff)+'%): rata-rata '+sec(K.pick.act,K.pick.lines)+' dtk per baris, norm 120 dtk. Urutkan pengambilan sesuai rak dan hindari bolak-balik.');
+  if(K.pick&&K.pick.err>0)A.push('Ada '+K.pick.err+' temuan (koreksi verifikasi atau miss-picking di outlet) dari '+K.pick.lines+' baris picking. Cocokkan bin, item, dan qty sebelum menandai selesai.');
+  if(P.selisih>0)A.push(P.selisih+' baris picking selisih dari rekomendasi bin. Bila barang tidak ada di bin yang disarankan, catat bin tempat mengambil agar masuk cycle count.');
+  if(K.pa&&K.pa.eff!=null&&K.pa.eff<85)A.push('Put away lebih lambat dari norm (efisiensi '+per(K.pa.eff)+'%). Selesaikan koli antri lebih dulu dan kurangi jeda antar koli.');
+  if(!A.length&&!(K.cnt||K.pick||K.pa))return '';
+  return '<h4 style="margin:14px 0 6px">Bahan perbaikan</h4>'+(A.length?'<ul style="margin:0 0 0 18px">'+A.map(x=>'<li style="margin:3px 0">'+esc(x)+'</li>').join('')+'</ul>':'<p class="sub" style="margin:0;color:#1b7a46">Tidak ada temuan pada periode ini. Pertahankan kecepatan dan akurasinya.</p>')}
  function kinCard(who){
   if(who==='*')return '';
   const K=perfKin(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',col=e=>e==null?'':e>=85?'g':e>=60?'o':'r';
@@ -5078,7 +5089,7 @@ init();
    (K.pick?k('Picking',kinPct(K.pick.eff),K.pick.koli+' koli · '+K.pick.lines+' baris · '+kinMin(K.pick.act)+' (target '+kinMin(K.pick.tgt)+')',col(K.pick.eff)):'')+
    (K.pa?k('Put away',kinPct(K.pa.eff),K.pa.koli+' koli · '+K.pa.rows+' baris · norm sementara',col(K.pa.eff)):'')+
    (K.pick?k('Akurasi picking',kinPct(K.pick.acc),K.pick.err+' temuan dari '+K.pick.lines+' baris',K.pick.err?'o':'g'):'')+(K.cnt?k('Kesesuaian counting',kinPct(K.cnt.acc),'baris sesuai surat jalan (indikatif)',''):'')+
-   '</div><p class="sub" style="margin:6px 0 0">Efisiensi 100% = tepat norm; lebih dari 100% dihitung 100 untuk skor. Norm dari riwayat kerja tim: counting 19 dtk/baris, picking 120 dtk/baris, put away 45 dtk/baris (sementara).</p>'+
+   '</div>'+kinAdvice(who,K)+'<p class="sub" style="margin:6px 0 0">Efisiensi 100% = tepat norm; lebih dari 100% dihitung 100 untuk skor. Norm dari riwayat kerja tim: counting 19 dtk/baris, picking 120 dtk/baris, put away 45 dtk/baris (sementara).</p>'+
    (level()==='supervisor'?'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:8px"><label class="sub">Bobot kecepatan (%)<input type="number" min="0" max="100" data-kbw="kec" value="'+K.w.kec+'" style="width:90px;display:block"></label><label class="sub">Bobot akurasi (%)<input type="number" min="0" max="100" data-kbw="akur" value="'+K.w.akur+'" style="width:90px;display:block"></label><span class="sub">Bobot KPI tersimpan di perangkat ini.</span></div>':'')}
  function kinTable(){
   const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>!p.out&&p.role!=='Supervisor'),av=(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,30,n):'';
@@ -5159,7 +5170,7 @@ init();
   const adm=canAdmin(),me=code();let h='';
   if(V3.err())h+='<p class="note" style="color:#b3261e">Data belum bisa dimuat: '+esc(V3.err())+'</p>';
   const card=(t,who)=>'<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><strong>'+esc(t.judul)+'</strong><span class="tag amber">'+esc(t.jenis)+'</span></div><p class="sub">'+esc(t.detail)+' · status '+esc(t.status)+'</p><div style="display:flex;gap:8px;flex-wrap:wrap">'+t.est.map(e=>'<span class="tag green">Est. '+esc(e[0])+' '+esc(fm(e[1]))+'</span>').join('')+'<span class="tag">Total est. '+esc(fm(MINP(t)))+'</span></div>'+(who?'':'<div class="ob-actions"><button class="button secondary" data-v3go="'+esc(t.menu)+'" type="button">Buka menu</button></div>')+'</div>';
-  if(!['supervisor','manager'].includes(level())){const t=myTasks(me).filter(x=>window.WOSDR.inR('tsk',x.tgl));h='<div class="card"><h3 style="margin:0">Tugas saya</h3><p class="sub">'+esc(nameOf(me))+' · '+esc(today())+'. Estimasi waktu dihitung dari Master Norm yang berlaku, sebagai patokan beban kerja.</p>'+(t.length?'<p><strong>Total beban kerja: '+esc(fm(t.reduce((a,x)=>a+MINP(x),0)))+'</strong> dari '+t.length+' tugas</p>':'')+'</div>'+(t.length?t.map(x=>card(x)).join(''):'<p class="note" style="margin-top:12px">Belum ada tugas untuk Anda. Tugas dari Admin atau SPV akan muncul di sini dan di notifikasi.</p>')+h;h+=perfCard(me)}
+  if(!['supervisor','manager'].includes(level())){const t=myTasks(me).filter(x=>window.WOSDR.inR('tsk',x.tgl));h=(window.WOSMyPerf?window.WOSMyPerf.html():'')+'<div class="card"><h3 style="margin:0">Tugas saya</h3><p class="sub">'+esc(nameOf(me))+' · '+esc(today())+'. Estimasi waktu dihitung dari Master Norm yang berlaku, sebagai patokan beban kerja.</p>'+(t.length?'<p><strong>Total beban kerja: '+esc(fm(t.reduce((a,x)=>a+MINP(x),0)))+'</strong> dari '+t.length+' tugas</p>':'')+'</div>'+(t.length?t.map(x=>card(x)).join(''):'<p class="note" style="margin-top:12px">Belum ada tugas untuk Anda. Tugas dari Admin atau SPV akan muncul di sini dan di notifikasi.</p>')+h;h+=perfCard(me)}
   else{
    const ops=Object.entries(typeof staffMaster!=="undefined"?staffMaster:{}).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
    const rows=ops.map(([c,p])=>({c,n:p.name,t:myTasks(c).filter(x=>window.WOSDR.inR('tsk',x.tgl))})).filter(x=>x.t.length);
@@ -6714,6 +6725,23 @@ init();
    h.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.brf;if(k){st.f[k]=e.target.value;st.plan=null}})}
   draw()}
  setInterval(()=>{try{if($('master')&&$('master').classList.contains('active'))mount()}catch(e){}},1500);
+})();
+</script>
+<script>
+// Update performa pribadi: hasil Pantauan Tim (counting, put away, picking) ditampilkan ke akun operator yang bersangkutan, di halaman Attendance dan Task.
+(()=>{
+ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+ const me=()=>{try{return sessionStorage.getItem('wos-session-code')||''}catch(e){return ''}},lvl=()=>document.documentElement.dataset.wosRole||'';
+ const TIP={bad:'Segera lanjutkan, atau minta bantuan SPV / Admin bila ada kendala.',warn:'Percepat ritme kerja mendekati norm.',chk:'Cek kembali hasil kerjamu.'};
+ function items(){const c=me();if(!c)return[];const src=window.WOSMonSrc||{},out=[];[['count','Counting'],['put','Put Away'],['pick','Picking']].forEach(([k,l])=>{try{(src[k]?src[k]():[]).forEach(i=>{if(i&&i.op===c)out.push(Object.assign({act:l},i))})}catch(e){}});return out}
+ function html(){
+  const L=items(),ST=(window.WOSMon&&window.WOSMon.ST)||{},prob=L.filter(i=>TIP[i.st]),ok=L.filter(i=>i.st==='ok');
+  if(!prob.length&&!ok.length)return '';
+  const row=i=>'<div style="padding:8px 0;border-top:1px solid #eadfd7"><span class="tag amber">'+esc(i.act)+'</span> <b style="color:'+((ST[i.st]||{}).c||'#444')+'">'+esc(i.msg)+'</b>'+(i.idle!=null&&i.idle>=1?' <span class="sub">('+Math.round(i.idle)+' mnt lalu)</span>':'')+'<div class="sub" style="margin-top:2px">'+esc(TIP[i.st])+'</div></div>';
+  return '<div class="card" id="wos-myperf-card" style="margin-top:12px;border-left:4px solid '+(prob.length?'#b3261e':'#1b7a46')+'"><h3 style="margin:0 0 4px">Update performa kamu</h3><p class="sub" style="margin:0 0 4px">Dibandingkan dengan norm kerja tim, diperbarui otomatis.</p>'+(prob.length?prob.map(row).join(''):'')+(ok.length&&!prob.length?'<p style="margin:6px 0 0;color:#1b7a46"><b>Kerjamu sesuai norm</b> pada '+esc(ok.map(i=>i.act).join(', '))+'. Pertahankan.</p>':'')+'</div>'}
+ window.WOSMyPerf={html,items};
+ function mount(){try{if(lvl()!=='OPERATOR')return;const pg=document.getElementById('attendance');if(!pg||!pg.classList.contains('active'))return;let h=document.getElementById('wos-myperf');if(!h){h=document.createElement('div');h.id='wos-myperf';pg.insertBefore(h,pg.firstChild)}const x=html();if(h.dataset.sig!==x){h.dataset.sig=x;h.innerHTML=x}}catch(e){}}
+ setInterval(mount,10000);setTimeout(mount,3000);
 })();
 </script>
 <script>
