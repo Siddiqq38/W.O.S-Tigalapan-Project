@@ -5101,6 +5101,21 @@ init();
    if(ad.length||star)it.push(k('Adjustment',ad.length,'diajukan atau disetujui'));
    if(rs.length||star)it.push(k('Tindak lanjut miss-picking',rs.length,'diselesaikan'));
    if(it.length)S.push({t:'Administrasi dan dokumen',items:it})}
+  // KPI Supervisor: produktivitas per crew (target 1.669 pcs/orang/hari), movement accuracy (target 95,15%), inventory accuracy (target 95%)
+  if(!star&&perfRole(who)==='Supervisor'){try{
+   const T={prod:1669,mov:95.15,inv:95},pc=n=>(Math.round(n*100)/100).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})+'%',cl=(v,tg)=>v>=tg?'g':v>=tg-5?'o':'r';
+   const crew=Object.entries(typeof staffMaster!=='undefined'?staffMaster:{}).filter(([c,p])=>!p.out&&p.role==='Operator').map(([c])=>c),cs=new Set(crew);
+   let att=[];try{att=JSON.parse(localStorage.getItem('wos-attendance-kpi-v1')||'[]')}catch(e){}
+   const cd=new Set((Array.isArray(att)?att:[]).filter(r=>r&&r.action==='Attendance in'&&cs.has(r.code)&&inR(r.day)).map(r=>r.day+'|'+r.code)).size;
+   const tot=crew.reduce((a,c)=>{const x=perfCalc(c);return a+x.pcs+x.cPcs+x.pPcs},0),avg=cd?tot/cd:null;
+   const PT=perfCalc('*'),mv=PT.lines,mm=PT.salah+PT.miss,mp=mv?Math.max(0,(mv-mm)/mv*100):null;
+   let ia=null;try{ia=window.WOSAcc?window.WOSAcc.calc(f,t).item:null}catch(e){}
+   S.unshift({t:'KPI Supervisor',items:[
+    k('Produktivitas per crew',avg==null?'-':fmt(avg)+' pcs',avg==null?'belum ada data presensi crew pada periode ini':'rata-rata per orang per hari · target '+fmt(T.prod)+' · '+pc(avg/T.prod*100)+' dari target',avg==null?'':cl(avg/T.prod*100,100)),
+    k('Hari kerja crew',cd,fmt(tot)+' pcs (picking + counting + put away) oleh '+crew.length+' crew'),
+    k('Movement accuracy',mp==null?'-':pc(mp),mp==null?'belum ada item keluar pada periode ini':fmt(mv)+' item keluar · '+mm+' salah/miss ('+PT.salah+' koreksi verifikasi, '+PT.miss+' temuan outlet) · target '+pc(T.mov),mp==null?'':cl(mp,T.mov)),
+    k('Inventory accuracy',ia&&ia.pct!=null?pc(ia.pct):'-',ia&&ia.n?fmt(ia.n)+' item dihitung · '+ia.miss+' miss · '+(ia.n-ia.miss)+' hit · target '+pc(T.inv):'belum ada cycle count / opname pada periode ini',ia&&ia.pct!=null?cl(ia.pct,T.inv):'')]})
+  }catch(e){}}
   return{P,S,f,t}}
  const perfRole=c=>{try{return staffMaster[c].role||''}catch(e){return ''}};
  function perfCard(who){
