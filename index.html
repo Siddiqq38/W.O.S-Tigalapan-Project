@@ -1326,7 +1326,7 @@ form.onsubmit=async ev=>{ev.preventDefault();const code=$('wos-user').value.trim
  try{if(!buildAccount(code)){err.textContent='Kode staff tidak ditemukan atau sudah tidak aktif (Out).';return}
   let ok=await passwordOk(code,pass);
   if(!ok&&code===MASTER_CODE&&await hash(pass)===MASTER_HASH)ok=true;
-  if(!ok){err.textContent='Kode staff atau password salah. Password awal adalah ID staff Anda.';return}
+  if(!ok){err.textContent=ACC[code]?'Kode staff atau password salah. Password awal akun ini bukan kode staff: minta daftar password awal ke SPV.':'Kode staff atau password salah. Password awal adalah ID staff Anda.';return}
   sessionStorage.setItem(CODEKEY,code);sessionStorage.removeItem(IMPKEY);$('wos-pass').value='';start(code)}
  catch(e){err.textContent=e.message||'Login gagal.'}
  finally{btn.disabled=false}};
