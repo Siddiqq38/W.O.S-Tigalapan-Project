@@ -32,7 +32,7 @@ async function handler(req, res) {
   if (text) params.append('or', '(resi_no.ilike.*' + text + '*,vendor_name.ilike.*' + text + '*,resi_group_id.ilike.*' + text + '*)');
 
   const r = await fetch(c.url + '/rest/v1/erp_resi?' + params.toString(), { headers: sbHeaders(c) });
-  if (!r.ok) return json(res, 500, { error: 'Gagal membaca data: HTTP ' + r.status });
+  if (!r.ok) return json(res, 500, { error: 'Gagal membaca data: HTTP ' + r.status + ' ' + (await r.text()).slice(0, 300) });
   const rows = await r.json();
   for (const row of rows) {
     delete row.raw;
