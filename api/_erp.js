@@ -1,9 +1,15 @@
 // Pembantu bersama untuk integrasi ERP Tigalapan -> WOS (awalan "_" = bukan rute Vercel).
 const crypto = require('crypto');
 
+// Ambil hanya alamat dasar proyek (https://xxxx.supabase.co); jalur tambahan seperti /rest/v1 yang terlanjur terisi dibuang.
+function baseUrl(v) {
+  const s = String(v || '').trim().replace(/^["']|["']$/g, '');
+  try { return new URL(s).origin; } catch (e) { return s.replace(/\/+$/, ''); }
+}
+
 function cfg() {
   return {
-    url: (process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
+    url: baseUrl(process.env.SUPABASE_URL),
     key: process.env.SUPABASE_SERVICE_KEY || '',
     secret: process.env.ERP_WEBHOOK_SECRET || '',
     viewPassword: process.env.ERP_VIEW_PASSWORD || '',
