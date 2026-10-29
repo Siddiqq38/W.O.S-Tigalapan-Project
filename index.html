@@ -1128,7 +1128,7 @@ if(typeof document!=='undefined') (()=>{
 "ST.TRT-01":{name:"STORE HEAD TIGALAPANKAOS TORAJA",level:"STORE",label:"Store Head",outlet:"TRT-01",h:"3f4943fdf6073c3d725d69579b8ff460742eeba2f42acae6a741959eb0201ec4"},
 "OPS01":{name:"ILHAM IDRIS",level:"SPVO",label:"Supervisor Operational",h:"9d64b80972e3145bf2662202355fe6874de1092765f6c437ad38f08a733bcffa"},
 "OPS02":{name:"ANDI SULTAN",level:"SPVO",label:"Supervisor Operational",h:"33bf797c5ed964baa83556d011fe810ae100e30325fd2fa6a65b4a2cc644b4de"},
-"PPIC-38":{name:"PPIC DC 38",level:"PPIC",label:"PPIC",h:"9cf33d53c4c6e72be204ded593fb276fa59a7d71c1e20d2e2dc02a3f2c398be9"},
+"PPICAN":{name:"FATAHILLAH JR",level:"PPICV",label:"PPIC (monitor)",h:"17d4707ef1dd305fb891f1673202fd5a012486b02c91d676a668b65e2291de9b"},"PPIC-38":{name:"PPIC DC 38",level:"PPIC",label:"PPIC",h:"9cf33d53c4c6e72be204ded593fb276fa59a7d71c1e20d2e2dc02a3f2c398be9"},
 "HRD-38":{name:"HRD DC 38",level:"HRD",label:"HRD",h:"239e484169761d28d2eee5e9f9b6d4566c04e71a104ffe73519baf398014ca96"},
 "PROD-38":{name:"ADMIN PRODUKSI",level:"PROD",label:"Admin Produksi",h:"c326d77a62d285b2824d616df9de9bd75ecd1abdb669d915b12c8d1c5d041b3f"},
 "FAT-38":{name:"FAT",level:"FAT",label:"FAT",h:"9008469aca0a193f87ad0c4b5877503c6cdf5c5e9fc136d9a00df19286e6e7b6"}};
@@ -1142,7 +1142,7 @@ const sm=()=>{try{return staffMaster}catch(e){return{}}};
 const MASTER_HASH='f8f83405f4b975412db5fd937d5896eadb1c31c07ed81d782a406e3b3a64c700',MASTER_CODE='W999';
 const CODEKEY='wos-session-code',IMPKEY='wos-impersonator',CREDKEY='wos-credentials-v1';
 const LEVEL_OF=role=>role==='Supervisor'?'SPV':role==='Admin'?'ADMIN':'OPERATOR';
-const ALIAS={SPV:'supervisor',SPVO:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',HRD:'hrd',PROD:'prod',FAT:'fat',PRDM:'prdm'};
+const ALIAS={SPV:'supervisor',SPVO:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',PPICV:'ppicv',HRD:'hrd',PROD:'prod',FAT:'fat',PRDM:'prdm'};
 const ACC=window.WOS_ACC||{};
 const TEMP_ADMIN={W28:{day:'2026-10-24',scope:'outbound',label:'Admin Outbound (pengganti)'}}; // pengganti sementara: berlaku hanya pada tanggal tersebut
 const buildAccount=code=>{if(ACC[code])return{code,level:ACC[code].level,label:ACC[code].label,outlet:ACC[code].outlet||''};const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);{const ta=TEMP_ADMIN[code];if(ta&&level==='OPERATOR'&&ta.day===new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'}))return{code,level:'ADMIN',label:ta.label,tmp:ta.scope}}return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?(p.gm?'General Manager':'Manager'):level==='ADMIN'?'Admin':'Operator'}};
@@ -1154,7 +1154,7 @@ const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracksearch','anal
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','tracksearch','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance','tracksearch'],STORE:['tracksearch','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory','tracksearch'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['dashboard','wms-inbound','wms-outbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['dashboard','analysis','tracksearch','wms-inbound','wms-outbound'],SPVO:['dashboard','wms-location','wms-outbound','wms-inventory','tracksearch','analysis']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','tracksearch','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance','tracksearch'],STORE:['tracksearch','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory','tracksearch'],PPICV:['wms-inbound','wms-outbound','tracksearch'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['dashboard','wms-inbound','wms-outbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['dashboard','analysis','tracksearch','wms-inbound','wms-outbound'],SPVO:['dashboard','wms-location','wms-outbound','wms-inventory','tracksearch','analysis']};
 // SPV Operational (terbatas): menu ini tampil tetapi terkunci (tidak bisa diklik); Coaching dan Evaluasi tidak ditampilkan sama sekali
 const LOCKED_PAGES={SPVO:['attendance','tugas','compliance','project','kaskecil','trip','wms-inbound','performance','master','access']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
@@ -2289,10 +2289,11 @@ init();
  const storeCode=()=>/^ST\./.test(code())?code().slice(3):'';
  // hak akses tab WMS per level akun (operator tetap mengikuti perannya)
  const allowTab=(page,name)=>{const lv=level();if(lv==='supervisor'||lv==='admin'||lv==='operator')return true;
+  if(lv==='ppicv')return page==='wms-inbound'||page==='wms-outbound';
   if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In','Tracking'].includes(name);if(lv==='prdm')return ['Incoming','Staging In','Counting','Tracking','Defect Handling','Laporan Kesesuaian'].includes(name);if(lv==='prod')return ['Staging In','Counting','Defect Handling','Laporan Kesesuaian'].includes(name);if(lv==='fat')return name==='Staging In';return false}
   if(page==='wms-outbound'){if(lv==='ppic')return ['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping'].includes(name);if(lv==='prdm'||lv==='prod')return ['Picking List','Shipping'].includes(name);if(lv==='store')return ['Shipping','Receiving Outlet','GR Outlet','Miss-Picking'].includes(name);return false}
   return false};
- const canSJ=()=>canAdmin()||level()==='prod'||level()==='prdm',canHPP=()=>canAdmin()||level()==='fat';
+ const canSJ=()=>canAdmin()||level()==='prod'||level()==='prdm'||level()==='ppicv',canHPP=()=>canAdmin()||level()==='fat';
  const main=document.querySelector('main');if(!main)return;
  // ---- menu WMS
  const FEAT={
@@ -3145,7 +3146,7 @@ init();
  const U=s=>String(s==null?'':s).trim().toUpperCase();
  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const isSpv=()=>level()==='supervisor';
-  const isViewer=()=>['prdm','prod'].includes(level());
+  const isViewer=()=>['prdm','prod','ppicv'].includes(level());
   const isRejTipe=t=>/(^|[^a-z])(reject|riject|rejek|rijek|rizek|defect|bs)([^a-z]|$)/i.test(String(t||''));
  let body=null,tabName='Counting',cur=null,pu={},msg='',msgBad=false,loadedAt=0,loading=false,loadErr='',filterOp='',moka=null,entryPo='';
  const say=(t,bad)=>{msg=t;msgBad=!!bad;draw()};
@@ -3860,7 +3861,7 @@ init();
 
  // ---- tab Picking List
  function drawList(){
-  if(!canAdmin()&&level()!=='ppic')return '<p class="note">Picking List diatur oleh PPIC atau Admin. Tugas picking Anda ada di tab <strong>Picking</strong>.</p>';
+  if(!canAdmin()&&level()!=='ppic'&&level()!=='ppicv')return '<p class="note">Picking List diatur oleh PPIC atau Admin. Tugas picking Anda ada di tab <strong>Picking</strong>.</p>';
   const docsAll=view('PICK_DOK').sort((a,b)=>String(b.tanggal+b.id).localeCompare(String(a.tanggal+a.id))),docs=docsAll.filter(d=>inRng(d.tanggal));
   let h='<div class="card"><h3 style="margin:0">Upload SOQ</h3><p class="sub">Pilih file Excel SOQ dengan nama seperti <strong>SOQ LLO-01 MAMU PALOPO 2026.10.14</strong> (kode shipment, outlet, tanggal). Sistem membaca daftar item, mengelompokkan ke koli, lalu Admin menentukan picker.</p><input id="ob-file" type="file" accept=".xlsx,.xls,.csv"></div>';
   if(!docs.length)return h+'<p class="sub" style="margin-top:12px">'+(docsAll.length?'Tidak ada SOQ pada rentang tanggal ini ('+docsAll.length+' SOQ ada di tanggal lain). Ubah panel tanggal di atas.':'Belum ada SOQ.')+'</p>';
@@ -3918,7 +3919,7 @@ init();
    '<tr style="font-weight:700"><td colspan="3">Total</td><td>'+T.tot+'</td><td colspan="5"></td><td>'+T.need+'</td></tr></tbody></table></div></div>';
   return h}
  // PPIC: hanya memantau semua tab outbound (tanpa mengubah data); Picking List tetap bisa import SOQ
- const roP=()=>level()==='ppic';
+ const roP=()=>level()==='ppic'||level()==='ppicv';
  function listKoli(mode){
   const me=code(),adm=canAdmin(),vw=adm||roP();let list=rngKoli(view('PICK_KOLI'));
   if(mode==='pick')list=list.filter(k=>vw?(!filterOp||k.picker===filterOp):k.picker===me);else if(vw&&filterOp)list=list.filter(k=>k.picker===filterOp);
@@ -4315,12 +4316,12 @@ init();
   else if(tabName==='Receiving Outlet')h+=drawRcv();
   else if(tabName==='GR Outlet')h+=cur&&cur.mode==='gr'?drawGrScreen():drawGrList();
   else h+=drawMasalah();
-  if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(roP()&&tabName!=='Picking List'){body.insertAdjacentHTML('afterbegin','<p class="note">Akses PPIC: hanya untuk memantau proses. Perubahan data dilakukan tim DC 38.</p>');body.querySelectorAll('input,select,textarea,button').forEach(e=>{if(e.tagName==='BUTTON'&&/^(obrefresh|obback|obopen|obsj|obsttb)$/.test(Object.keys(e.dataset).join('|')))return;if(e.tagName==='BUTTON'&&!Object.keys(e.dataset).some(k=>/^ob/.test(k)))return;e.disabled=true})}if(id&&$(id))$(id).focus({preventScroll:true})}}
+  if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&ae.id;body.dataset.sig=h;body.innerHTML=h;if(roP()&&(tabName!=='Picking List'||level()==='ppicv')){body.insertAdjacentHTML('afterbegin','<p class="note">Akses PPIC: hanya untuk memantau proses. Perubahan data dilakukan tim DC 38.</p>');body.querySelectorAll('input,select,textarea,button').forEach(e=>{if(e.tagName==='BUTTON'&&/^(obrefresh|obback|obopen|obsj|obsttb)$/.test(Object.keys(e.dataset).join('|')))return;if(e.tagName==='BUTTON'&&!Object.keys(e.dataset).some(k=>/^ob/.test(k)))return;e.disabled=true})}if(id&&$(id))$(id).focus({preventScroll:true})}}
  const NAMES=['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping','Receiving Outlet','GR Outlet','Miss-Picking'];
  function render(b,name){body=b;if(name!==tabName){cur=null;edit=null;msg=''}tabName=name;draw();pull(false)}
  document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='ob-binf'&&body&&body.contains(t)){binF=t.value;draw()}});
  document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t||!body||!body.contains(t))return;
-  if(roP()&&tabName!=='Picking List'&&!['obrefresh','obback','obopen','obsj','obsttb'].some(k=>k in t.dataset))return;
+  if(roP()&&(tabName!=='Picking List'||level()==='ppicv')&&!['obrefresh','obback','obopen','obsj','obsttb'].some(k=>k in t.dataset))return;
   if(t.dataset.obrefresh){pull(true);return}
   if(t.dataset.obback){cur=null;edit=null;msg='';draw();return}
   if(t.dataset.obrebin){const k=koliById(t.dataset.obrebin);if(k)rebin(k);return}
@@ -7612,7 +7613,7 @@ window.WOSMon=(function(){
  const rj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
  const KEY='wos-ts-open-v1';
  const PANELS=[['po','Tracking PO','status semua koli dalam satu PO'],['koli','Tracking Koli','posisi satu koli: inbound (PO + koli) atau outbound (toko + koli)'],['item','Item Search','posisi satu item dari vendor sampai toko'],['soq','Tracking SOQ / Toko','posisi pesanan toko dari SOQ sampai diterima'],['sttb','Cari STTB / Resi','koli dan PO dari nomor STTB atau AWB'],['bin','Cari Bin','isi bin dan umur stok']];
- const allowed=()=>{const lv=level();if(lv==='supervisor')return ['po','koli','item','soq','sttb','bin'];if(lv==='ppic'||lv==='prdm')return ['po','koli','item','soq'];if(lv==='store')return ['soq'];return ['po','koli','item']};
+ const allowed=()=>{const lv=level();if(lv==='supervisor')return ['po','koli','item','soq','sttb','bin'];if(lv==='ppic'||lv==='prdm'||lv==='ppicv')return ['po','koli','item','soq'];if(lv==='store')return ['soq'];return ['po','koli','item']};
  const st={po:'',kMode:'in',kA:'',kN:'',kDok:'',sttb:'',bin:'',stok:null,stokAt:0,stokBusy:false,err:''};
  let OPEN=rj(KEY,null),root=null;
  const saveOpen=()=>{try{localStorage.setItem(KEY,JSON.stringify(OPEN))}catch(e){}};
