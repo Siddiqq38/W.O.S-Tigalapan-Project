@@ -1165,11 +1165,18 @@ async function hash(p){if(!window.crypto?.subtle)throw Error('Browser perlu HTTP
 const credHash=(code,p)=>hash(code+'|'+p);
 async function passwordOk(code,pass){
  // password terbaru menang: ubahan di perangkat ini atau yang dibagikan lewat server (hash kosong = kembali ke password awal)
- let srv=null;const sread=()=>{try{return (JSON.parse(localStorage.getItem('wos-cred-server-v1')||'{}')||{})[code]||null}catch(e){return null}};
- try{if(window.WOSPullCreds)await Promise.race([window.WOSPullCreds(),new Promise(r=>setTimeout(r,4000))])}catch(e){}
- srv=sread();let cred=readCreds()[code];
- if(srv&&(!cred||String(srv.at)>String(cred.changedAt||'')))cred=srv.hash?{hash:srv.hash}:null;
- if(cred)return cred.hash===await credHash(code,pass);if(ACC[code])return ACC[code].h===await credHash(code,pass);const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id}
+ const sread=()=>{try{return (JSON.parse(localStorage.getItem('wos-cred-server-v1')||'{}')||{})[code]||null}catch(e){return null}};
+ const pull=async ms=>{let ok=false;try{if(window.WOSPullCreds)await Promise.race([window.WOSPullCreds().then(()=>{ok=true}),new Promise(r=>setTimeout(r,ms))])}catch(e){}return ok};
+ const check=async()=>{
+  const srv=sread();let cred=readCreds()[code];const h=await credHash(code,pass);
+  if(srv&&(!cred||String(srv.at)>String(cred.changedAt||'')))cred=srv.hash?{hash:srv.hash}:null;
+  if(cred){if(cred.hash===h)return true;
+   // password yang tersimpan di server berlaku di semua perangkat, walau ubahan lokal (atau jam perangkat) terlihat lebih baru
+   return !!(srv&&srv.hash&&srv.hash===h)}
+  if(ACC[code])return ACC[code].h===h;const id=idStaffOf(code);return !!id&&String(pass).trim().toUpperCase()===id};
+ const fresh=await pull(6000);if(await check())return true;
+ // gagal dan data server belum sempat terambil (antrean padat / sinyal lemah): coba tarik sekali lagi dengan waktu lebih lama sebelum menolak
+ if(fresh)return false;await pull(12000);return await check()}
 const getSession=()=>{try{const c=sessionStorage.getItem(CODEKEY);return c&&buildAccount(c)?c:null}catch(e){return null}};
 const displayName=a=>(ACC[a.code]&&ACC[a.code].name)||sm()[a.code]?.name||a.label;
 let me=null,account=null;
