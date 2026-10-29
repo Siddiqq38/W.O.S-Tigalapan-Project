@@ -1903,8 +1903,9 @@ init();
   const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.token},body)),signal:ac.signal});return await r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('koneksi lambat, akan dicoba lagi');throw e}finally{clearTimeout(tm)}}
  async function flush(){if(!on()||(busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paint();return}busy=true;busyAt=Date.now();
   let rots=0;const rot=(msg,idx)=>{q=queue();const b=q.splice(idx||0,1)[0];if(!b)return;b.tries=(b.tries||0)+1;lastErr=String(msg);if(b.tries<8||b.a!=='photo')q.push(b);saveQ(q);if(++rots>q.length+2)throw new Error(msg)};
-  const dropAt=ids=>{q=queue();const gone=new Set(ids);q=q.filter((x,i)=>!gone.has(i));saveQ(q)};
+  const dropAt=ids=>{const gone=new Set(ids.map(i=>q[i]&&q[i].qid).filter(Boolean));q=queue().filter(x=>!gone.has(x.qid));saveQ(q)};
   try{while(q.length){
+    if(q.some(x=>!x.qid)){q.forEach(x=>{if(!x.qid)x.qid=Date.now().toString(36)+Math.random().toString(36).slice(2,9)});saveQ(q)}
     // presensi dan data biasa lebih dulu (maks 15 sekali kirim); foto/video diunggah sesudahnya agar tidak menahan check-in
     // presensi didahulukan: tidak boleh menunggu antrean data lain (task, role, dll) di belakangnya
     const lead=[];for(let i=0;i<q.length&&lead.length<15;i++)if(q[i].a==='append'&&q[i].tab==='ATTENDANCE')lead.push(i);
@@ -2354,10 +2355,11 @@ init();
  function dropLocal(tab,id){const k=TABKEY[tab];if(!k)return;dv++;D[k]=D[k].filter(x=>x.id!==id)}
  async function flush(){if((busy&&Date.now()-busyAt<90000)||!navigator.onLine)return;let q=queue();if(!q.length){paintState();return}busy=true;busyAt=Date.now();
   try{while(q.length){
-   if(q[0].a==='photo'){const it=q[0],r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){const q2=queue();if(q2[0]&&q2[0].a==='photo'){q2[0].tries=(q2[0].tries||0)+1;if(q2[0].tries>=3)q2.shift();saveQ(q2)}throw new Error(r.error)}q=queue();q.shift();q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q)}
+   if(q.some(x=>!x.qid)){q.forEach(x=>{if(!x.qid)x.qid=Date.now().toString(36)+Math.random().toString(36).slice(2,9)});saveQ(q)}
+   if(q[0].a==='photo'){const it=q[0],r=await call({action:'photo',data:it.data,mime:it.mime||'image/jpeg',name:it.name,date:it.date,kategori:it.kategori});if(!r.ok){const q2=queue();if(q2[0]&&q2[0].a==='photo'){q2[0].tries=(q2[0].tries||0)+1;if(q2[0].tries>=3)q2.shift();saveQ(q2)}throw new Error(r.error)}q=queue().filter(x=>x.qid!==it.qid);q.forEach(x=>{if(x.a==='append'&&x.row.id===it.rowId)x.row.foto_id=r.file_id});saveQ(q)}
    else{let n=0;while(n<q.length&&n<40&&(q[n].a==='append'||q[n].a==='delete'))n++;const items=q.slice(0,n);let r=await call({action:'batch',ops:items.map(x=>x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row})});
     if(!r.ok&&/non-frozen rows/i.test(String(r.error))){for(const x of items){const r1=await call(x.a==='delete'?{action:'delete',tab:x.tab,id:x.id}:{action:'append',tab:x.tab,row:x.row});if(!r1.ok&&!(x.a==='delete'&&/non-frozen rows/i.test(String(r1.error))))throw new Error(r1.error)}r={ok:true}}
-    if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row);JR.push({t:Date.now(),x});if(x.tab==='STOK_BIN')stokC.at=0});q=queue();q.splice(0,n);saveQ(q)}
+    if(!r.ok)throw new Error(r.error);items.forEach(x=>{if(x.a==='delete')dropLocal(x.tab,x.id);else applyLocal(x.tab,x.row);JR.push({t:Date.now(),x});if(x.tab==='STOK_BIN')stokC.at=0});const sent=new Set(items.map(x=>x.qid));q=queue().filter(x=>!sent.has(x.qid));saveQ(q)}
    q=queue()}
    state='ok';err=''}catch(e){state='err';err=String(e&&e.message||e)}
   busy=false;paintState();render()}
