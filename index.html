@@ -3399,6 +3399,34 @@ init();
    else if(open){st='ok';msg='Sesuai norm'+(pace!=null?' ('+Math.round(pace)+' dtk/baris)':'')}
    return{op,name:nameOf(op),st,msg,prog,ratio:pace!=null?pace/GRN.sLine:null,paceTxt:pace!=null?Math.round(pace)+' dtk/baris':'',normTxt:GRN.sLine+' dtk/baris',idle,eff,stats:[['Koli',koliN],['Baris',lines],['Selisih',selisih]]}});
   return items}
+ // Rekap GR per operator per hari: koli yang SELESAI GR (counting + put away) pada hari itu, pcs, rincian PO dan item, serta waktu terpakai dibanding 7 jam kerja.
+ // Waktu terpakai = gabungan rentang mulai-selesai tiap koli (rentang yang tumpang tindih tidak dihitung dua kali; satu koli maksimal 90 menit agar menunggu lama tidak ikut).
+ const GRH=420,GRCAP=90;
+ function grRecap(day){
+  const by={};
+  view('GR_ASSIGN').filter(a=>a.status==='Selesai'&&a.operator&&grDay(a)===day).forEach(a=>{
+   const po=poKey(a.po),k=Number(a.no_koli),rows=cntOf(po,k).filter(c=>num(c.qty_actual)>0&&!isRejCnt(c)),pcs=rows.reduce((s,c)=>s+num(c.qty_actual),0);
+   const o=by[a.operator]||(by[a.operator]={op:a.operator,name:nameOf(a.operator),koli:0,pcs:0,lines:0,pos:{},items:{},ivs:[]});
+   o.koli++;o.pcs+=pcs;o.lines+=rows.length;
+   const p=o.pos[po]||(o.pos[po]={po,vendor:vendorOfPo(po)||'',ks:[],lines:0,pcs:0});p.ks.push(k);p.lines+=rows.length;p.pcs+=pcs;
+   rows.forEach(c=>{const nm=String(c.item||'').trim();o.items[nm]=(o.items[nm]||0)+num(c.qty_actual)});
+   let s=Date.parse(a.mulai),e=Date.parse(a.selesai);if(isFinite(s)&&isFinite(e)&&e>s){if(e-s>GRCAP*60000)s=e-GRCAP*60000;o.ivs.push([s,e])}});
+  Object.values(by).forEach(o=>{const iv=o.ivs.sort((x,y)=>x[0]-y[0]);let tot=0,cs=null,ce=null;iv.forEach(([s,e])=>{if(cs==null){cs=s;ce=e}else if(s<=ce){if(e>ce)ce=e}else{tot+=ce-cs;cs=s;ce=e}});if(cs!=null)tot+=ce-cs;o.used=Math.round(tot/60000)});
+  return by}
+ const hm=m=>m>=60?Math.floor(m/60)+' j '+(m%60?m%60+' mnt':''):m+' mnt';
+ function grRecapCards(by,one){
+  const list=Object.values(by).sort((a,b)=>b.pcs-a.pcs);if(!list.length)return '<p class="sub" style="margin:0">Belum ada koli yang selesai GR hari ini.</p>';
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax('+(one?'320':'340')+'px,1fr));gap:12px">'+list.map(o=>{const pct=Math.min(100,Math.round(100*o.used/GRH)),free=Math.max(0,GRH-o.used),pos=Object.values(o.pos).sort((a,b)=>b.pcs-a.pcs);
+   return '<div style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;background:#fff"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b style="font-size:16px">'+esc(o.name)+'</b><span class="tag green">'+o.koli+' koli Â· '+o.pcs.toLocaleString('id-ID')+' pcs</span></div>'+
+    '<p class="sub" style="margin:4px 0 8px">'+pos.length+' PO Â· '+o.lines+' baris item</p>'+
+    '<div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Waktu terpakai <b>'+hm(o.used)+'</b> ('+pct+'%)</span><span>Belum terpakai <b>'+hm(free)+'</b> ('+(100-pct)+'%)</span></div><div style="height:10px;border-radius:6px;background:#eceff3;overflow:hidden;margin:4px 0 2px"><i style="display:block;height:100%;width:'+pct+'%;background:'+(pct>=70?'#1b9d5a':pct>=40?'#e0a21b':'#d9534f')+'"></i></div><div class="sub" style="font-size:11.5px">Dibanding '+hm(GRH)+' jam kerja</div>'+
+    '<div style="overflow:auto;margin-top:8px"><table style="font-size:12.5px"><thead><tr><th>PO</th><th>Koli</th><th>Baris</th><th>Pcs</th></tr></thead><tbody>'+pos.map(p=>'<tr><td><b>'+esc(p.po)+'</b>'+(p.vendor?'<div class="sub">'+esc(p.vendor)+'</div>':'')+'</td><td>'+p.ks.length+'<div class="sub">'+esc(compress(p.ks))+'</div></td><td>'+p.lines+'</td><td>'+p.pcs.toLocaleString('id-ID')+'</td></tr>').join('')+'</tbody></table></div>'+
+    '<details style="margin-top:6px"><summary class="sub" style="cursor:pointer">Rincian per item ('+Object.keys(o.items).length+')</summary><div style="max-height:220px;overflow:auto"><table style="font-size:12px"><tbody>'+Object.entries(o.items).sort((a,b)=>b[1]-a[1]).map(([n,q])=>'<tr><td>'+esc(n)+'</td><td style="text-align:right"><b>'+q.toLocaleString('id-ID')+'</b></td></tr>').join('')+'</tbody></table></div></details></div>'}).join('')+'</div>'}
+ function grRecapCard(op){
+  const by=grRecap(today());if(op)Object.keys(by).forEach(k=>{if(k!==op)delete by[k]});
+  const tk=Object.values(by).reduce((s,o)=>s+o.koli,0),tp=Object.values(by).reduce((s,o)=>s+o.pcs,0);
+  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Rekap GR hari ini</h3><p class="sub" style="margin:2px 0 10px">Koli yang sudah selesai GR (counting + put away): '+tk+' koli Â· '+tp.toLocaleString('id-ID')+' pcs. Waktu terpakai dibanding 7 jam kerja, dihitung dari mulai sampai selesai tiap koli (tumpang tindih tidak dihitung dua kali).</p>'+grRecapCards(by,!!op)+'</div>'}
+ if(!document.getElementById('gr-cmp-style')){const s=document.createElement('style');s.id='gr-cmp-style';s.textContent='.gr-cmp .mn-k{padding:6px 10px;border-radius:10px}.gr-cmp .mn-k b{font-size:16px}.gr-cmp .mn-k small{font-size:10px}.gr-cmp .mn-c{padding:10px}.gr-cmp .mn-h h3{font-size:14px}.gr-cmp .mn-grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}';document.head.appendChild(s)}
  function grMonitor(){
   const items=wosPause(grItems()),helps=grHelps().map(t=>({html:'<span>🆘 <b>'+esc(nameOf(t.by))+'</b> butuh bantuan · PO '+esc(t.po||'')+' koli '+esc(t.k||'')+' · '+esc(t.qty||'')+' <span class="sub">('+esc(isFinite(Date.parse(t.at))?new Date(Date.parse(t.at)+288e5).toISOString().slice(11,16):'')+' WITA)</span></span><button class="button" data-ghelpdone="'+esc(t.id)+'" type="button" style="margin-left:auto">Sudah ditangani</button>'}));
   return window.WOSMon.render({title:'Monitor kecepatan counting · hari ini',sub:'Norm ±'+GRN.sLine+' detik per baris item (dari riwayat kerja tim). Lambat bila lebih dari '+Math.round(GRN.sLine*GRN.slow)+' dtk/baris; koli dibuka tanpa aktivitas ≥ '+GRN.idleMin+' menit ditandai merah.',items,helps,avatar:(c,n)=>window.WOSFoto?window.WOSFoto.avatar(c,40,n):'',note:'Efisiensi = target ÷ waktu aktif hari ini. Diperbarui otomatis.'})}
@@ -3430,7 +3458,8 @@ init();
   const by={};list.forEach(a=>{(by[poKey(a.po)]=by[poKey(a.po)]||[]).push(a)});
   let h='';
   if(all)h+='<div class="field" style="max-width:320px"><label for="gr-fop">Operator</label><select id="gr-fop"><option value="">Semua operator</option>'+staffOps().map(([c,p])=>'<option value="'+esc(c)+'"'+(filterOp===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>';
-  if(mode==='count'&&canAdmin())h+=grMonitor();else if(mode==='put'&&canAdmin())h+=paMonitor();
+  if(canAdmin()||isViewer())h+=grRecapCard(filterOp);
+  if(mode==='count'&&canAdmin())h+='<div class="gr-cmp">'+grMonitor()+'</div>';else if(mode==='put'&&canAdmin())h+='<div class="gr-cmp">'+paMonitor()+'</div>';
   const pos=Object.keys(by).sort();
   if(!pos.length)return h+'<p class="sub">'+(mode==='count'?'Belum ada koli yang ditugaskan.':'Belum ada koli yang siap put away.')+'</p>';
   return h+pos.map(po=>'<div class="card" style="margin-top:10px">'+wipeBtn(po)+'<h3 style="margin:0">PO '+esc(po)+' <span class="sub">'+esc(vendorOfPo(po)||'')+'</span></h3>'+grPoLT(by[po])+'<div class="kl">'+by[po].sort((x,y)=>Number(x.no_koli)-Number(y.no_koli)).map(a=>'<button type="button" class="kb '+(STC[a.status]||'')+'" data-gopen="'+esc(po)+'|'+esc(a.no_koli)+'" title="'+esc(a.status+' - '+(a.operator_nama||a.operator))+'">'+(a.status==='Selesai'?'✓ ':'')+esc(a.no_koli)+'<small>'+esc((mode==='put'&&a.status==='Siap put away'&&view('PUTAWAY').some(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(a.no_koli))?'Lanjutkan':'')+(all?((mode==='put'&&a.status==='Siap put away'&&view('PUTAWAY').some(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(a.no_koli))?' · ':'')+(a.operator_nama||a.operator).split(' ')[0]):(mode==='put'&&a.status==='Siap put away'&&view('PUTAWAY').some(p=>poKey(p.po)===po&&Number(p.no_koli)===Number(a.no_koli))?'':a.status)))+'</small>'+grLT(a)+grDet(po,a.no_koli)+warn(po,a.no_koli)+((isSpv()||(canAdmin()&&a.status==='Ditugaskan'))&&a.status!=='Selesai'?'<span class="kx" data-grdel="'+esc(po)+'|'+esc(a.no_koli)+'" title="Hapus penugasan koli ini">×</span>':'')+'</button>').join('')+'</div></div>').join('')+wipeAllCard()}
@@ -3647,7 +3676,8 @@ init();
  document.addEventListener('input',e=>{const t=e.target;if(t.dataset&&t.dataset.pb){const[s,i,f]=t.dataset.pb.split('|');if(pu[s]&&pu[s][Number(i)])pu[s][Number(i)][f]=f==='qty'?num(t.value):t.value;
    const c=cntOf(cur.po,cur.k).find(x=>String(x.seq)===s);if(c){const rem=num(c.qty_actual)-pu[s].reduce((x,r)=>x+num(r.qty),0),el=t.closest('div[style]').parentElement.querySelector('.sub .tag');if(el){el.className='tag '+(rem===0?'green':rem>0?'amber':'red');el.textContent=rem===0?'pas':(rem>0?'sisa '+rem:'lebih '+(-rem))}}}});
  setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&document.activeElement&&!(document.activeElement.dataset&&document.activeElement.dataset.pb))pullGR(false)},25000);
- window.WOSGR={render,binCard,progress,pull:pullGR,readRows,recorder,blobB64,modal};
+ let grPulled=0;
+ window.WOSGR={recap:op=>{try{if(!grPulled){grPulled=1;pullGR(true)}if(op&&!grRecap(today())[op])return '';return grRecapCard(op)}catch(e){return ''}},render,binCard,progress,pull:pullGR,readRows,recorder,blobB64,modal};
 })();
 </script>
 <script>
@@ -6943,9 +6973,10 @@ init();
  function items(){const c=me();if(!c)return[];const src=window.WOSMonSrc||{},out=[];[['count','Counting'],['put','Put Away'],['pick','Picking'],['vp','Verifikasi picking'],['tfs','TFS'],['pack','Packing'],['load','Loading']].forEach(([k,l])=>{try{window.wosPause(src[k]?src[k]():[]).forEach(i=>{if(i&&i.op===c)out.push(Object.assign({act:l},i))})}catch(e){}});return out}
  function html(){
   const L=items(),ST=(window.WOSMon&&window.WOSMon.ST)||{},prob=L.filter(i=>TIP[i.st]),ok=L.filter(i=>i.st==='ok');
-  if(!prob.length&&!ok.length)return '';
+  const recap=(()=>{try{return window.WOSGR&&window.WOSGR.recap?window.WOSGR.recap(me()):''}catch(e){return ''}})();
+  if(!prob.length&&!ok.length)return recap;
   const row=i=>'<div style="padding:8px 0;border-top:1px solid #eadfd7"><span class="tag amber">'+esc(i.act)+'</span> <b style="color:'+((ST[i.st]||{}).c||'#444')+'">'+esc(i.msg)+'</b>'+(i.idle!=null&&i.idle>=1?' <span class="sub">('+Math.round(i.idle)+' mnt lalu)</span>':'')+'<div class="sub" style="margin-top:2px">'+esc(TIP[i.st])+'</div></div>';
-  return '<div class="card" id="wos-myperf-card" style="margin-top:12px;border-left:4px solid '+(prob.length?'#b3261e':'#1b7a46')+'"><h3 style="margin:0 0 4px">Update performa kamu</h3><p class="sub" style="margin:0 0 4px">Dibandingkan dengan norm kerja tim, diperbarui otomatis.</p>'+(prob.length?prob.map(row).join(''):'')+(ok.length&&!prob.length?'<p style="margin:6px 0 0;color:#1b7a46"><b>Kerjamu sesuai norm</b> pada '+esc(ok.map(i=>i.act).join(', '))+'. Pertahankan.</p>':'')+'</div>'}
+  return '<div class="card" id="wos-myperf-card" style="margin-top:12px;border-left:4px solid '+(prob.length?'#b3261e':'#1b7a46')+'"><h3 style="margin:0 0 4px">Update performa kamu</h3><p class="sub" style="margin:0 0 4px">Dibandingkan dengan norm kerja tim, diperbarui otomatis.</p>'+(prob.length?prob.map(row).join(''):'')+(ok.length&&!prob.length?'<p style="margin:6px 0 0;color:#1b7a46"><b>Kerjamu sesuai norm</b> pada '+esc(ok.map(i=>i.act).join(', '))+'. Pertahankan.</p>':'')+'</div>'+recap}
  // banner di tab kegiatan yang sedang dibuka (Counting, Put Away, Picking): lambat / perlu dibantu / sesuai norm
  const TABACT={'Counting':'Counting','Put Away':'Put Away','Picking':'Picking','Verification Pick':'Verifikasi picking','Transfer Stok (TFS ke MOKA)':'TFS','Packing & Staging':'Packing','Loading':'Loading'},COL={bad:['#fdecea','#b3261e'],warn:['#fff3e0','#a35f00'],chk:['#fff3e0','#a35f00'],ok:['#e7f6ec','#1b7a46']};
  function bannerHtml(act){
