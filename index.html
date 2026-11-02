@@ -4476,7 +4476,10 @@ init();
   if(t.dataset.obok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obok);if(r)pickRow(r,'Sesuai',r.bin,num(r.qty),'',null);return}
   if(t.dataset.obno){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obno);if(r)silangModal(r);return}
   if(t.dataset.obmulti){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obmulti);if(r&&r.status==='Menunggu')multiModal(r);return}
-  if(t.dataset.obdone){const k=koliById(cur.id);if(k){updKoli(k,{status:'Siap verifikasi',selesai:stIso()});taskMaybeDone(k);ensureVp([Object.assign({},k,{status:'Siap verifikasi'})]);cur=null;say('Picking koli '+k.koli+' selesai. Lanjut verifikasi.')}return}
+  if(t.dataset.obdone){const k=koliById(cur.id);
+   if(k&&!koliRows(k).some(r=>num(r.qty_actual)>0)){if(!confirm('Semua barang di koli '+k.koli+' tidak ada di bin (tidak ada yang berhasil diambil).\n\nKoli ini akan ditutup, tidak masuk verifikasi, dan barang yang tidak ada tercatat sebagai miss picking. Lapor ke SPV. Lanjutkan?'))return;
+    updKoli(k,{status:'Batal',selesai:stIso()});taskMaybeDone(k);cur=null;say('Koli '+k.koli+' ditutup karena semua barang tidak ada di bin. Lapor ke SPV.');return}
+   if(k){updKoli(k,{status:'Siap verifikasi',selesai:stIso()});taskMaybeDone(k);ensureVp([Object.assign({},k,{status:'Siap verifikasi'})]);cur=null;say('Picking koli '+k.koli+' selesai. Lanjut verifikasi.')}return}
   if(t.dataset.obvok){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obvok);if(r)setVp(r,'Sesuai','');return}
   if(t.dataset.obvno){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obvno);if(r)salahModal(r);return}
   if(t.dataset.obadd){const r=view('PICK_ITEM').find(x=>x.id===t.dataset.obadd);if(r)tambahBinModal(r);return}
