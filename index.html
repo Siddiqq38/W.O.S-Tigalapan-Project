@@ -1477,14 +1477,37 @@ const DEF=[
  {id:'driver',name:'Driver',groups:['Driver','Operator'],active:true},
  {id:'loc',name:'Location Control',groups:['Operator'],active:true},
  {id:'defect',name:'Defect Handling',groups:['Operator'],active:true},
- {id:'other',name:'Other',groups:['Admin','Operator','Driver'],active:true,free:true}
+ {id:'other',name:'Other',groups:['Admin','Operator','Driver'],active:true,free:true},
+ {id:'abs-alpha',name:'Alpha',groups:['Admin','Operator','Driver'],active:true,absent:true},
+ {id:'abs-sakit',name:'Sakit',groups:['Admin','Operator','Driver'],active:true,absent:true},
+ {id:'abs-cuti',name:'Cuti',groups:['Admin','Operator','Driver'],active:true,absent:true},
+ {id:'abs-co',name:'Change Off',groups:['Admin','Operator','Driver'],active:true,absent:true}
 ];
+// role "tidak masuk": bukan role kerja berjam, tetapi tanda satu hari penuh (hanya SPV) yang dicatat sebagai kejadian ABS di Compliance
+const ABSK={'abs-alpha':'Alpha','abs-sakit':'Sakit','abs-cuti':'Cuti','abs-co':'Change Off'};
 const GROUPS=['Admin','Operator','Driver'];
 let R=load();
-function load(){try{const r=JSON.parse(localStorage.getItem(KEY)||'null');if(r&&Array.isArray(r.master)){if(!r.master.some(x=>x.id==='unload'))r.master.push({id:'unload',name:'Unloading (Receiving)',groups:['Admin','Operator'],active:true});return{master:r.master,plans:r.plans||{}}}if(r&&r.plans)return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:r.plans}}catch(e){}return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:{}}}
+function load(){try{const r=JSON.parse(localStorage.getItem(KEY)||'null');if(r&&Array.isArray(r.master)){if(!r.master.some(x=>x.id==='unload'))r.master.push({id:'unload',name:'Unloading (Receiving)',groups:['Admin','Operator'],active:true});DEF.filter(x=>x.absent).forEach(a=>{if(!r.master.some(x=>x.id===a.id))r.master.push({...a,groups:[...a.groups]})});return{master:r.master,plans:r.plans||{}}}if(r&&r.plans)return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:r.plans}}catch(e){}return{master:DEF.map(x=>({...x,groups:[...x.groups]})),plans:{}}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(R))}catch(e){}}
 const roleById=id=>R.master.find(r=>r.id===id);
-const eligible=c=>R.master.filter(r=>r.active&&r.groups.includes(grp(c)));
+const eligible=c=>R.master.filter(r=>r.active&&r.groups.includes(grp(c))&&(!r.absent||isSpv()));
+// tanda tidak masuk hari ini = kejadian Compliance 'ABS:tanggal:kode' (jenis Alpha/Mangkir berstatus valid, atau Sakit/Cuti/Change Off berstatus batal supaya tidak dihitung sebagai pelanggaran)
+const absEv=c=>{try{return((window.__complianceSnapshot&&window.__complianceSnapshot().events)||[]).find(e=>e.id==='ABS:'+today()+':'+c)||null}catch(x){return null}};
+const absActive=e=>!!e&&(((e.type==='Alpha'||e.type==='Mangkir')&&e.status==='valid')||['Sakit','Cuti','Change Off'].includes(e.type));
+async function markAbsent(code,roleId,note){
+ if(!isSpv())return'Hanya SPV yang bisa menandai staf tidak masuk.';
+ const kind=ABSK[roleId];if(!kind)return'Pilih jenis ketidakhadiran.';
+ if(hadirAt(code))return nameOf(code)+' sudah Attendance in hari ini, tidak bisa ditandai '+kind+'.';
+ if(!window.__wosCpApply||!window.__complianceSnapshot)return'Modul Compliance belum siap, coba lagi sebentar lagi.';
+ if(kind==='Alpha'&&!confirm('Catat '+nameOf(code)+' sebagai ALPHA hari ini? Ini masuk ke Compliance dan rekap kehadiran.'))return'Dibatalkan.';
+ const day=today(),n=String(note||'').trim(),ev={id:'ABS:'+day+':'+code,day,code,type:kind,detail:(kind==='Alpha'?'Tidak hadir tanpa keterangan (ditandai saat DRM)':'Tidak masuk: '+kind+' (ditandai SPV saat DRM, belum melalui pengajuan)')+(n?' · '+n:''),status:kind==='Alpha'?'valid':'batal',source:'Alokasi role DRM',actor:me()||'SPV',createdAt:Date.now(),resolved:false};
+ try{await window.__wosCpApply({events:[ev]})}catch(x){return'Gagal menyimpan: '+(x&&x.message||x)}
+ return absActive(absEv(code))?null:'Belum tersimpan (modul Compliance sedang sibuk). Coba lagi sebentar lagi.';
+}
+async function clearAbsent(code){
+ const ev=absEv(code);if(!isSpv()||!ev)return;
+ try{await window.__wosCpApply({events:[Object.assign({},ev,{type:'Tanda dibatalkan',status:'batal',detail:'Tanda tidak masuk ('+ev.type+') dibatalkan SPV.'})]})}catch(x){}
+}
 const attRows=()=>{try{const a=JSON.parse(localStorage.getItem(ATT)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}};
 const hadirAt=c=>{const t=attRows().filter(r=>r.day===today()&&r.code===c&&r.action==='Attendance in').map(r=>Date.parse(r.at)).filter(Number.isFinite);return t.length?Math.min(...t):null};
 const slotsOf=c=>((R.plans[today()]||{})[c]||[]).slice().sort((a,b)=>toMin(a.from)-toMin(b.from));
@@ -1527,8 +1550,8 @@ function masterCard(){
 }
 
 // ---------- planner role harian (DRM) ----------
-function chips(c,editable){const now=activeSlots(c).map(s=>s.id);return slotsOf(c).map(s=>'<span class="rl-chip'+(now.includes(s.id)?' now':'')+'" title="dipilih oleh '+esc(s.by)+'">'+esc(s.from)+' - '+esc(s.to)+' '+esc(slotName(s))+(editable?' <button data-act="del" data-code="'+esc(c)+'" data-id="'+esc(s.id)+'" type="button" aria-label="Hapus">x</button>':'')+'</span>').join('')||'<span class="sub">belum ada role</span>'}
-function addForm(c){const opts=eligible(c);return '<div class="rl-row"><select id="rl-r-'+esc(c)+'"><option value="">- role -</option>'+opts.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.name)+'</option>').join('')+'</select><input id="rl-f-'+esc(c)+'" type="time" value="08:00"><span class="sub">s/d</span><input id="rl-t-'+esc(c)+'" type="time" value="12:00"><input id="rl-l-'+esc(c)+'" placeholder="Keterangan (untuk Other)"><button class="button secondary" data-act="add" data-code="'+esc(c)+'" type="button">Tambah</button></div>'}
+function chips(c,editable){const now=activeSlots(c).map(s=>s.id),ab=absEv(c),abChip=absActive(ab)?'<span class="rl-chip" style="background:#fde3e0;color:#8a1c12;border-color:#e8a29b" title="'+esc(ab.detail)+'">'+esc(ab.type)+' (seharian)'+(editable?' <button data-act="delabs" data-code="'+esc(c)+'" type="button" aria-label="Batalkan tanda">x</button>':'')+'</span>':'';return abChip+slotsOf(c).map(s=>'<span class="rl-chip'+(now.includes(s.id)?' now':'')+'" title="dipilih oleh '+esc(s.by)+'">'+esc(s.from)+' - '+esc(s.to)+' '+esc(slotName(s))+(editable?' <button data-act="del" data-code="'+esc(c)+'" data-id="'+esc(s.id)+'" type="button" aria-label="Hapus">x</button>':'')+'</span>').join('')||(abChip?'':'<span class="sub">belum ada role</span>')}
+function addForm(c){const opts=eligible(c);return '<div class="rl-row"><select id="rl-r-'+esc(c)+'"><option value="">- role -</option>'+opts.map(r=>'<option value="'+esc(r.id)+'"'+(r.absent?' data-absent="1"':'')+'>'+esc(r.name)+(r.absent?' (tidak masuk)':'')+'</option>').join('')+'</select><input id="rl-f-'+esc(c)+'" type="time" value="08:00"><span class="sub">s/d</span><input id="rl-t-'+esc(c)+'" type="time" value="12:00"><input id="rl-l-'+esc(c)+'" placeholder="Keterangan (untuk Other / tidak masuk)" title="Alpha, Sakit, Cuti, Change Off: berlaku seharian, jam diabaikan"><button class="button secondary" data-act="add" data-code="'+esc(c)+'" type="button">Tambah</button></div>'}
 function planner(){
  {const ae=document.activeElement;if(ae&&ae.closest&&ae.closest('#rl-planner')&&/^(SELECT|INPUT|TEXTAREA)$/.test(ae.tagName))return}
  const att=$('attendance');let box=$('rl-planner');
@@ -1538,6 +1561,8 @@ function planner(){
    if(b.dataset.act==='drmall'){const sd=(window.__complianceSnapshot&&window.__complianceSnapshot().days)||[],dd=document.getElementById('cp-date')?.value||today(),codes=Object.entries(sm()).filter(([k,p])=>p.role!=='Supervisor'&&!p.out).map(([k])=>k).filter(k=>((sd.find(x=>x.id===dd+':'+k)||{}).drm||'unknown')==='unknown'),hb=document.getElementById('cp-drm-attendance');
     if(hb&&codes.length){const f=document.createElement('button');f.dataset.drmAll=JSON.stringify(codes);hb.append(f);f.click();f.remove()}
     setTimeout(()=>{box.dataset.sig='';planner()},900);return}
+   if(b.dataset.act==='add'&&ABSK[$('rl-r-'+c).value]){const rid=$('rl-r-'+c).value;markAbsent(c,rid,$('rl-l-'+c).value).then(err=>{say('p',err||(nameOf(c)+' ditandai '+ABSK[rid]+' hari ini.'),err&&err!=='Dibatalkan.'?'err':'ok');box.dataset.sig='';planner();standby()});return}
+   if(b.dataset.act==='delabs'){clearAbsent(c).then(()=>{say('p','Tanda tidak masuk dibatalkan.','ok');box.dataset.sig='';planner();standby()});return}
    if(b.dataset.act==='add'){const err=addSlot(c,$('rl-r-'+c).value,$('rl-f-'+c).value,$('rl-t-'+c).value,$('rl-l-'+c).value);say('p',err||('Role ditambahkan untuk '+nameOf(c)+'.'),err?'err':'ok')}
    if(b.dataset.act==='del'){removeSlot(c,b.dataset.id);say('p','Role dihapus.','ok')}
    if(b.dataset.act==='drm'){box.querySelectorAll('.rl-drm[data-code="'+c+'"]').forEach(x=>x.classList.toggle('on',x.dataset.v===b.dataset.v));const hb=document.getElementById('cp-drm-attendance');if(hb){const f=document.createElement('button');f.dataset.drmCode=c;f.dataset.drmValue=b.dataset.v;hb.append(f);f.click();f.remove()}setTimeout(()=>{box.dataset.sig='';planner()},900)}
@@ -4159,13 +4184,21 @@ init();
  // barang memang tidak ada di bin: bukan transfer stok, dicatat sebagai miss picking internal (qty_actual jadi 0 sehingga tidak ikut TFS)
  function missInternal(r){const q=num(r.qty_actual)||num(r.qty),b=r.bin_actual||r.bin;if(!confirm('Tandai MISS PICKING INTERNAL?\n\n'+r.item+' · '+q+' pcs dari bin '+b+' memang tidak ada.\n\nBaris ini TIDAK ikut Transfer Stok (TFS) dan tercatat sebagai miss picking internal atas nama picker. Bin ikut direkomendasikan untuk cycle count.'))return false;setVp(r,'Miss','Tidak ada fisik di bin '+b+' (seharusnya '+q+' pcs)',{qty_actual:'0'});return true}
  function salahModal(r){
-  const m=G.modal('<h3>Verifikasi: tidak sesuai</h3><p class="sub">'+esc(r.item)+' · qty '+esc(r.qty_actual||r.qty)+'</p><label style="font-weight:600">Jenis kesalahan</label><select id="vp-r" style="width:100%">'+REASONS.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select><label style="font-weight:600;margin-top:8px;display:block">Keterangan</label><input id="vp-k" style="width:100%" placeholder="Jelaskan kesalahannya"><div class="ob-actions" style="margin-top:10px"><button class="button" id="vp-ok" type="button">Simpan</button><button class="button secondary" id="vp-x" type="button">Batal</button></div><div style="margin-top:12px;padding-top:10px;border-top:1px solid #ddd"><p class="sub" style="margin:0 0 6px">Barang memang tidak ada di bin (tidak bisa diambil)?</p><button class="button secondary" id="vp-miss" type="button" style="color:#b3261e">Tidak ada &rarr; Miss picking internal</button></div>');
-  m.querySelector('#vp-miss').onclick=()=>{if(missInternal(r))m.remove()};m.querySelector('#vp-x').onclick=()=>m.remove();m.querySelector('#vp-ok').onclick=()=>{const t=m.querySelector('#vp-r').value,kt=m.querySelector('#vp-k').value.trim();if(!kt){alert('Isi keterangan kesalahan.');return}setVp(r,'Salah',t+': '+kt);m.remove()}}
+  const m=G.modal('<h3>Verifikasi: tidak sesuai</h3><p class="sub">'+esc(r.item)+' · qty '+esc(r.qty_actual||r.qty)+'</p><label style="font-weight:600">Jenis kesalahan</label><select id="vp-r" style="width:100%">'+REASONS.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select><label style="font-weight:600;margin-top:8px;display:block">Keterangan</label><input id="vp-k" style="width:100%" placeholder="Jelaskan kesalahannya"><label style="font-weight:600;margin-top:8px;display:block">Actual Qty (hasil hitung checker)</label><input id="vp-q" type="number" inputmode="numeric" min="1" value="'+esc(r.qty_actual||r.qty)+'" style="width:100%"><p class="sub" style="margin:4px 0 0">SOQ '+esc(r.qty)+' pcs · diambil picker '+esc(r.qty_actual||'-')+' pcs. Qty actual inilah yang diteruskan ke Admin untuk Transfer Stok (TFS), tanpa picker mengulang.</p><div class="ob-actions" style="margin-top:10px"><button class="button" id="vp-ok" type="button">Simpan, teruskan qty actual ke TFS</button><button class="button secondary" id="vp-redo" type="button">Minta picker ulang</button><button class="button secondary" id="vp-x" type="button">Batal</button></div><div style="margin-top:12px;padding-top:10px;border-top:1px solid #ddd"><p class="sub" style="margin:0 0 6px">Barang memang tidak ada di bin (tidak bisa diambil)?</p><button class="button secondary" id="vp-miss" type="button" style="color:#b3261e">Tidak ada &rarr; Miss picking internal</button></div>');
+  m.querySelector('#vp-miss').onclick=()=>{if(missInternal(r))m.remove()};m.querySelector('#vp-x').onclick=()=>m.remove();
+  // Simpan = checker mengisi Actual Qty, baris langsung berstatus Dikoreksi (tetap dihitung sebagai kesalahan picker) dan qty actual itu yang ikut ke TFS
+  m.querySelector('#vp-ok').onclick=()=>{const t=m.querySelector('#vp-r').value,kt=m.querySelector('#vp-k').value.trim(),q=num(m.querySelector('#vp-q').value),old=num(r.qty_actual)||num(r.qty);
+   if(!kt){alert('Isi keterangan kesalahan.');return}
+   if(!(q>0)){alert('Isi Actual Qty lebih dari 0. Bila barang memang tidak ada di bin, pakai tombol "Tidak ada → Miss picking internal".');return}
+   if(q===old&&!confirm('Actual Qty sama dengan qty yang diambil picker ('+old+' pcs). Tetap simpan sebagai dikoreksi?'))return;
+   setVp(r,'Dikoreksi',t+': '+kt+' (diambil picker '+old+' pcs, actual '+q+' pcs, SOQ '+r.qty+' pcs)',{qty_actual:String(q)});m.remove()};
+  // tombol lama: kembalikan ke picker untuk mengulang picking
+  m.querySelector('#vp-redo').onclick=()=>{const t=m.querySelector('#vp-r').value,kt=m.querySelector('#vp-k').value.trim();if(!kt){alert('Isi keterangan kesalahan.');return}setVp(r,'Salah',t+': '+kt);m.remove()}}
  function drawVpScreen(){
   const k=koliById(cur.id);if(!k){cur=null;return ''}const rows=koliRows(k),d=view('PICK_DOK').find(x=>x.id===k.dok)||{},self=(k.picker===code()&&!canAdmin())||roP();
   let h='<div class="ob-actions" style="margin-bottom:8px"><button class="button secondary" data-obback="1" type="button">&larr; Kembali</button>'+resetBtn(k)+'</div><div class="card"><h3 style="margin:0">Verifikasi · '+esc(d.kode||'')+' · Koli '+esc(k.koli)+'</h3><p class="sub">'+esc(d.outlet||'')+' · picker '+esc(k.picker_nama||k.picker)+' · status <strong>'+esc(k.status)+'</strong></p>';
   if(self&&!roP())h+='<p class="note" style="color:#b3261e">Verifikasi harus dilakukan orang lain, bukan picker koli ini.</p>';
-  h+=binBar(rows)+'<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty diambil</th><th>Verifikasi</th><th>Cek</th></tr></thead><tbody>'+binOrder(rows.filter(r=>num(r.qty_actual)>0||r.vp==='Miss')).map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+wosCat(r.item,1)+pkTag(r)+'</td><td><strong>'+(r.vp==='Miss'?'0':esc(r.qty_actual))+'</strong></td><td>'+(r.vp==='Miss'?'<span class="tag red">Miss picking internal</span><div class="sub">'+esc(r.vp_ket)+'</div>':r.vp==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':r.vp==='Dikoreksi'?'<span class="tag green">✓ Dikoreksi</span>':r.vp==='Salah'?'<span class="tag red">✗ '+esc(r.vp_ket)+'</span>':'<span class="sub">belum dicek</span>')+'</td><td>'+(r.vp==='Miss'?'':r.vp==='Salah'?'<button class="button" data-obfix="'+esc(r.id)+'" type="button">Sudah dikoreksi</button> <button class="button secondary" data-obmiss="'+esc(r.id)+'" type="button" style="color:#b3261e">Tidak ada &rarr; Miss picking</button>':(self?'':'<button class="button" data-obvok="'+esc(r.id)+'" type="button">✓</button> <button class="button secondary" data-obvno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button>'))+'</td></tr>').join('')+'</tbody></table></div>';
+  h+=binBar(rows)+'<div style="overflow:auto"><table><thead><tr><th>Bin</th><th>Item</th><th>Qty diambil</th><th>Verifikasi</th><th>Cek</th></tr></thead><tbody>'+binOrder(rows.filter(r=>num(r.qty_actual)>0||r.vp==='Miss')).map(r=>'<tr><td>'+esc(r.bin_actual||r.bin)+'</td><td>'+esc(r.item)+wosCat(r.item,1)+pkTag(r)+'</td><td><strong>'+(r.vp==='Miss'?'0':esc(r.qty_actual))+'</strong></td><td>'+(r.vp==='Miss'?'<span class="tag red">Miss picking internal</span><div class="sub">'+esc(r.vp_ket)+'</div>':r.vp==='Sesuai'?'<span class="tag green">✓ Sesuai</span>':r.vp==='Dikoreksi'?'<span class="tag green">✓ Dikoreksi</span>'+(r.vp_ket?'<div class="sub">'+esc(r.vp_ket)+'</div>':''):r.vp==='Salah'?'<span class="tag red">✗ '+esc(r.vp_ket)+'</span>':'<span class="sub">belum dicek</span>')+'</td><td>'+(r.vp==='Miss'?'':r.vp==='Salah'?'<button class="button" data-obfix="'+esc(r.id)+'" type="button">Sudah dikoreksi</button> <button class="button secondary" data-obmiss="'+esc(r.id)+'" type="button" style="color:#b3261e">Tidak ada &rarr; Miss picking</button>':(self?'':'<button class="button" data-obvok="'+esc(r.id)+'" type="button">✓</button> <button class="button secondary" data-obvno="'+esc(r.id)+'" type="button" style="color:#b3261e">✗</button>'))+'</td></tr>').join('')+'</tbody></table></div>';
   if(k.status==='Siap TFS')h+='<p class="note">Semua item lolos verifikasi. Koli siap masuk tahap <strong>Transfer Stok (TFS ke MOKA)</strong>.</p>';
   else if(k.status==='Perbaikan')h+='<p class="note" style="color:#b3261e">Ada item yang salah. Picker mengambil barang yang seharusnya, lalu tekan Sudah dikoreksi.</p>';
   return h+'</div>'}
@@ -5347,6 +5380,29 @@ init();
   }catch(e){}}
   return{P,S,f,t}}
  const perfRole=c=>{try{return staffMaster[c].role||''}catch(e){return ''}};
+ // ST1: tidak ikut DRM 3 kali atau lebih dalam satu periode penilaian. Hari yang sudah ditandai Alpha / Sakit / Cuti / Change Off (kejadian ABS) tidak dihitung lagi sebagai tidak ikut DRM.
+ const ST1_MAX=3,canPrintSt=()=>['supervisor','manager'].includes(level());
+ function st1Info(who,f,t){
+  let ev=[];try{ev=(window.__complianceSnapshot&&window.__complianceSnapshot().events)||[]}catch(x){}
+  const ex=new Set(ev.filter(e=>e.code===who&&/^ABS:/.test(String(e.id))&&(['Sakit','Cuti','Change Off','Libur/tidak dihitung'].includes(e.type)||((e.type==='Alpha'||e.type==='Mangkir')&&e.status==='valid'))).map(e=>e.day));
+  const days=[...new Set(ev.filter(e=>e.code===who&&e.type==='DRM'&&e.status==='valid'&&e.day>=f&&e.day<=t&&!ex.has(e.day)).map(e=>e.day))].sort();
+  return{n:days.length,days,hit:days.length>=ST1_MAX}}
+ const dmy=d=>String(d).slice(8,10)+'/'+String(d).slice(5,7)+'/'+String(d).slice(0,4);
+ function st1Box(who,f,t){
+  const s=st1Info(who,f,t);if(!s.n)return '';
+  return '<h4 style="margin:14px 0 6px">Kedisiplinan DRM</h4><div class="note" style="border-left:4px solid '+(s.hit?'#b3261e':'#d6a100')+'"><b>Tidak ikut DRM: '+s.n+' kali</b> pada periode '+esc(f)+' s/d '+esc(t)+' · '+s.days.map(dmy).join(', ')+'<br>'+(s.hit?'<span class="tag red">ST1 · Surat Teguran 1</span> Batas '+ST1_MAX+' kali dalam satu periode terlampaui.'+(canPrintSt()?' <button class="button secondary" data-st1="'+esc(who)+'" type="button">Cetak ST1</button>':''):'<span class="sub">ST1 terbit bila tidak ikut DRM '+ST1_MAX+' kali dalam satu periode (tersisa '+(ST1_MAX-s.n)+' kali sebelum ST1). Hari tidak masuk yang sudah ditandai Alpha, Sakit, Cuti atau Change Off tidak dihitung.</span>')+'</div>'}
+ function st1Team(f,t){
+  const L=Object.entries(typeof staffMaster!=='undefined'?staffMaster:{}).filter(([c,p])=>!p.out&&p.role!=='Supervisor').map(([c,p])=>({c,n:p.name,s:st1Info(c,f,t)})).filter(x=>x.s.n>0).sort((a,b)=>b.s.n-a.s.n);
+  if(!L.length)return '';
+  return '<h4 style="margin:14px 0 6px">Tidak ikut DRM dan ST1 (periode '+esc(f)+' s/d '+esc(t)+')</h4><div class="an-wrap"><table class="an-t"><thead><tr><th>Karyawan</th><th>Tidak ikut DRM</th><th>Tanggal</th><th>Status</th><th></th></tr></thead><tbody>'+L.map(x=>'<tr><td>'+esc(x.n)+' <span style="color:#8896ab">'+esc(x.c)+'</span></td><td><b>'+x.s.n+'</b></td><td>'+x.s.days.map(dmy).join(', ')+'</td><td>'+(x.s.hit?'<span class="tag red">ST1</span>':'<span class="tag amber">Pantau</span>')+'</td><td>'+(x.s.hit&&canPrintSt()?'<button class="button secondary" data-st1="'+esc(x.c)+'" type="button">Cetak ST1</button>':'')+'</td></tr>').join('')+'</tbody></table></div><p class="sub" style="margin:6px 0 0">ST1 terbit pada '+ST1_MAX+' kali tidak ikut DRM dalam satu periode.</p>'}
+ function st1Print(who){
+  const [f,t]=perfRange(),s=st1Info(who,f,t);if(!s.hit){alert('Belum mencapai batas ST1 pada periode ini.');return}
+  const p=(typeof staffMaster!=='undefined'?staffMaster[who]:null)||{},nm=p.name||who,td=new Date(Date.now()+288e5).toISOString().slice(0,10),signer=(()=>{try{return nameOf(code())}catch(e){return ''}})();
+  const no='ST1/'+who+'/'+td.replace(/-/g,'');
+  const css='body{font:13px/1.55 Arial,Helvetica,sans-serif;color:#111;margin:0;padding:28px 36px}h1{font-size:18px;text-align:center;margin:18px 0 2px;text-decoration:underline}.c{text-align:center}.kop{text-align:center;border-bottom:3px double #111;padding-bottom:8px}.kop b{font-size:16px}table.i td{padding:2px 8px 2px 0;vertical-align:top}table.d{border-collapse:collapse;margin:8px 0}table.d td,table.d th{border:1px solid #444;padding:4px 10px}.sg{display:flex;justify-content:space-between;margin-top:34px;text-align:center}.sg div{width:30%}.sg i{display:block;height:70px}@media print{@page{size:A4;margin:14mm}}';
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>'+esc(no)+'</title><style>'+css+'</style></head><body><div class="kop"><b>PT TIGALAPAN SUKSES INDONESIA</b><br>Distribution Center · Warehouse Operation System</div><h1>SURAT TEGURAN 1 (ST1)</h1><p class="c" style="margin:0 0 14px">Nomor: '+esc(no)+'</p><p>Dengan ini diberikan Surat Teguran 1 kepada:</p><table class="i"><tr><td>Nama</td><td>:</td><td><b>'+esc(nm)+'</b></td></tr><tr><td>Kode staf</td><td>:</td><td>'+esc(who)+'</td></tr><tr><td>Jabatan</td><td>:</td><td>'+esc(p.role||'-')+'</td></tr><tr><td>Periode penilaian</td><td>:</td><td>'+esc(dmy(f))+' s/d '+esc(dmy(t))+'</td></tr></table><p>Berdasarkan catatan Compliance WOS, yang bersangkutan <b>tidak mengikuti DRM sebanyak '+s.n+' (kali)</b> dalam satu periode penilaian, melampaui batas '+ST1_MAX+' kali, pada tanggal berikut:</p><table class="d"><tr><th>No</th><th>Tanggal</th><th>Keterangan</th></tr>'+s.days.map((d,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(dmy(d))+'</td><td>Tidak ikut DRM</td></tr>').join('')+'</table><p>Dengan surat ini yang bersangkutan diminta untuk mengikuti DRM secara disiplin dan tepat waktu. Apabila hal ini terulang, perusahaan dapat memberikan tindakan lanjutan sesuai peraturan perusahaan yang berlaku.</p><p>Demikian surat teguran ini dibuat untuk diperhatikan dan dilaksanakan.</p><p>Tanggal terbit: '+esc(dmy(td))+'</p><div class="sg"><div>Yang menerima<i></i>( '+esc(nm)+' )</div><div>Supervisor<i></i>( '+esc(signer||'................')+' )</div><div>Mengetahui<i></i>( ................ )</div></div></body></html>';
+  const fr=document.createElement('iframe');fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';fr.onload=()=>{try{fr.contentWindow.focus();fr.contentWindow.print()}catch(e){alert('Gagal membuka dialog cetak.')}setTimeout(()=>fr.remove(),120000)};document.body.appendChild(fr);fr.srcdoc=html}
+ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-st1]');if(b&&canPrintSt())st1Print(b.dataset.st1)});
  function perfCard(who){
   const {P,S}=perfSecs(who),k=(t,v,s,c)=>'<div class="an-k '+(c||'')+'"><small>'+esc(t)+'</small><b>'+esc(v)+'</b><span>'+esc(s||'')+'</span></div>',fmt=n=>Math.round(n).toLocaleString('id-ID');
   const pb=window.WOSRng.html(),av=who!=='*'&&window.WOSFoto?window.WOSFoto.avatar(who,52,nameOf(who)):'';
@@ -5354,7 +5410,7 @@ init();
   return '<div class="an-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><div style="display:flex;align-items:center;gap:12px">'+av+'<div><h3 style="margin:0">Performa · '+(who==='*'?'Seluruh tim dan gudang':esc(nameOf(who)))+'</h3><p class="sub" style="margin:0">'+(who==='*'?'':esc(perfRole(who))+' · ')+esc(P.f)+' s/d '+esc(P.t)+'</p></div></div><div>'+pb+'</div></div>'+
    (who!=='*'?'<div style="margin:8px 0 0"><button class="button secondary" data-perfshot="'+esc(who)+'" type="button">⬇ Unduh kartu performa (gambar)</button></div>':'')+
    (S.length?S.map(x=>'<h4 style="margin:14px 0 6px">'+esc(x.t)+'</h4><div class="an-kpi">'+x.items.map(i=>k(i[0],i[1],i[2],i[3])).join('')+'</div>'+(x.stores&&x.stores.length?'<div class="an-wrap" style="margin-top:8px"><table class="an-t"><thead><tr><th>Toko</th><th>Kode</th><th>Koli</th><th>Pcs</th></tr></thead><tbody>'+x.stores.map(([o,e])=>'<tr><td>'+esc(o)+'</td><td>'+esc(e.kode)+'</td><td>'+e.koli+'</td><td>'+fmt(e.pcs)+'</td></tr>').join('')+'</tbody></table></div>':'')).join(''):'<p class="sub" style="margin-top:12px">Belum ada aktivitas kerja yang tercatat pada periode ini.</p>')+
-   (hasKin?kinCard(who):'')+(who!=='*'&&perfRole(who)!=='Supervisor'?accCard(who):'')+(who==='*'?rankTable()+kinTable()+teamTable():'')+'</div>'}
+   (hasKin?kinCard(who):'')+(who!=='*'&&perfRole(who)!=='Supervisor'?accCard(who):'')+(who!=='*'&&perfRole(who)!=='Supervisor'?st1Box(who,P.f,P.t):'')+(who==='*'?rankTable()+kinTable()+teamTable()+st1Team(P.f,P.t):'')+'</div>'}
  // unduh kartu performa sebagai gambar (PNG)
  async function perfShot(who){
   try{
@@ -5646,6 +5702,7 @@ init();
    const code=/sakit/i.test(p.jenis)?'S':/change/i.test(p.jenis)?'CO':/cuti/i.test(p.jenis)?'C':/terlambat/i.test(p.jenis)?'IT':'IL';for(let d=a;d<=b&&d<=rk.t;d=addD(d,1)){if(d<rk.f)continue;(lv[c+'|'+d]=lv[c+'|'+d]||new Set()).add(code)}});
   const lm=hm(rk.late),rows=emp.map(e=>{const o={c:e.c,n:e.n,r:e.r,ld:e.ld,hadir:0,telat:0,mnt:0,S:0,IT:0,IL:0,CO:0,C:0,lembur:0,alpha:0,alp:0,mgk:0,sumMin:0,cells:{},pend:pend[e.c]||0};
    dates.forEach(d=>{if(e.ld&&d>e.ld){o.cells[d]={resign:true,codes:[]};return}const k=e.c+'|'+d,j=first[k],codes=lv[k]?[...lv[k]]:[],sun=new Date(d+'T00:00:00Z').getUTCDay()===0;let late=0;
+    {const mk=(RK.cl||{})[k],mc=mk&&({Sakit:'S',Cuti:'C','Change Off':'CO'})[mk.j];if(!j&&mc&&!codes.includes(mc))codes.push(mc)}
     if(j){o.hadir++;o.sumMin+=hm(j);if(lm>=0&&hm(j)>lm){late=hm(j)-lm;o.telat++;o.mnt+=late}}
     codes.forEach(c=>{if(c==='S')o.S++;else if(c==='IT')o.IT++;else if(c==='IL')o.IL++;else if(c==='CO')o.CO++;else if(c==='C')o.C++});
     if(lem[k])o.lembur++;
