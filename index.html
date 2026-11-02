@@ -6535,7 +6535,7 @@ init();
  const plabel=p=>dl(p)+' – '+dl(endOf(p));
  const LIMIT0=2000000;
  const staff=()=>{try{return Object.entries(staffMaster).filter(([,p])=>!p.out&&(p.role==='Admin'||p.role==='Supervisor'||p.mgr)).sort((a,b)=>a[1].name.localeCompare(b[1].name))}catch(e){return[]}};
- const st={p:periodOf(today()),tab:'',msg:'',bad:false,f:{uraian:'',qty:'',satuan:'pcs',onhand:'',cat:''},ed:{},nota:{},ready:null,err:'',busy:false,limit:null};
+ const st={p:periodOf(today()),tab:'',msg:'',bad:false,f:{uraian:'',qty:'',satuan:'pcs',harga:'',onhand:'',cat:''},ed:{},nota:{},ready:null,err:'',busy:false,limit:null};
  const lv=()=>level(),isSpv=()=>lv()==='supervisor',isAdm=()=>lv()==='admin',full=()=>isSpv()||isAdm();
  // Kas Kecil hanya untuk Admin, SPV, dan Manager (driver dan operator lain tidak)
  const okKas=()=>full();
@@ -6547,6 +6547,8 @@ init();
  const pjOf=()=>{const s=saldoRow();return s&&s.pic?s.pic:''};
  const bought=()=>reqs().filter(r=>r.status==='Dibeli').sort((a,b)=>String(a.tgl_belanja).localeCompare(String(b.tgl_belanja))||String(a.waktu).localeCompare(String(b.waktu)));
  const spent=()=>bought().reduce((a,r)=>a+num(r.total),0);
+ // dana yang sudah disetujui tapi belum dibelanjakan: dihitung dari harga satuan x jumlah disetujui (estimasi), langsung memotong saldo
+ const reserved=()=>reqs().filter(r=>r.status==='Disetujui').reduce((a,r)=>a+num(r.harga)*num(r.qty_apv||r.qty_req),0);
  const rid=()=>'KK-'+today().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
  const tagC={Menunggu:'amber',Disetujui:'',Dibeli:'green',Ditolak:'red',Batal:'red'};
  async function load(s){
@@ -6556,17 +6558,17 @@ init();
   st.busy=false;draw(s)}
  const say=(s,t,b)=>{st.msg=t;st.bad=!!b;draw(s)};
  const ed=(id,k,d)=>{const e=st.ed[id];return e&&e[k]!=null?e[k]:d};
- function summary(){const lim=limitOf(),sp=spent();return '<div class="an-kpi"><div class="an-k"><small>Limit kas kecil</small><b>'+rp(lim)+'</b></div><div class="an-k"><small>Terpakai</small><b>'+rp(sp)+'</b></div><div class="an-k"><small>Sisa dana tunai</small><b style="color:'+(lim-sp<0?'#b3261e':'inherit')+'">'+rp(lim-sp)+'</b></div></div>'}
+ function summary(){const lim=limitOf(),sp=spent(),rs=reserved(),sisa=lim-sp-rs;return '<div class="an-kpi"><div class="an-k"><small>Limit kas kecil</small><b>'+rp(lim)+'</b></div><div class="an-k"><small>Terpakai'+(rs?' (termasuk disetujui '+rp(rs)+')':'')+'</small><b>'+rp(sp+rs)+'</b></div><div class="an-k"><small>Sisa dana tunai</small><b style="color:'+(sisa<0?'#b3261e':'inherit')+'">'+rp(sisa)+'</b></div></div>'}
  function vPengajuan(){
   const L=reqs(),f=st.f;let h='';
-  if(full()){h+='<div class="card"><h3 style="margin:0">Pengajuan kebutuhan departemen</h3><p class="sub">Admin mengajukan, SPV menyetujui dan menunjuk PIC belanja.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><label class="sub">Kebutuhan / uraian<input data-kkf="uraian" value="'+esc(f.uraian)+'" placeholder="Contoh: lakban bening 2 inci" style="display:block;width:100%"></label><label class="sub">Jumlah<input data-kkf="qty" type="number" min="1" value="'+esc(f.qty)+'" style="display:block;width:100%"></label><label class="sub">Satuan<input data-kkf="satuan" value="'+esc(f.satuan)+'" style="display:block;width:100%"></label><label class="sub">Stok yang masih ada<input data-kkf="onhand" type="number" min="0" value="'+esc(f.onhand)+'" style="display:block;width:100%"></label><label class="sub">Alasan / catatan<input data-kkf="cat" value="'+esc(f.cat)+'" style="display:block;width:100%"></label></div><div class="ob-actions" style="margin-top:10px"><button class="button" data-kkadd="1" type="button">Ajukan</button></div></div>'}
+  if(full()){h+='<div class="card"><h3 style="margin:0">Pengajuan kebutuhan departemen</h3><p class="sub">Admin mengajukan, SPV menyetujui dan menunjuk PIC belanja.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><label class="sub">Kebutuhan / uraian<input data-kkf="uraian" value="'+esc(f.uraian)+'" placeholder="Contoh: lakban bening 2 inci" style="display:block;width:100%"></label><label class="sub">Jumlah<input data-kkf="qty" type="number" min="1" value="'+esc(f.qty)+'" style="display:block;width:100%"></label><label class="sub">Satuan<input data-kkf="satuan" value="'+esc(f.satuan)+'" style="display:block;width:100%"></label><label class="sub">Harga satuan (Rp)<input data-kkf="harga" type="number" min="0" value="'+esc(f.harga)+'" style="display:block;width:100%"></label><label class="sub">Total harga<b id="kk-tot" style="display:block;padding:6px 0">'+rp(num(f.qty)*num(f.harga))+'</b></label><label class="sub">Stok yang masih ada<input data-kkf="onhand" type="number" min="0" value="'+esc(f.onhand)+'" style="display:block;width:100%"></label><label class="sub">Alasan / catatan<input data-kkf="cat" value="'+esc(f.cat)+'" style="display:block;width:100%"></label></div><div class="ob-actions" style="margin-top:10px"><button class="button" data-kkadd="1" type="button">Ajukan</button></div></div>'}
   if(!L.length)return h+'<p class="sub" style="margin-top:12px">Belum ada pengajuan di periode ini.</p>';
   const stf=staff();
-  h+='<div class="an-wrap" style="margin-top:12px"><table class="an-t"><thead><tr><th>Tanggal</th><th>Kebutuhan</th><th>Minta</th><th>Stok ada</th><th>Pengaju</th><th>Status</th><th>Disetujui / PIC</th><th></th></tr></thead><tbody>'+L.map(r=>{
+  h+='<div class="an-wrap" style="margin-top:12px"><table class="an-t"><thead><tr><th>Tanggal</th><th>Kebutuhan</th><th>Minta</th><th>Stok ada</th><th>Harga satuan</th><th>Total</th><th>Pengaju</th><th>Status</th><th>Disetujui / PIC</th><th></th></tr></thead><tbody>'+L.map(r=>{
    let act='',apv=r.status==='Menunggu'?'':'<span class="sub">'+(r.qty_apv?esc(r.qty_apv)+' '+esc(r.satuan):'-')+' · PIC '+esc(r.pic?nameOf(r.pic):'-')+'</span>';
-   if(r.status==='Menunggu'&&isSpv()){apv='<input data-kkap="'+esc(r.id)+'|qty" type="number" min="0" value="'+esc(ed(r.id,'qty',r.qty_req))+'" style="width:70px"> <select data-kkap="'+esc(r.id)+'|pic" style="max-width:150px"><option value="">PIC belanja…</option>'+stf.map(([c,p])=>'<option value="'+esc(c)+'"'+(ed(r.id,'pic','')===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select>';act='<button class="button" data-kkok="'+esc(r.id)+'" type="button" style="padding:4px 10px">Setujui</button> <button class="button secondary" data-kkno="'+esc(r.id)+'" type="button" style="padding:4px 10px;color:#b3261e">Tolak</button>'}
+   if(r.status==='Menunggu'&&isSpv()){apv='<input data-kkap="'+esc(r.id)+'|qty" type="number" min="0" value="'+esc(ed(r.id,'qty',r.qty_req))+'" style="width:70px"> <input data-kkap="'+esc(r.id)+'|harga" type="number" min="0" placeholder="Harga satuan" value="'+esc(ed(r.id,'harga',r.harga||''))+'" style="width:100px"> <select data-kkap="'+esc(r.id)+'|pic" style="max-width:150px"><option value="">PIC belanja…</option>'+stf.map(([c,p])=>'<option value="'+esc(c)+'"'+(ed(r.id,'pic','')===c?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select>';act='<button class="button" data-kkok="'+esc(r.id)+'" type="button" style="padding:4px 10px">Setujui</button> <button class="button secondary" data-kkno="'+esc(r.id)+'" type="button" style="padding:4px 10px;color:#b3261e">Tolak</button>'}
    else if(r.status==='Menunggu'&&r.pengaju===code())act='<button class="button secondary" data-kkbatal="'+esc(r.id)+'" type="button" style="padding:4px 10px">Batalkan</button>';
-   return '<tr><td>'+esc(dl(r.tanggal))+'</td><td>'+esc(r.uraian)+(r.catatan?'<br><span class="sub">'+esc(r.catatan)+'</span>':'')+'</td><td>'+esc(r.qty_req)+' '+esc(r.satuan)+'</td><td>'+esc(r.on_hand||'-')+'</td><td>'+esc(nameOf(r.pengaju))+'</td><td><span class="tag '+(tagC[r.status]||'')+'">'+esc(r.status)+'</span></td><td>'+apv+'</td><td>'+act+'</td></tr>'}).join('')+'</tbody></table></div>';
+   return '<tr><td>'+esc(dl(r.tanggal))+'</td><td>'+esc(r.uraian)+(r.catatan?'<br><span class="sub">'+esc(r.catatan)+'</span>':'')+'</td><td>'+esc(r.qty_req)+' '+esc(r.satuan)+'</td><td>'+esc(r.on_hand||'-')+'</td><td style="text-align:right">'+(num(r.harga)?rp(num(r.harga)):'-')+'</td><td style="text-align:right">'+(num(r.harga)?rp(num(r.harga)*num(r.status==='Menunggu'||r.status==='Ditolak'||r.status==='Batal'?r.qty_req:(r.qty_apv||r.qty_req))):'-')+'</td><td>'+esc(nameOf(r.pengaju))+'</td><td><span class="tag '+(tagC[r.status]||'')+'">'+esc(r.status)+'</span></td><td>'+apv+'</td><td>'+act+'</td></tr>'}).join('')+'</tbody></table></div>';
   return h}
  function vRealisasi(){
   const L=reqs().filter(r=>(r.status==='Disetujui'||r.status==='Dibeli')&&mine(r));
@@ -6617,11 +6619,12 @@ init();
    if(d.kktab){st.tab=d.kktab;st.msg='';draw(s);return}
    if(d.kkp){st.p=d.kkp==='prev'?prevP(st.p):d.kkp==='next'?nextP(st.p):periodOf(today());st.msg='';st.limit=null;st.pj=null;draw(s);return}
    if(d.kkadd){const f=st.f;if(!f.uraian.trim())return say(s,'Isi kebutuhan yang diajukan.',true);if(!(num(f.qty)>0))return say(s,'Isi jumlah yang dibutuhkan.',true);
-    enq('KAS_KECIL',{id:rid(),periode:st.p,jenis:'PENGAJUAN',tanggal:today(),uraian:f.uraian.trim(),qty_req:String(num(f.qty)),satuan:f.satuan||'pcs',on_hand:f.onhand===''?'':String(num(f.onhand)),qty_apv:'',vendor:'',harga:'',total:'',status:'Menunggu',pengaju:code(),pic:'',disetujui_oleh:'',tgl_belanja:'',nota:'',catatan:f.cat||'',waktu:new Date().toISOString()});
-    st.f={uraian:'',qty:'',satuan:f.satuan||'pcs',onhand:'',cat:''};return say(s,'Pengajuan terkirim ke SPV.')}
+    enq('KAS_KECIL',{id:rid(),periode:st.p,jenis:'PENGAJUAN',tanggal:today(),uraian:f.uraian.trim(),qty_req:String(num(f.qty)),satuan:f.satuan||'pcs',on_hand:f.onhand===''?'':String(num(f.onhand)),qty_apv:'',vendor:'',harga:num(f.harga)>0?String(num(f.harga)):'',total:num(f.harga)>0?String(num(f.qty)*num(f.harga)):'',status:'Menunggu',pengaju:code(),pic:'',disetujui_oleh:'',tgl_belanja:'',nota:'',catatan:f.cat||'',waktu:new Date().toISOString()});
+    st.f={uraian:'',qty:'',satuan:f.satuan||'pcs',harga:'',onhand:'',cat:''};return say(s,'Pengajuan terkirim ke SPV.')}
    if(d.kkok||d.kkno){const id=d.kkok||d.kkno,r=all().find(x=>x.id===id);if(!r)return;
     if(d.kkok){const q=num(ed(id,'qty',r.qty_req)),pic=ed(id,'pic','');if(!(q>0))return say(s,'Isi jumlah yang disetujui.',true);if(!pic)return say(s,'Pilih PIC belanja.',true);
-     enq('KAS_KECIL',Object.assign({},r,{status:'Disetujui',qty_apv:String(q),pic,disetujui_oleh:code()}));delete st.ed[id];return say(s,'Disetujui. PIC belanja: '+nameOf(pic)+'.')}
+     const hg=num(ed(id,'harga',r.harga));
+     enq('KAS_KECIL',Object.assign({},r,{status:'Disetujui',qty_apv:String(q),harga:hg>0?String(hg):'',total:hg>0?String(q*hg):'',pic,disetujui_oleh:code()}));delete st.ed[id];return say(s,'Disetujui. PIC belanja: '+nameOf(pic)+'.')}
     if(!confirm('Tolak pengajuan "'+r.uraian+'"?'))return;enq('KAS_KECIL',Object.assign({},r,{status:'Ditolak',disetujui_oleh:code()}));return say(s,'Pengajuan ditolak.')}
    if(d.kkbatal){const r=all().find(x=>x.id===d.kkbatal);if(r&&confirm('Batalkan pengajuan "'+r.uraian+'"?')){enq('KAS_KECIL',Object.assign({},r,{status:'Batal'}));say(s,'Pengajuan dibatalkan.')}return}
    if(d.kkreal){const id=d.kkreal,r=all().find(x=>x.id===id);if(!r)return;const q=num(ed(id,'qty',r.qty_apv||r.qty_req)),hg=num(ed(id,'harga',r.harga)),vd=String(ed(id,'vendor',r.vendor||'')).trim(),tg=ed(id,'tgl',r.tgl_belanja||today());
@@ -6635,7 +6638,7 @@ init();
     enq('KAS_KECIL',{id:'KKS-'+st.p,periode:st.p,jenis:'SALDO',tanggal:st.p,uraian:'Saldo awal periode',qty_req:'',satuan:'',on_hand:'',qty_apv:'',vendor:'',harga:'',total:String(lim),status:'Aktif',pengaju:o.pengaju||code(),pic:String(st.pj!=null?st.pj:pjOf()).trim(),disetujui_oleh:code(),tgl_belanja:'',nota:'',catatan:'',waktu:new Date().toISOString()});st.limit=null;st.pj=null;return say(s,'Pengaturan periode tersimpan.')}
    if(d.kkprint){printLpj();draw(s)}});
   s.addEventListener('input',e=>{const t=e.target,d=t.dataset;
-   if(d.kkf){st.f[d.kkf]=t.value}
+   if(d.kkf){st.f[d.kkf]=t.value;const tt=s.querySelector('#kk-tot');if(tt)tt.textContent=rp(num(st.f.qty)*num(st.f.harga))}
    else if(d.kked){const p=d.kked.split('|');(st.ed[p[0]]=st.ed[p[0]]||{})[p[1]]=t.value}
    else if(d.kkap){const p=d.kkap.split('|');(st.ed[p[0]]=st.ed[p[0]]||{})[p[1]]=t.value}
    else if(d.kkset==='limit')st.limit=t.value;else if(d.kkset==='pj')st.pj=t.value});
