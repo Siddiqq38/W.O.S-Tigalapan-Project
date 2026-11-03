@@ -2355,8 +2355,8 @@ init();
 
  // ---- koneksi dan antrean (dikirim bertahap, tahan sinyal putus)
  let state='',err='',busy=false,busyAt=0;
- const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog',KAS_KECIL:'kas',TRIP:'trip',TRIP_TITIK:'trpt',BBM_LOG:'bbm'};
- let D={sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[],kas:[],trip:[],trpt:[],bbm:[]};let dv=0;
+ const TABKEY={UNLOADING_SESI:'sesi',UNLOADING_RESI:'resi',KOLI:'koli',MASTER_VENDOR:'vendor',MASTER_EKSPEDISI:'eks',MASTER_AREA:'area',PO_INFO:'po',MASTER_HPP:'hpp',PO_DOK:'dok',GR_ASSIGN:'gra',SJ_ITEM:'sj',HPP_ITEM:'hppi',GR_COUNT:'grc',PUTAWAY:'pa',MASTER_BIN:'bin',MASTER_MOKA:'moka',STOK_BIN:'stok',PICK_DOK:'pdok',PICK_KOLI:'pkoli',PICK_ITEM:'pitem',PICK_GR:'pgr',DATA_ENTRY:'de',LC_TASK:'lct',LC_COUNT:'lcc',ADJUSTMENT:'adj',PROJECT:'prj',PROJECT_NORM:'pnorm',PROJECT_LOG:'plog',KAS_KECIL:'kas',TRIP:'trip',TRIP_TITIK:'trpt',BBM_LOG:'bbm',ERP_INCOMING:'erpi'};
+ let D={erpi:[],sesi:[],resi:[],koli:[],vendor:[],eks:[],area:[],po:[],hpp:[],dok:[],gra:[],sj:[],hppi:[],grc:[],pa:[],bin:[],moka:[],stok:[],pdok:[],pkoli:[],pitem:[],pgr:[],de:[],lct:[],lcc:[],adj:[],prj:[],pnorm:[],plog:[],kas:[],trip:[],trpt:[],bbm:[]};let dv=0;
  const queue=()=>rj(QK,[]),saveQ=q=>{try{localStorage.setItem(QK,JSON.stringify(q.slice(-1500)))}catch(e){err='Penyimpanan HP penuh'}};
  // saldo stok (besar) dipakai banyak layar: satu permintaan dibagi bersama dan disimpan 45 detik; dibatalkan saat ada mutasi stok terkirim
  const stokC={at:0,p:null,v:null};
@@ -2422,10 +2422,10 @@ init();
   plan.forEach(([t,r])=>{const nr=Object.assign({},r);if('po' in nr)nr.po=nv;nr.id=IDK.includes(t)?nv:String(r.id).replace(re,nv);if(t==='STOK_BIN'&&nr.referensi)nr.referensi=String(nr.referensi).replace(re,nv);enq(t,nr);enqDel(t,r.id)});
   alert('Kode PO diubah menjadi '+nv+' ('+plan.length+' baris). Tunggu antrean terkirim lalu muat ulang halaman.')}
  async function pull(force){if(document.hidden||(!force&&!sec.classList.contains('active')))return;
-  try{const f60=back(60),q=['UNLOADING_SESI:'+f60+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','GR_ASSIGN:'+f60+':'+to].join(',');
+  try{const f60=back(60),q=['UNLOADING_SESI:'+f60+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','ERP_INCOMING::','GR_ASSIGN:'+f60+':'+to].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error==='aksi tidak dikenal'?'Skrip Google perlu dipasang ulang (versi terbaru)':r.error);
    const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
+   D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.erpi=g('ERP_INCOMING');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
    if(state!=='err')state='ok'}catch(e){state='err';err=String(e&&e.message||e);pullErr=err}
   paintState();render()}
  function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antri)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
@@ -2714,7 +2714,7 @@ init();
  const nSes=po=>new Set(view('UNLOADING_RESI').filter(r=>poKey(r.po)===po).map(r=>r.sesi_id)).size;
  function htmlIncoming(){
   const rows=incomingRows().filter(r=>window.WOSDR.inR('inb',r.last)),sum=rows.reduce((a,r)=>a+r.miss.length,0);
-  return '<div class="grid three"><div class="card"><span class="metric-label">Incoming (on delivery)</span><div class="metric warn">'+sum+' koli</div><span class="sub">'+rows.length+' PO masih punya kiriman yang belum datang</span></div></div>'+
+  return htmlErp()+'<div class="grid three" style="margin-top:12px"><div class="card"><span class="metric-label">Incoming (on delivery)</span><div class="metric warn">'+sum+' koli</div><span class="sub">'+rows.length+' PO masih punya kiriman yang belum datang</span></div></div>'+
   '<div class="card" style="margin-top:12px"><h3>Kiriman yang belum datang</h3><p class="sub">Koli yang belum diterima: dari PO yang total koli-nya diketahui (nomor koli terlihat), atau dari STTB dengan nomor koli bebas (dihitung dari jumlah koli di STTB dikurangi yang sudah diterima; nomornya baru diketahui saat tiba). Saat kiriman lanjutan tiba, ketuk <strong>Terima</strong>, pilih operator dan ekspedisi: sesi unloading berikutnya (ke-2, ke-3, dan seterusnya) otomatis terbentuk dengan STTB yang sama, operator tinggal menandai koli yang masuk.</p><div style="overflow:auto">'+
   (rows.length?'<table><thead><tr><th>PO</th><th>Vendor</th><th>STTB</th><th>Ekspedisi</th><th>Total</th><th>Sudah diterima</th><th>Incoming</th><th>Sejak unload terakhir</th><th></th></tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+esc(r.po)+'</strong></td><td>'+esc(r.vendor||'-')+'</td><td>'+esc([...r.resi].join(', '))+'</td><td>'+esc(r.eks||'-')+'</td><td>'+r.total+'</td><td>'+r.rec+'</td><td><strong>'+r.miss.length+' koli</strong><br><span class="sub">'+(r.unk?esc((r.rem||[]).map(t=>t.resi+': '+t.rem).join(' · '))+' (nomor koli belum diketahui)':esc(compress(r.miss).slice(0,120)))+'</span></td><td>'+esc(r.last)+'<br><span class="sub">'+age(r.last)+'</span><br><span class="sub">sudah '+nSes(r.po)+' pengantaran · berikut: <b>ke-'+(nSes(r.po)+1)+'</b></span></td><td><button class="button" data-inc="'+esc(r.po)+'" type="button">Terima</button>'+incAdmin(r)+'</td></tr>').join('')+'</tbody></table>':'<p class="sub">Tidak ada kiriman gantung. Kiriman tercatat sebagai incoming setelah total koli PO diisi dan sebagian koli sudah diterima.</p>')+'</div></div>';
  }
@@ -2733,6 +2733,69 @@ init();
    const s={id:'SS-'+today().replace(/-/g,'')+'-'+op+'-'+Math.random().toString(36).slice(2,6),tanggal:today(),ekspedisi:ek,pic_kode:op,pic_nama:nameOf(op),jam_mulai:m.querySelector('#iv2-ij').value||nowHM(),jam_selesai:'',status:'Berjalan',catatan:'Unloading ke-'+n+' PO '+po};
    const rs=o.unk?(o.rem||[]).map(t=>({id:s.id+'|'+t.resi+'|'+po,tanggal:s.tanggal,sesi_id:s.id,resi:t.resi,po,vendor:o.vendor||vendorOfPo(po),ekspedisi:ek,koli_list:'*'+t.rem,area_staging:o.area||'',pic_kode:meC})):[...o.resi].map(resi=>({id:s.id+'|'+resi+'|'+po,tanggal:s.tanggal,sesi_id:s.id,resi,po,vendor:o.vendor||vendorOfPo(po),ekspedisi:ek,koli_list:'',area_staging:o.area||'',pic_kode:meC}));
    curId=s.id;localStorage.setItem(SK,curId);curResi=rs[0]?rs[0].id:'';showAdd=false;tab='recv';taskStart(s);enq('UNLOADING_SESI',s);rs.forEach(r=>enq('UNLOADING_RESI',r));m.remove();setMsg('Unloading ke-'+n+' dimulai untuk PO '+po+'. Tandai koli yang masuk.');render()}
+ }
+ // ---- Incoming dari ERP Tigalapan (tab ERP_INCOMING, diisi otomatis oleh ERP lewat api/erp-resi)
+ // Kode PO = awalan PO vendor (Master data) + nomor minggu MRP: vendor BY + MRP W40 = BY40. Nomor koli "0001" dibaca sebagai 1.
+ const normN=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ const erpVendorOf=name=>{const n=normN(name);if(!n)return null;return view('MASTER_VENDOR').find(v=>v.status!=='Tidak aktif'&&(normN(v.nama)===n||(v.kode&&normN(v.kode)===n)||String(v.erp_nama||'').split(/[,;\n]+/).some(x=>normN(x)===n)))||null};
+ const erpPrefix=v=>{const p=String(v.pola_po||'').split(/[,;\n]+/).map(x=>x.replace(/[^A-Za-z0-9]/g,'').toUpperCase()).filter(Boolean)[0];return p||normN(v.kode)};
+ const erpWeek=m=>{const x=/W\s*0*(\d{1,3})/i.exec(String(m||''))||/(\d{1,3})/.exec(String(m||''));return x?String(Number(x[1])).padStart(2,'0'):''};
+ const erpPoOf=r=>{const v=erpVendorOf(r.vendor),w=erpWeek(r.mrp);if(!v||!w)return '';const pf=erpPrefix(v);return pf?pf+w:''};
+ const erpItems=r=>{try{const a=JSON.parse(r.items||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}};
+ function erpData(){
+  const by={},un=[],seen={};
+  view('ERP_INCOMING').forEach(r=>{const po=erpPoOf(r);
+   if(!po){const v=erpVendorOf(r.vendor),k=(r.vendor||'(tanpa vendor)')+'|'+(v?'p':'v');if(!seen[k]){seen[k]={name:r.vendor||'(tanpa vendor)',why:v?'awalan PO vendor '+v.nama+' belum diisi di Master data':(erpWeek(r.mrp)?'vendor belum dipetakan':'nomor minggu MRP tidak terbaca ('+(r.mrp||'kosong')+')'),map:!v,n:0};un.push(seen[k])}seen[k].n++;return}
+   const kk=r.resi_group||r.resi,g=by[kk]||(by[kk]={rg:kk,resi:r.resi,eks:r.ekspedisi,tgl:r.tanggal,pos:{}});
+   const p=g.pos[po]||(g.pos[po]={po,vendor:erpVendorOf(r.vendor).nama,mrp:r.mrp,rows:[],nums:new Set(),qty:0,hpp:0});
+   p.rows.push(r);p.nums.add(Number(r.no_koli));p.qty+=Number(r.qty)||0;p.hpp+=Number(r.hpp_total)||0});
+  const K=view('KOLI').filter(k=>k.status!=='Batal'&&!isDupK(k));
+  Object.values(by).forEach(g=>Object.values(g.pos).forEach(p=>{const got=new Set();K.forEach(k=>{if(poKey(k.po)===p.po&&String(k.resi)===String(g.resi))got.add(Number(k.no_koli))});const all=[...p.nums].sort((a,b)=>a-b);p.all=all;p.got=all.filter(n=>got.has(n)).length;p.pend=all.filter(n=>!got.has(n))}));
+  return{list:Object.values(by).sort((a,b)=>String(b.tgl).localeCompare(String(a.tgl))||String(b.resi).localeCompare(String(a.resi))),un}}
+ const rpE=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID');
+ function htmlErp(){
+  const E=erpData();let h='';
+  if(E.un.length)h+='<div class="card" style="margin-top:12px;border-left:5px solid #d98a00"><h3 style="margin:0">Data ERP belum bisa dijadikan PO</h3><p class="sub">Kode PO dibentuk dari awalan PO vendor + nomor minggu MRP (mis. BY + W40 = BY40). Perbaiki di bawah supaya kiriman ini muncul di daftar.</p>'+E.un.map((u,i)=>'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><b>'+esc(u.name)+'</b><span class="sub">'+u.n+' baris koli - '+esc(u.why)+'</span>'+(u.map?'<select id="iv2-erpv'+i+'">'+view('MASTER_VENDOR').filter(v=>v.status!=='Tidak aktif').sort((a,b)=>String(a.nama).localeCompare(String(b.nama))).map(v=>'<option value="'+esc(v.id)+'">'+esc(v.nama)+'</option>').join('')+'</select><button class="button" data-erpmap="'+i+'" type="button">Petakan ke vendor ini</button>':'')+'</div>').join('')+'</div>';
+  const act=E.list.filter(g=>Object.values(g.pos).some(p=>p.pend.length)),fin=E.list.length-act.length;
+  h+='<div class="card" style="margin-top:12px"><h3>Kiriman dari ERP (menunggu diterima)</h3><p class="sub">Data resi, koli, qty dan HPP masuk otomatis dari ERP. Ketuk <strong>Mulai unloading</strong> saat truk tiba: sesi unloading dibuat per resi, tiap kode PO punya daftar kolinya sendiri, dan surat jalan serta HPP otomatis terisi. Satu karung berisi dua PO muncul di kedua PO dengan nomor koli yang sama; tandai di keduanya.</p><div style="overflow:auto">'+
+   (act.length?'<table><thead><tr><th>Resi</th><th>Ekspedisi</th><th>Tgl kirim</th><th>PO / koli</th><th>Qty</th><th>HPP</th><th>Datang</th><th></th></tr></thead><tbody>'+act.map(g=>{const ps=Object.values(g.pos).sort((a,b)=>a.po.localeCompare(b.po)),tq=ps.reduce((a,p)=>a+p.qty,0),th=ps.reduce((a,p)=>a+p.hpp,0),all=ps.reduce((a,p)=>a+p.all.length,0),got=ps.reduce((a,p)=>a+p.got,0);
+    return '<tr><td><strong>'+esc(g.resi)+'</strong></td><td>'+esc(g.eks||'-')+'</td><td>'+esc(g.tgl||'-')+'<br><span class="sub">'+(g.tgl?age(g.tgl):'')+'</span></td><td>'+ps.map(p=>'<b>'+esc(p.po)+'</b> <span class="sub">'+esc(p.vendor)+' - koli '+esc(compress(p.all))+' ('+p.all.length+')'+(p.got?', datang '+p.got:'')+'</span>').join('<br>')+'</td><td>'+tq+'</td><td>'+(th?rpE(th):'-')+'</td><td>'+got+'/'+all+'</td><td><button class="button" data-erpgo="'+esc(g.rg)+'" type="button">Mulai unloading</button></td></tr>'}).join('')+'</tbody></table>':'<p class="sub">'+(E.list.length?'Semua kiriman ERP sudah diterima.':'Belum ada kiriman dari ERP.')+'</p>')+'</div>'+(fin?'<p class="sub" style="margin:8px 0 0">'+fin+' kiriman ERP lain sudah selesai diterima (tidak ditampilkan).</p>':'')+'</div>';
+  return h}
+ function erpMap(i){
+  const u=erpData().un[i];if(!u||!u.map)return;const sel=$('iv2-erpv'+i),v=sel&&view('MASTER_VENDOR').find(x=>x.id===sel.value);if(!v)return;
+  if(!erpPrefix(v)&&!confirm('Vendor '+v.nama+' belum punya awalan PO di Master data, jadi kode PO belum bisa terbentuk. Tetap petakan? (isi awalan PO di Master data setelahnya)'))return;
+  const al=String(v.erp_nama||'').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);if(!al.some(x=>normN(x)===normN(u.name)))al.push(u.name);
+  enq('MASTER_VENDOR',Object.assign({},v,{erp_nama:al.join(', ')}));setMsg('Vendor ERP "'+u.name+'" dipetakan ke '+v.nama+'.')}
+ // Salin surat jalan (SJ_ITEM) dan HPP (HPP_ITEM) PO dari data ERP. Menambah / memperbarui saja, tidak menghapus baris yang sudah ada. Satu PO bisa datang lewat beberapa resi.
+ function erpMaterialize(po){
+  const rows=view('ERP_INCOMING').filter(r=>erpPoOf(r)===po),who=code(),now=today(),have=new Map(view('SJ_ITEM').filter(r=>poKey(r.po)===po).map(r=>[r.id,r])),all=new Map(have);
+  rows.forEach(r=>erpItems(r).forEach((x,i)=>{const id=po+'|'+r.no_koli+'|'+(i+1),old=have.get(id),row={id,tanggal:old?old.tanggal:now,po,no_koli:String(r.no_koli),seq:String(i+1),item:x.n,qty:String(x.q),tipe:x.k||'FG',tgl_kirim:r.tanggal,awb:r.resi,eta:'',diunggah_oleh:who};all.set(id,row);if(!old||old.item!==x.n||String(old.qty)!==String(x.q))enq('SJ_ITEM',row)}));
+  const agg={};rows.forEach(r=>erpItems(r).forEach(x=>{if(!(x.h>0)||!(x.q>0))return;const k=poKey(x.n),a=agg[k]||(agg[k]={item:x.n,jenis:x.k||'FG',q:0,v:0});a.q+=x.q;a.v+=x.q*x.h}));
+  const hk=Object.keys(agg),hh=new Map(view('HPP_ITEM').filter(r=>poKey(r.po)===po).map(r=>[r.id,r]));
+  hk.forEach(k=>{const a=agg[k],id=po+'|'+k,c=Math.round(a.v/a.q),old=hh.get(id);if(!old||Number(old.cogs)!==c||Number(old.qty)!==a.q)enq('HPP_ITEM',{id,tanggal:now,po,item:a.item,kategori:'',jenis:a.jenis,qty:String(a.q),cogs:String(c),diunggah_oleh:who})});
+  const vals=[...all.values()],dk=view('PO_DOK').find(x=>x.id===po)||{id:po,vendor:vendorOfPo(po)},patch={id:po,sj_item:String(vals.length),sj_koli:String(new Set(vals.map(r=>r.no_koli)).size),sj_qty:String(vals.reduce((a,r)=>a+(Number(r.qty)||0),0)),sj_waktu:now,sj_oleh:who};
+  if(hk.length){patch.hpp_item=String(Math.max(hk.length,Number(dk.hpp_item)||0));patch.hpp_waktu=now;patch.hpp_oleh=who}
+  enq('PO_DOK',Object.assign({},dk,patch));
+  if(hk.length&&!view('MASTER_HPP').some(x=>x.id===po))enq('MASTER_HPP',{id:po,vendor:vendorOfPo(po)||'',status_hpp:'Ada',catatan:'dari ERP '+now})}
+ function openErp(rg){
+  const g=erpData().list.find(x=>x.rg===rg);if(!g)return;const ps=Object.values(g.pos).filter(p=>p.pend.length);if(!ps.length)return setMsg('Semua koli resi ini sudah diterima.');
+  const eks=activeEks(),meC=code(),match=eks.find(x=>normN(x.nama)===normN(g.eks))||eks.find(x=>normN(g.eks).indexOf(normN(x.nama))>=0&&normN(x.nama).length>=4);
+  const staff=Object.entries((()=>{try{return staffMaster}catch(e){return{}}})()).filter(([c,p])=>p.role!=='Supervisor'&&!p.out).sort();
+  const m=document.createElement('div');m.className='iv2-modal';
+  m.innerHTML='<div class="box"><h3>Mulai unloading - resi '+esc(g.resi)+'</h3><p class="sub">'+ps.map(p=>'<b>'+esc(p.po)+'</b> koli '+esc(compress(p.pend))+' ('+p.pend.length+')').join(' &middot; ')+'</p>'+
+  '<label style="display:block;font-weight:600;margin-top:6px">Ekspedisi</label><select id="iv2-ie" style="width:100%" onchange="'+ekOtherJs.replace('IDO','iv2-ie-o')+'">'+eks.map(x=>'<option'+(match&&x.nama===match.nama?' selected':'')+'>'+esc(x.nama)+'</option>').join('')+'<option value="__other"'+(match?'':' selected')+'>Other (isi manual)</option></select><input id="iv2-ie-o" value="'+(match?'':esc(g.eks||''))+'" placeholder="Nama ekspedisi (akan tercatat sebagai master baru)" style="display:'+(match?'none':'block')+';width:100%;margin-top:6px">'+
+  '<label style="display:block;font-weight:600;margin-top:10px">Operator yang ditugaskan</label><select id="iv2-io" style="width:100%"'+(canAdmin()?'':' disabled')+'>'+staff.map(([c,p])=>'<option value="'+esc(c)+'"'+(c===meC?' selected':'')+'>'+esc(p.name)+' ('+esc(c)+')</option>').join('')+'</select>'+
+  '<label style="display:block;font-weight:600;margin-top:10px">Jam mulai</label><input id="iv2-ij" type="time" value="'+nowHM()+'">'+
+  '<div class="ob-actions" style="margin-top:12px"><button class="button" id="iv2-igo" type="button">Mulai unloading</button><button class="button secondary" id="iv2-ino" type="button">Batal</button></div></div>';
+  document.body.appendChild(m);m.querySelector('#iv2-ino').onclick=()=>m.remove();
+  m.querySelector('#iv2-igo').onclick=()=>{const ek=ekPick(m.querySelector('#iv2-ie'),m.querySelector('#iv2-ie-o')),op=m.querySelector('#iv2-io').value||meC;if(!ek){alert('Pilih atau isi ekspedisi.');return}
+   const s={id:'SS-'+today().replace(/-/g,'')+'-'+op+'-'+Math.random().toString(36).slice(2,6),tanggal:today(),ekspedisi:ek,pic_kode:op,pic_nama:nameOf(op),jam_mulai:m.querySelector('#iv2-ij').value||nowHM(),jam_selesai:'',status:'Berjalan',catatan:'ERP resi '+g.resi};
+   const rs=ps.map(p=>{
+    const all=view('ERP_INCOMING').filter(r=>erpPoOf(r)===p.po),mx=Math.max(0,...all.map(r=>Number(r.no_koli)||0)),cur=view('PO_INFO').find(x=>x.id===p.po)||{};
+    if(!cur.id||Number(cur.total_koli||0)<mx||!cur.vendor)enq('PO_INFO',Object.assign({id:p.po,vendor:'',total_koli:'',pekan:'',catatan:'',diperbarui:today()},cur,{id:p.po,vendor:cur.vendor||p.vendor,total_koli:String(Math.max(mx,Number(cur.total_koli)||0)),pekan:cur.pekan||erpWeek(p.mrp),diperbarui:today()}));
+    erpMaterialize(p.po);
+    return{id:s.id+'|'+g.resi+'|'+p.po,tanggal:s.tanggal,sesi_id:s.id,resi:g.resi,po:p.po,vendor:p.vendor,ekspedisi:ek,koli_list:compress(p.pend),area_staging:'',pic_kode:meC}});
+   curId=s.id;localStorage.setItem(SK,curId);curResi=rs[0]?rs[0].id:'';showAdd=false;tab='recv';taskStart(s);enq('UNLOADING_SESI',s);rs.forEach(r=>enq('UNLOADING_RESI',r));m.remove();setMsg('Unloading resi '+g.resi+' dimulai. Tandai koli yang masuk, per kode PO.');render()}
  }
  // kartu Incoming di Dashboard utama (SPV / Admin)
  window.__wosIncoming=()=>{try{return incomingRows()}catch(e){return[]}};
@@ -2901,6 +2964,8 @@ init();
   if(b.dataset.ttb){ttbOut(b.dataset.ttb,false);return}
   if(b.dataset.ttbdoc){ttbOut(b.dataset.ttbdoc,true);return}
   if(b.id==='iv2-kopsave'){const o={};['nama','unit','alamat','telp','kaki'].forEach(k=>{o[k]=($('iv2-kop-'+k).value||'').trim()});try{localStorage.setItem(KOPK,JSON.stringify(o))}catch(e){}setMsg('Kop tanda terima disimpan di perangkat ini.');return}
+  if(b.dataset.erpgo){openErp(b.dataset.erpgo);return}
+  if(b.dataset.erpmap){erpMap(Number(b.dataset.erpmap));return}
   if(b.dataset.inc){openIncoming(b.dataset.inc);return}
   if(b.dataset.sesedit){const x=view('UNLOADING_SESI').find(y=>y.id===b.dataset.sesedit);if(x)editSesi(x);return}
   if(b.dataset.sesdel){const x=view('UNLOADING_SESI').find(y=>y.id===b.dataset.sesdel);if(x)delSesi(x);return}

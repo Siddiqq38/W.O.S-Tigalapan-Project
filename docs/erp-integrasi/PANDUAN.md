@@ -73,7 +73,30 @@ Header: `X-ERP-Event: resi.created`, `X-ERP-Timestamp` (detik epoch), `X-ERP-Sig
 - Satu resi bisa memuat koli dari lebih dari satu MRP (lihat `kolis[].mrpNo`).
 - Lampiran dikirim sebagai tautan (berlaku 7 hari, tanpa login). Fungsi `api/erp-resi.js` mengunduhnya dan menyimpannya di Storage.
 
-## Untuk tab Inbound > Incoming (menyusul)
+## Jalur utama: ERP -> spreadsheet gudang -> Inbound > Incoming
+
+Mulai sekarang kiriman ERP juga ditulis ke tab **ERP_INCOMING** di spreadsheet "WOS Data Gudang". Supabase menjadi **opsional**
+(arsip resi + lampiran); kalau `SUPABASE_*` tidak diisi, penerima tetap jalan dan hanya menulis ke spreadsheet.
+
+Tambahan di Vercel > Environment Variables:
+| Nama | Isi |
+| --- | --- |
+| `GUDANG_URL` | alamat Web App skrip gudang (yang berakhiran `/exec`) |
+| `GUDANG_TOKEN` | token skrip gudang (rahasia, sama dengan yang dipakai WOS) |
+
+Pasang ulang skrip `docs/google-sheets/gudang/Code.gs`, jalankan **setup** sekali (membuat tab `ERP_INCOMING` dan kolom `erp_nama`
+di `MASTER_VENDOR`), lalu Deploy versi baru. Redeploy Vercel agar env terbaca.
+
+Aturan penerjemahan (di `api/_erp.js` dan `index.html`):
+- **Kode PO** = awalan PO vendor (Master data > vendor > "Awalan kode PO", mis. `BY`) + nomor minggu MRP dua digit. Vendor BY + MRP `W40` = `BY40`; `W4` menjadi `BY04`.
+- Vendor ERP dicocokkan dengan Master vendor lewat nama, kode, atau alias `erp_nama`. Vendor yang belum cocok muncul di Inbound > Incoming dengan tombol **Petakan**.
+- **Nomor koli** `0001` dibaca `1`.
+- **Nama item** = `<warna> <PDK|PJG> <size>` (mis. `BENHUR SPECIAL 24S PDK M`).
+- **Satu karung berisi dua MRP**: sertakan `mrpNo` di tiap item. Satu koli menjadi satu baris per MRP, sehingga di WOS koli nomor itu muncul di kedua PO dan Admin mengekspor ke MOKA per PO (BY40 terpisah dari BY41).
+- **HPP**: sertakan `hpp` (angka per item, boleh `hppEstimated: true`) di tiap item. HPP per item diambil rata-rata tertimbang qty.
+- Tombol **Mulai unloading** di Incoming membuat sesi unloading per resi, daftar koli per PO, serta mengisi surat jalan (`SJ_ITEM`) dan HPP (`HPP_ITEM`) otomatis.
+
+## Untuk tab Inbound > Incoming (versi Supabase, lama)
 Kolom **PO** di WOS = **nomor MRP** dari ERP, kolom **STTB** = nomor resi, Vendor dan Ekspedisi sama. Tampilan `erp_incoming` di SQL di atas
 sudah menyiapkan data itu per MRP per resi (`po`, `vendor`, `sttb`, `ekspedisi`, `total_koli`, `koli_list`, `total_qty`).
 Satu resi yang memuat dua MRP menjadi dua baris. Perhatian: nomor koli di ERP berulang antar vendor pada MRP yang sama

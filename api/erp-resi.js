@@ -2,7 +2,7 @@
 // Memeriksa tanda tangan, menyimpan resi + koli + item ke Supabase (idempoten), lalu mengunduh lampiran resi ke Storage.
 // Spesifikasi kiriman: docs/erp-integrasi/PANDUAN.md. Env: SUPABASE_URL, SUPABASE_SERVICE_KEY, ERP_WEBHOOK_SECRET, (opsional) ERP_BASE_URL.
 const crypto = require('crypto');
-const { cfg, safeEqual, sbHeaders, sbRpc, json } = require('./_erp');
+const { cfg, safeEqual, sbHeaders, sbRpc, json, toSheetRows, pushToSheet } = require('./_erp');
 
 const MAX_FILES = 10;
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
@@ -92,7 +92,8 @@ function validate(p) {
 async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Gunakan POST.' });
   const c = cfg();
-  if (!c.url || !c.key || !c.secret) return json(res, 503, { error: 'Integrasi ERP belum dikonfigurasi (env SUPABASE_URL, SUPABASE_SERVICE_KEY, ERP_WEBHOOK_SECRET).' });
+  const useSb = !!(c.url && c.key), useSheet = !!(c.gudangUrl && c.gudangToken);
+  if (!c.secret || (!useSb && !useSheet)) return json(res, 503, { error: 'Integrasi ERP belum dikonfigurasi (env ERP_WEBHOOK_SECRET, dan GUDANG_URL + GUDANG_TOKEN dan/atau SUPABASE_URL + SUPABASE_SERVICE_KEY).' });
 
   const raw = await rawBody(req);
   const timestamp = header(req, 'x-erp-timestamp');
@@ -107,6 +108,14 @@ async function handler(req, res) {
   if (bad) return json(res, 400, { error: bad });
 
   const rid = payload.resi.resiGroupId;
+  // 1) Spreadsheet gudang (tab ERP_INCOMING): sumber data Incoming di WOS. Gagal -> 502 supaya ERP mencoba ulang (idempoten).
+  let sheetRows = 0;
+  if (useSheet) {
+    try { sheetRows = await pushToSheet(c, toSheetRows(payload)); }
+    catch (e) { return json(res, 502, { ok: false, resiGroupId: rid, error: String(e.message || e) }); }
+  }
+  // 2) Supabase (opsional): arsip resi + lampiran.
+  if (!useSb) return json(res, 200, { ok: true, resiGroupId: rid, kolis: payload.kolis.length, sheetRows });
   try {
     await sbRpc(c, 'erp_receive_resi', { p: payload });
   } catch (e) {
@@ -114,7 +123,7 @@ async function handler(req, res) {
   }
   try {
     const saved = await saveAttachments(c, rid, payload.attachments);
-    return json(res, 200, { ok: true, resiGroupId: rid, kolis: payload.kolis.length, attachments: saved.length });
+    return json(res, 200, { ok: true, resiGroupId: rid, kolis: payload.kolis.length, sheetRows, attachments: saved.length });
   } catch (e) {
     // Data resi SUDAH tersimpan; 502 membuat ERP mencoba ulang (aman karena idempoten) supaya lampiran ikut tersimpan.
     return json(res, 502, { ok: false, resiGroupId: rid, saved: true, error: String(e.message || e) });

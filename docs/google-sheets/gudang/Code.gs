@@ -11,7 +11,7 @@ const MAX_READ_ROWS = 12000;              // baris terakhir yang dibaca per perm
 
 // Daftar tab dan judul kolom. Kolom pertama selalu "id" (kunci unik).
 const TABS = {
-  MASTER_VENDOR: ['id','kode','nama','pola_po','status','catatan','pks','email','alamat','telp'],
+  MASTER_VENDOR: ['id','kode','nama','pola_po','status','catatan','pks','email','alamat','telp','erp_nama'],
   MASTER_EKSPEDISI: ['id','nama','status','kontak','catatan'],
   MASTER_AREA: ['id','nama','status','catatan'],
   MASTER_HPP: ['id','vendor','status_hpp','catatan'],
@@ -46,6 +46,9 @@ const TABS = {
   TRIP: ['id','tanggal','driver','driver_nama','kendaraan','rute','status','odo_awal','odo_akhir','waktu_mulai','waktu_selesai','catatan'],
   TRIP_TITIK: ['id','trip','tanggal','urut','titik','odo','waktu','jarak','menit','catatan'],
   BBM_LOG: ['id','tanggal','driver','driver_nama','odo','liter','harga','total','spbu','trip','catatan','waktu','foto_id'],
+  // Data incoming dari ERP Tigalapan (ditulis oleh api/erp-resi.js lewat batch append; WOS hanya membaca). Satu baris = satu koli milik satu MRP dalam satu resi.
+  // items = JSON [{n:nama item, q:qty, h:hpp per item, e:1 bila HPP estimasi, k:FG/REWORK, s:sku}]. Kode PO dihitung WOS dari vendor + nomor minggu MRP.
+  ERP_INCOMING: ['id','waktu_server','tanggal','resi_group','resi','ekspedisi','vendor','mrp','no_koli','koli_erp','items','qty','hpp_total','catatan'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 

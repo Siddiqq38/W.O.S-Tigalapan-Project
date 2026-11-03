@@ -31,8 +31,19 @@ const payload = {
       mrpNo: 'W-UJI',
       weightKg: 12.5,
       items: [
-        { color: 'JET BLACK 24S', sleeve: 'PENDEK', size: 'M', sku: 'B01-UJI-M', qty: 20, kind: 'FG', age: null },
-        { color: 'JET BLACK 24S', sleeve: 'PENDEK', size: 'L', sku: 'B01-UJI-L', qty: 10, kind: 'FG', age: null },
+        { color: 'JET BLACK 24S', sleeve: 'PENDEK', size: 'M', sku: 'B01-UJI-M', qty: 20, kind: 'FG', age: null, hpp: 30788 },
+        { color: 'JET BLACK 24S', sleeve: 'PENDEK', size: 'L', sku: 'B01-UJI-L', qty: 10, kind: 'FG', age: null, hpp: 30987 },
+      ],
+    },
+    // satu karung berisi dua MRP: tiap item membawa mrpNo sendiri; di WOS menjadi dua PO dengan nomor koli yang sama
+    {
+      koliId: 'KOLI-UJI-2',
+      koliNo: '0002',
+      mrpNo: 'W-UJI',
+      weightKg: 20,
+      items: [
+        { color: 'JET BLACK 24S', sleeve: 'PANJANG', size: 'M', sku: 'B01-UJI-PM', qty: 15, kind: 'FG', age: null, hpp: 31263, mrpNo: 'W-UJI' },
+        { color: 'JET BLACK 24S', sleeve: 'PANJANG', size: 'L', sku: 'B01-UJI-PL', qty: 5, kind: 'FG', age: null, hpp: 31263, hppEstimated: true, mrpNo: 'W-UJ2' },
       ],
     },
   ],
