@@ -59,12 +59,22 @@ function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(TABS).forEach(function (name) {
     let sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
+    const isNew = !sh;
+    if (isNew) sh = ss.insertSheet(name);
     const headers = TABS[name];
+    // Tab yang sudah ada dan judulnya sudah benar dilewati: memformat ulang tab besar (ribuan baris) membuat setup kena batas waktu Google.
+    if (!isNew) {
+      const cur = sh.getRange(1, 1, 1, Math.max(headers.length, 1)).getValues()[0].map(String);
+      if (cur.join('|') === headers.join('|')) return;
+    }
     sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#b5532a').setFontColor('#ffffff');
-    sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');   // semua kolom teks agar tanggal tidak berubah format
-    sh.setFrozenRows(1);
-    sh.autoResizeColumns(1, headers.length);
+    if (isNew) {
+      sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');   // semua kolom teks agar tanggal tidak berubah format
+      sh.setFrozenRows(1);
+      sh.autoResizeColumns(1, headers.length);
+    } else {
+      sh.getRange(2, headers.length, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('@');   // hanya kolom yang baru ditambahkan
+    }
   });
   ['UNLOADING', 'STAGING_IN', 'GR', 'SOQ', 'ASSIGNMENT'].forEach(function (n) {   // tab lama yang sudah tidak dipakai
     const old = ss.getSheetByName(n);
