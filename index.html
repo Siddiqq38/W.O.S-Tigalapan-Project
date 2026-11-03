@@ -4998,7 +4998,7 @@ init();
   if(fin){const rows=counts().filter(c=>c.task===t.id).sort((a,b)=>String(a.ronde+a.sku).localeCompare(b.ronde+b.sku));return h+'<p class="note">'+esc(t.hasil)+'</p>'+(adm?'<table><thead><tr><th>Ronde</th><th>Item</th><th>Sistem</th><th>Hitung</th><th>Selisih</th></tr></thead><tbody>'+rows.map(c=>'<tr><td>'+esc(c.ronde)+'</td><td>'+esc(c.item)+wosCat(c.item,1)+'</td><td>'+esc(c.qty_sistem)+'</td><td>'+esc(c.qty_hitung)+'</td><td>'+(num(c.selisih)?'<span class="tag red">'+esc(c.selisih)+'</span>':'0')+'</td></tr>').join('')+'</tbody></table>':'')+'</div>'}
   h+='<p class="sub">'+(ro>1?'<strong style="color:#b3261e">Hasil ronde 1 tidak sama dengan sistem. Hitung ulang dengan teliti.</strong> ':'')+(isItemTask(t)?'Hitung hanya item <strong>'+esc(itemNameOf(t))+'</strong> di bin ini (tulis jumlahnya). Barang lain tidak perlu dihitung. ':'Tulis semua barang yang ada di bin ini beserta jumlahnya. ')+'Qty di sistem sengaja tidak ditampilkan.</p><datalist id="lc-names">'+names.map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>';
   h+='<label style="font-weight:600;display:flex;gap:8px;align-items:center"><input type="checkbox" data-lcempty="1"'+(st.empty?' checked':'')+'> Bin kosong (tidak ada barang)</label>';
-  if(!st.empty)h+=st.rows.map((r,i)=>'<div style="display:flex;gap:6px;margin-top:6px"><input list="lc-names" data-lcrow="'+i+'|sku" value="'+esc(r.sku)+'" placeholder="Nama item" style="flex:3"><input type="number" inputmode="numeric" min="0" data-lcrow="'+i+'|qty" value="'+esc(r.qty)+'" placeholder="Qty" style="flex:1">'+(st.rows.length>1?'<button class="button secondary" data-lcrm="'+i+'" type="button">&times;</button>':'')+'</div>').join('')+'<div class="ob-actions"><button class="button secondary" data-lcadd="1" type="button">+ Item lain</button></div>';
+  if(!st.empty)h+=st.rows.map((r,i)=>'<div style="display:flex;gap:6px;margin-top:6px"><input autocomplete="off" data-lcsku="1" data-lcrow="'+i+'|sku" value="'+esc(r.sku)+'" placeholder="Nama item" style="flex:3"><input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-lcrow="'+i+'|qty" value="'+esc(r.qty)+'" placeholder="Qty" style="flex:1">'+(st.rows.length>1?'<button class="button secondary" data-lcrm="'+i+'" type="button">&times;</button>':'')+'</div>').join('')+'<div class="ob-actions"><button class="button secondary" data-lcadd="1" type="button">+ Item lain</button></div>';
   return h+'<div class="ob-actions" style="margin-top:12px"><button class="button" data-lcsave="1" type="button">Simpan hasil hitung</button></div></div>'}
  function saveCount(t){
   const st=cnt[t.id]||{rows:[],empty:false},ro=num(t.ronde)||1,counted=new Map(),names=new Map();
@@ -5145,8 +5145,26 @@ init();
   if(d.lcaf){adjForm[d.lcaf]=t.value;if(d.lcaf==='bin')adjForm.sku='';draw();return}
   if(d.lcpickitem!=null){pickItems=new Set([...body.querySelectorAll('[data-lcpickitem]:checked')].map(x=>x.dataset.lcpickitem));pickTouched=true;return}
   if(d.lcempty!=null&&cur){cnt[cur.id].empty=t.checked;draw();return}});
+ // saran nama item buatan sendiri: kalau ketikan sudah sama persis dengan satu nama, hanya nama itu yang tampil
+ let sgBox=null,sgInp=null;
+ const sgHide=()=>{if(sgBox)sgBox.style.display='none'};
+ function sgShow(inp){
+  const q=inp.value.trim().toUpperCase();if(!q){sgHide();return}
+  const all=[...allNames().values()].slice(0,6000),ex=all.filter(n=>n.toUpperCase()===q);
+  let list=ex.length?ex:all.filter(n=>n.toUpperCase().includes(q)).sort((a,b)=>a.localeCompare(b,'id',{numeric:true})).slice(0,30);
+  if(!list.length||(ex.length&&document.activeElement===inp&&list.length===1&&inp.value===list[0]&&inp.dataset.sgdone==='1')){sgHide();return}
+  if(!sgBox){sgBox=document.createElement('div');sgBox.style.cssText='position:fixed;z-index:9999;background:#fff;border:1px solid #c9c2bb;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.18);max-height:240px;overflow:auto;font-size:15px';
+   sgBox.addEventListener('mousedown',ev=>{const o=ev.target.closest('[data-sgv]');if(!o||!sgInp)return;ev.preventDefault();sgInp.value=o.dataset.sgv;sgInp.dataset.sgdone='1';sgInp.dispatchEvent(new Event('input',{bubbles:true}));sgHide()});
+   document.body.appendChild(sgBox)}
+  sgInp=inp;const r=inp.getBoundingClientRect();
+  sgBox.style.left=r.left+'px';sgBox.style.top=(r.bottom+2)+'px';sgBox.style.width=Math.max(r.width,220)+'px';
+  sgBox.innerHTML=list.map(n=>'<div data-sgv="'+esc(n)+'" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee">'+esc(n)+'</div>').join('');sgBox.style.display='block'}
+ document.addEventListener('focusin',e=>{const t=e.target;if(t.dataset&&t.dataset.lcsku)sgShow(t);else sgHide()});
+ document.addEventListener('focusout',e=>{if(e.target.dataset&&e.target.dataset.lcsku)setTimeout(sgHide,120)});
+ document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key==='Escape'||e.key==='Tab')sgHide()});
  document.addEventListener('input',e=>{const t=e.target,d=t.dataset||{};
-  if(d.lcrow&&cur&&cnt[cur.id]){const[i,f]=d.lcrow.split('|');cnt[cur.id].rows[Number(i)][f]=t.value;return}
+  if(d.lcsku){t.dataset.sgdone='';sgShow(t)}
+  if(d.lcrow&&cur&&cnt[cur.id]){const[i,f]=d.lcrow.split('|');if(f==='qty'&&/\D/.test(t.value))t.value=t.value.replace(/\D/g,'');cnt[cur.id].rows[Number(i)][f]=t.value;return}
   if(d.lcs==='q'){searchQ=t.value;draw();return}
   if(d.lcs==='so'||d.lcs==='adj'){lcItem=t.value;draw();return}
   if(d.lcadjq!=null){adjQ[d.lcadjq]=t.value;return}
