@@ -5007,6 +5007,10 @@ init();
   if(!st.empty)st.rows.forEach(r=>{const s=U(r.sku);if(!s)return;counted.set(s,(counted.get(s)||0)+num(r.qty));names.set(s,String(r.sku).trim())});
   if(isItemTask(t)){for(const k of [...counted.keys()])if(k!==U(itemOfTask(t)))counted.delete(k)}
   if(!st.empty&&!counted.size)return say('Isi barang yang ditemukan, atau centang bin kosong.',true);
+  // cegah salah ketik: nama yang tidak dikenal tetapi mirip (selisih 1-2 huruf) dengan nama item lain ditolak sampai diperbaiki
+  if(!st.empty){const known=allNames(),lev=(a,b)=>{const d=[];for(let i=0;i<=a.length;i++){d[i]=[i];for(let j=1;j<=b.length;j++)d[i][j]=i?0:j}for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length]};
+   for(const [k,nm] of names){if(known.has(k))continue;let best='',bd=3;known.forEach((n2,k2)=>{if(Math.abs(k2.length-k.length)>2)return;const x=lev(k,k2);if(x<bd){bd=x;best=n2}});
+    if(best)return say('Nama item "'+nm+'" tidak ada di sistem, mirip dengan "'+best+'". Periksa ejaan lalu pilih dari saran.',true)}}
   const sys=new Map((oh().byBin.get(t.bin)||[]).filter(o=>!isItemTask(t)||U(o.sku)===U(itemOfTask(t))).map(o=>[U(o.sku),o])),keys=new Set([...counted.keys(),...sys.keys()]);let diff=false;const rows=[];
   keys.forEach(k=>{const so=sys.get(k),qs=so?so.qty:0,qc=counted.get(k)||0;if(qc!==qs)diff=true;rows.push({id:t.id+'|R'+ro+'|'+k,tanggal:today(),task:t.id,bin:t.bin,sku:k,item:(so&&so.item)||names.get(k)||k,ronde:String(ro),qty_sistem:String(qs),qty_hitung:String(qc),selisih:String(qc-qs),oleh:code(),jam:stIso()})});
   if(!rows.length)rows.push({id:t.id+'|R'+ro+'|-',tanggal:today(),task:t.id,bin:t.bin,sku:'-',item:'(bin kosong)',ronde:String(ro),qty_sistem:'0',qty_hitung:'0',selisih:'0',oleh:code(),jam:stIso()});
