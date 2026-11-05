@@ -49,6 +49,7 @@ const TABS = {
   // Data incoming dari ERP Tigalapan (ditulis oleh api/erp-resi.js lewat batch append; WOS hanya membaca). Satu baris = satu koli milik satu MRP dalam satu resi.
   // items = JSON [{n:nama item, q:qty, h:hpp per item, e:1 bila HPP estimasi, k:FG/REWORK, s:sku}]. Kode PO dihitung WOS dari vendor + nomor minggu MRP.
   ERP_INCOMING: ['id','waktu_server','tanggal','resi_group','resi','ekspedisi','vendor','mrp','no_koli','koli_erp','items','qty','hpp_total','catatan'],
+  PO_PECAH: ['id','waktu_server','tanggal','po_asal','po_baru','suffix','koli_list','resi','oleh'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 

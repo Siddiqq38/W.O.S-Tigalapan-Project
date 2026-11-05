@@ -88,7 +88,10 @@ Pasang ulang skrip `docs/google-sheets/gudang/Code.gs`, jalankan **setup** sekal
 di `MASTER_VENDOR`), lalu Deploy versi baru. Redeploy Vercel agar env terbaca.
 
 Aturan penerjemahan (di `api/_erp.js` dan `index.html`):
-- **Kode PO** = awalan PO vendor (Master data > vendor > "Awalan kode PO", mis. `BY`) + nomor minggu MRP dua digit. Vendor BY + MRP `W40` = `BY40`; `W4` menjadi `BY04`.
+- **Nomor resi**: awalan `AWB` dibuang (`AWB12345`, `AWB 12345` -> `12345`). Dasar incoming adalah resi, bukan PO.
+- **Kode PO** = awalan PO vendor (Master data > vendor > "Awalan kode PO", mis. `BY`) + nomor minggu MRP tanpa angka 0 di depan. Vendor BY + MRP `W40` = `BY40`; `W3` menjadi `BY3`. Untuk pola khusus tulis `{W}` sebagai tempat nomor minggu: `GI{W}-02` + `W3` = `GI3-02` (konveksi 02), `GI` saja + `W39` = `GI39`.
+- **Pecah PO**: tombol "Pecah PO" di Incoming (Admin) membagi satu PO per nomor koli menjadi kategori, mis. `BY39` koli 1-5 `REG`, 6-10 `TUNIK`, 11-15 `KID` -> `BY39-REG`, `BY39-TUNIK`, `BY39-KID`. Aturan disimpan di tab `PO_PECAH` (jalankan setup dan deploy ulang skrip gudang setelah memperbarui Code.gs).
+- **ETA** = tanggal kirim + 7 hari.
 - Vendor ERP dicocokkan dengan Master vendor lewat nama, kode, atau alias `erp_nama`. Vendor yang belum cocok muncul di Inbound > Incoming dengan tombol **Petakan**.
 - **Nomor koli** `0001` dibaca `1`.
 - **Nama item** = `<warna> <PDK|PJG> <size>` (mis. `BENHUR SPECIAL 24S PDK M`).

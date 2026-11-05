@@ -29,6 +29,11 @@ function itemName(i) {
   return [String(i.color || '').trim().toUpperCase(), sleeveCode(i.sleeve), String(i.size || '').trim().toUpperCase()].filter(Boolean).join(' ');
 }
 
+// Nomor resi: buang awalan "AWB" (AWB12345 / AWB 12345 / AWB-12345 -> 12345). Sama dengan resiClean di index.html.
+function resiClean(s) {
+  return String(s == null ? '' : s).replace(/^\s*AWB[\s\-:.#]*/i, '').trim();
+}
+
 // Ubah kiriman ERP menjadi baris tab ERP_INCOMING (satu baris = satu koli x satu MRP). Item dikelompokkan per MRP:
 // MRP diambil dari item (mrpNo), kalau tidak ada dari koli, kalau tidak ada dari resi. Dengan begitu satu karung berisi dua MRP
 // menjadi dua baris dengan nomor koli yang sama, dan di WOS masing-masing masuk ke PO-nya sendiri.
@@ -55,7 +60,7 @@ function toSheetRows(p) {
         id: rid + '|' + k.koliId + '|' + mrp,
         tanggal: date,
         resi_group: rid,
-        resi: r.resiNo || rid,
+        resi: resiClean(r.resiNo || rid),
         ekspedisi: r.expedition || '',
         vendor: (r.vendor && r.vendor.name) || '',
         mrp,
