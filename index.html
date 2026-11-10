@@ -5241,6 +5241,7 @@ init();
  function draw(){
   if(!body||!body.isConnected)return;
   let h=(loadErr?'<p class="note" style="color:#b3261e">Data location control belum bisa dimuat: '+esc(loadErr)+'. Pastikan skrip Google gudang sudah diperbarui (setup lalu deploy versi baru).</p>':'')+(msg?'<p class="note" style="color:'+(msgBad?'#b3261e':'#1b7a46')+'">'+esc(msg)+'</p>':'');
+  {const mine=canAdmin()?[]:tuMine();if(mine.length&&tabName!=='Internal Move')h+='<div class="card" style="margin-bottom:12px;border-left:6px solid #2f7bd6;background:#eef5ff"><b>Kamu punya '+mine.length+' tugas top up</b> <span class="sub">(estimasi selesai '+esc(mine.map(t=>tuP(t).eta).filter(Boolean).slice(-1)[0]||'-')+')</span> <button class="button" data-lctutab="1" type="button" style="margin-left:8px">Buka tugas top up</button></div>'}
   if(!stokRows.length&&loading)h+='<p class="sub">Memuat stok…</p>';
   h+=tabName==='Layout'?drawLayout():tabName==='Stok Opname'?drawSO():tabName==='Cycle Count'?drawCC()+(window.WOSAcc?window.WOSAcc.shell():''):tabName==='Internal Move'?drawMove():tabName==='Adjustment'?drawAdj():drawSaldo();
   if(body.dataset.sig!==h){const ae=document.activeElement,id=ae&&(ae.id||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcrow||ae.dataset.lcs),sel=ae&&ae.selectionStart;body.dataset.sig=h;body.innerHTML=h;if(ae&&ae.dataset&&(ae.dataset.lcrow||ae.dataset.lcmv||ae.dataset.lcaf||ae.dataset.lcs)){const k=ae.dataset.lcrow?'lcrow':ae.dataset.lcmv?'lcmv':ae.dataset.lcs?'lcs':'lcaf',el=body.querySelector('['+('data-'+k)+'="'+id+'"]');if(el){el.focus({preventScroll:true});try{el.setSelectionRange(sel,sel)}catch(e){}}}else if(ae&&ae.id&&$(ae.id))$(ae.id).focus({preventScroll:true})}}
@@ -5252,6 +5253,7 @@ init();
   if(d.lcclr){selRacks=[];selBin='';draw();return}
   if(d.lcmode){mapMode=d.lcmode;draw();return}
   if(d.lcrot!=null){ry=d.lcrot==='0'?-28:ry+Number(d.lcrot);document.querySelectorAll('.lc-scene').forEach(s=>{s.style.transform='rotateX(-12deg) rotateY('+ry+'deg)'});return}
+  if(d.lctutab){tabName='Internal Move';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lctumake){tuMake();return}
   if(d.lctudo){tuDo(d.lctudo);return}
   if(d.lctuskip){tuSkip(d.lctuskip);return}
@@ -5334,6 +5336,20 @@ init();
  document.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x;if(Math.abs(dx)>5){drag.moved=true;window.__lcDrag=true}if(drag.moved){ry=drag.ry0+dx*0.5;document.querySelectorAll('.lc-scene').forEach(s=>{s.style.transform='rotateX(-12deg) rotateY('+ry+'deg)'})}});
  document.addEventListener('pointerup',()=>{if(drag){const m=drag.moved;drag=null;setTimeout(()=>{window.__lcDrag=false},50)}});
  setInterval(()=>{if(body&&body.isConnected&&!document.hidden&&!document.querySelector('.iv2-modal')&&!(cur&&cur.mode==='count'))pull(false)},30000);
+ // notifikasi tugas top up untuk operator: cek berkala walau menu Location Control sedang tidak dibuka, lalu bunyi + pesan + getar
+ const tuMine=()=>{const me=code();return tuAll().filter(t=>t.operator===me&&t.status==='Menunggu')};
+ function tuAlert(){try{
+  if(document.hidden||canAdmin()||!code())return;
+  if(Date.now()-loadedAt>110000)pull(true);const mine=tuMine(),k='wos-lc-tu-seen-'+code();let seen=[];try{seen=JSON.parse(localStorage.getItem(k)||'[]')}catch(e){}
+  const fresh=mine.filter(t=>!seen.includes(t.id));if(!fresh.length)return;
+  try{localStorage.setItem(k,JSON.stringify([...seen,...fresh.map(t=>t.id)].slice(-300)))}catch(e){}
+  const txt='Tugas top up baru: '+fresh.length+' item ('+fresh.slice(0,3).map(t=>t.bin+'→'+tuP(t).to).join(', ')+(fresh.length>3?' …':'')+'). Buka Location Control > Internal Move.';
+  const tt=document.getElementById('rl-toast');if(tt){tt.textContent=txt;tt.style.display='block';clearTimeout(tuAlert.h);tuAlert.h=setTimeout(()=>{tt.style.display='none'},12000)}
+  try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();setTimeout(()=>{o.stop();a.close()},250)}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+  try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification('W.O.S - Location Control',{body:txt})}catch(e){}
+ }catch(e){}}
+ setInterval(tuAlert,30000);setTimeout(tuAlert,4000);
  window.WOSLC={render,has:n=>NAMES.includes(n),pull};
 })();
 </script>
@@ -7836,7 +7852,8 @@ window.WOSMon=(function(){
   return{p,a}}
  const bdg=(el,n)=>{if(!el)return;if(n>0){if(el.getAttribute('data-bdg')!==String(n))el.setAttribute('data-bdg',String(n))}else if(el.hasAttribute('data-bdg'))el.removeAttribute('data-bdg')};
  function mark(){const{p,a}=pending(),d=document.getElementById('dashboard'),ex=document.getElementById('wos-dash-appr');
-  bdg(document.querySelector('.nav[data-page="attendance"]'),p);bdg(document.querySelector('.nav[data-page="wms-location"]'),a);
+  let mt=0;try{const me=sessionStorage.getItem('wos-session-code')||'';if(me&&A&&!['supervisor','manager','admin'].includes(sessionStorage.getItem('wos-session-v1')||''))mt=A.view('LC_TASK').filter(x=>x.jenis==='TU'&&x.status==='Menunggu'&&x.operator===me).length}catch(e){}
+  bdg(document.querySelector('.nav[data-page="attendance"]'),p);bdg(document.querySelector('.nav[data-page="wms-location"]'),a+mt);
   if(!d)return;const sig=p+'|'+a;
   if(!p&&!a){if(ex)ex.remove();return}
   if(ex&&ex.dataset.sig===sig)return;if(ex)ex.remove();
