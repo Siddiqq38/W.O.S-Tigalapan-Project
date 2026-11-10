@@ -5143,7 +5143,7 @@ init();
   pick.forEach(r=>{const b=r.best,pj=/PJG|PANJANG/i.test(b.o.item||''),q=b.p.lp?Math.min(b.o.qty,pj?75:100):b.o.qty,mn=tuMin(q);at+=mn*60000;totalMin+=mn;
    const plan={sku:b.o.sku,item:b.o.item,qty:q,to:r.t.bin,from:b.o.bin,eta:wHM(at),etaAt:at};
    enq('LC_TASK',{id:'TU|'+today()+'|'+b.o.bin+'|'+U(b.o.sku)+'|'+r.t.bin,tanggal:today(),jenis:'TU',bin:b.o.bin,operator:op,operator_nama:nameOf(op),status:'Menunggu',ronde:'1',hasil:JSON.stringify(plan),mulai:'',selesai:'',dibuat_oleh:code(),putaran:''})});
-  taskEdit(arr=>arr.push({id:'TL-'+Math.random().toString(36).slice(2,8),day:today(),at:stIso(),title:'Top up '+pick.length+' bin (rak cadangan ke rak utama)',qty:pick.slice(0,4).map(r=>r.best.o.bin+'→'+r.t.bin).join(', '),by:code(),to:op,status:'baru',kind:'lc'}));
+  taskEdit(arr=>arr.push({id:'TL-'+Math.random().toString(36).slice(2,8),day:today(),at:stIso(),title:'Top up '+pick.length+' bin (rak cadangan ke rak utama)',qty:pick.slice(0,4).map(r=>r.best.o.bin+'→'+r.t.bin).join(', '),by:code(),to:op,status:'baru',kind:'lc',tuIds:pick.map(r=>'TU|'+today()+'|'+r.best.o.bin+'|'+U(r.best.o.sku)+'|'+r.t.bin)}));
   tuSel=new Set();say('Ditugaskan '+pick.length+' top up ke '+nameOf(op)+'. Estimasi selesai '+wHM(at)+' (sekitar '+totalMin+' menit).')}
  function tuDo(id){
   const t=tuAll().find(x=>x.id===id);if(!t)return;const p=tuP(t),mb=masterBins();
@@ -5152,12 +5152,19 @@ init();
   m.querySelector('#lc-tuok').onclick=()=>{const to=U(m.querySelector('#lc-tuto').value),q=num(m.querySelector('#lc-tuq').value),err=x=>{const e=m.querySelector('#lc-tum');e.textContent=x;e.hidden=false};
    const sel=(oh().byBin.get(U(t.bin))||[]).find(o=>U(o.sku)===U(p.sku));if(!sel)return err('Stok item ini sudah tidak ada di bin '+t.bin+'. Pilih Tidak jadi dengan alasan stok tidak sesuai.');
    const e2=moveCore(t.bin,sel,q,to,'Replenish (tugas top up)');if(e2)return err(e2);
-   enq('LC_TASK',Object.assign({},t,{status:'Selesai',mulai:t.mulai||stIso(),selesai:stIso(),hasil:JSON.stringify(Object.assign(p,{actTo:to,actQty:q}))}));m.remove();draw()}}
+   enq('LC_TASK',Object.assign({},t,{status:'Selesai',mulai:t.mulai||stIso(),selesai:stIso(),hasil:JSON.stringify(Object.assign(p,{actTo:to,actQty:q}))}));m.remove();tuSync();draw()}}
  function tuSkip(id){
   const t=tuAll().find(x=>x.id===id);if(!t)return;const p=tuP(t);
   const m=G.modal('<h3>Tidak jadi top up</h3><p class="sub">'+esc(p.item||p.sku)+' '+esc(t.bin)+' &rarr; '+esc(p.to)+'</p><label style="font-weight:600">Alasan</label><select id="lc-tua" style="width:100%">'+TU_ALASAN.map(a=>'<option>'+esc(a)+'</option>').join('')+'</select><label style="font-weight:600;display:block;margin-top:8px">Catatan (opsional)</label><input id="lc-tun2" style="width:100%"><div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-tuok" type="button">Simpan</button><button class="button secondary" id="lc-tux" type="button">Kembali</button></div>');
   m.querySelector('#lc-tux').onclick=()=>m.remove();
-  m.querySelector('#lc-tuok').onclick=()=>{enq('LC_TASK',Object.assign({},t,{status:'Dilewati',selesai:stIso(),hasil:JSON.stringify(Object.assign(p,{alasan:m.querySelector('#lc-tua').value,note:m.querySelector('#lc-tun2').value.trim()}))}));m.remove();draw()}}
+  m.querySelector('#lc-tuok').onclick=()=>{enq('LC_TASK',Object.assign({},t,{status:'Dilewati',selesai:stIso(),hasil:JSON.stringify(Object.assign(p,{alasan:m.querySelector('#lc-tua').value,note:m.querySelector('#lc-tun2').value.trim()}))}));m.remove();tuSync();draw()}}
+ // Notifikasi "Task untuk Anda" (Dashboard standby) ikut selesai bila semua tugas top up di dalamnya sudah tidak Menunggu (selesai, tidak jadi, atau dibatalkan).
+ // Notifikasi lama tanpa daftar id ditutup bila operator itu tidak punya tugas top up yang menunggu.
+ function tuSync(){try{if(!loadedAt)return;
+  const all=tuAll(),pend=new Set(all.filter(t=>t.status==='Menunggu').map(t=>t.id)),byOp=new Set(all.filter(t=>t.status==='Menunggu').map(t=>t.operator));
+  taskEdit(arr=>arr.forEach(n=>{if(!n||n.kind!=='lc'||n.status==='selesai'||n.status==='batal'||!/^Top up/.test(n.title||''))return;
+   const open=Array.isArray(n.tuIds)?n.tuIds.some(i=>pend.has(i)):byOp.has(n.to);
+   if(!open&&(Array.isArray(n.tuIds)?n.tuIds.every(i=>all.some(t=>t.id===i)):true))n.status='selesai'}))}catch(e){}}
  function tuFollow(id,how){
   const t=tuAll().find(x=>x.id===id);if(!t)return;const p=tuP(t),done=()=>enq('LC_TASK',Object.assign({},t,{hasil:JSON.stringify(Object.assign(p,{fu:'done:'+code()}))}));
   if(how==='cc'){const m=G.modal('<h3>Cycle count bin '+esc(t.bin)+'</h3><p class="sub">Operator melaporkan stok di bin ini tidak ada atau tidak sesuai. Buat task cycle count untuk memeriksa.</p><label style="font-weight:600">Operator</label>'+opSelect('lc-fuop')+'<div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-tuok" type="button">Buat task cycle count</button><button class="button secondary" id="lc-tux" type="button">Batal</button></div>');
@@ -5257,7 +5264,7 @@ init();
   if(d.lctumake){tuMake();return}
   if(d.lctudo){tuDo(d.lctudo);return}
   if(d.lctuskip){tuSkip(d.lctuskip);return}
-  if(d.lctucancel){const k=tuAll().find(x=>x.id===d.lctucancel);if(k&&confirm('Batalkan tugas top up ini? Rekomendasinya akan muncul lagi dan bisa ditugaskan ulang.'))enq('LC_TASK',Object.assign({},k,{status:'Batal',selesai:stIso()}));return}
+  if(d.lctucancel){const k=tuAll().find(x=>x.id===d.lctucancel);if(k&&confirm('Batalkan tugas top up ini? Rekomendasinya akan muncul lagi dan bisa ditugaskan ulang.')){enq('LC_TASK',Object.assign({},k,{status:'Batal',selesai:stIso()}));tuSync()};return}
   if(d.lctufu){const [i,h]=d.lctufu.split('|');tuFollow(i,h);return}
   if(d.lctop){const [f,s,t,q]=d.lctop.split('|');mv={from:f,sku:s,qty:q,to:t,alasan:'Replenish'};draw();return}
   if(d.lcmove){mv.from=d.lcmove;mv.sku='';tabName='Internal Move';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
@@ -5340,7 +5347,7 @@ init();
  const tuMine=()=>{const me=code();return tuAll().filter(t=>t.operator===me&&t.status==='Menunggu')};
  function tuAlert(){try{
   if(document.hidden||canAdmin()||!code())return;
-  if(Date.now()-loadedAt>110000)pull(true);const mine=tuMine(),k='wos-lc-tu-seen-'+code();let seen=[];try{seen=JSON.parse(localStorage.getItem(k)||'[]')}catch(e){}
+  if(Date.now()-loadedAt>110000)pull(true);tuSync();const mine=tuMine(),k='wos-lc-tu-seen-'+code();let seen=[];try{seen=JSON.parse(localStorage.getItem(k)||'[]')}catch(e){}
   const fresh=mine.filter(t=>!seen.includes(t.id));if(!fresh.length)return;
   try{localStorage.setItem(k,JSON.stringify([...seen,...fresh.map(t=>t.id)].slice(-300)))}catch(e){}
   const txt='Tugas top up baru: '+fresh.length+' item ('+fresh.slice(0,3).map(t=>t.bin+'→'+tuP(t).to).join(', ')+(fresh.length>3?' …':'')+'). Buka Location Control > Internal Move.';
