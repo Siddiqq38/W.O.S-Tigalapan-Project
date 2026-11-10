@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Juklak WOS</title>
+<style>
+@page{size:A4;margin:0}
+*{box-sizing:border-box}
+html,body{margin:0}body{background:#d9d4cf;width:794px;font-family:Inter,"Segoe UI",Arial,sans-serif;color:#1c2a36}
+.page{width:794px;height:1123px;margin:0 0 24px 0;background:#fff;position:relative;overflow:hidden;page-break-after:always}
+.hd{height:66px;background:linear-gradient(90deg,#1c3b57,#b8522b);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 36px}
+.hd b{font-size:15px;letter-spacing:.04em}.hd span{font-size:12px;opacity:.9}
+.ft{position:absolute;left:0;right:0;bottom:0;height:34px;background:#f3eee9;color:#6a7784;font-size:11px;display:flex;align-items:center;justify-content:space-between;padding:0 36px}
+.body{padding:26px 36px}
+h1{margin:0;font-size:30px;line-height:1.15}h2{margin:0 0 4px;font-size:22px;color:#b8522b}h3{margin:16px 0 6px;font-size:15px;color:#1c3b57;text-transform:uppercase;letter-spacing:.05em}
+p{margin:6px 0;font-size:13px;line-height:1.55}.mu{color:#6a7784;font-size:12px}
+.cov{height:100%;background:linear-gradient(160deg,#1c3b57 0%,#2a4d6e 45%,#b8522b 100%);color:#fff;padding:64px 56px;display:flex;flex-direction:column}
+.cov .tag{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:99px;padding:6px 16px;font-size:13px;font-weight:700;letter-spacing:.06em;margin-bottom:26px;align-self:flex-start}
+.cov h1{font-size:44px;line-height:1.1;margin-bottom:14px}.cov .sub{font-size:17px;opacity:.92;line-height:1.5;max-width:560px}
+.rules{margin-top:36px;display:grid;gap:12px}.rule{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:14px 18px;display:flex;gap:16px;align-items:center}
+.rule i{flex:none;width:40px;height:40px;border-radius:50%;background:#ff9f43;color:#1b2733;font-style:normal;font-weight:800;font-size:19px;display:flex;align-items:center;justify-content:center}.rule div{font-size:15px;line-height:1.4}.rule b{display:block;font-size:16px}
+.cov .foot{margin-top:auto;font-size:13px;opacity:.85;line-height:1.6}
+.tl{position:relative;margin:18px 0 0 22px;border-left:4px solid #e4d6cc;padding-left:28px}
+.st{position:relative;margin-bottom:18px;background:#faf6f2;border-radius:14px;padding:12px 16px}
+.st:before{content:"";position:absolute;left:-42px;top:16px;width:20px;height:20px;border-radius:50%;background:var(--c,#b8522b);border:4px solid #fff;box-shadow:0 0 0 2px var(--c,#b8522b)}
+.st .t{font-size:13px;font-weight:800;color:var(--c,#b8522b)}.st h4{margin:2px 0 4px;font-size:16px}.st p{margin:2px 0;font-size:12.5px}
+.steps{counter-reset:s;margin:8px 0;padding:0;list-style:none}.steps li{counter-increment:s;position:relative;margin:7px 0;padding:8px 12px 8px 46px;background:#f6f2ee;border-radius:10px;font-size:13px;line-height:1.45}
+.steps li:before{content:counter(s);position:absolute;left:10px;top:7px;width:26px;height:26px;border-radius:50%;background:#1c3b57;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ok,.no{border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.5}.ok{background:#e6f5ec;border:1px solid #9bd3b0}.no{background:#fdeceb;border:1px solid #efb4ae}
+.ok b{color:#1b7a46}.no b{color:#b3261e}.ok ul,.no ul{margin:6px 0 0;padding-left:18px}.ok li,.no li{margin:3px 0}
+.fig{margin:8px 0;border-radius:10px;overflow:hidden;border:1px solid #e1d8d0;background:#f6f2ee}.fig img{width:100%;display:block}.fig div{font-size:11px;padding:5px 9px;color:#5b6a78}
+.note{background:#fff5e5;border:1px solid #f1cd8e;border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.5;margin:10px 0}
+table{border-collapse:collapse;width:100%;font-size:12px;margin:6px 0}th{background:#1c3b57;color:#fff;text-align:left;padding:7px 9px}td{padding:7px 9px;border-bottom:1px solid #eadfd6;vertical-align:top;line-height:1.45}tr:nth-child(even) td{background:#faf6f2}
+.chk{display:grid;grid-template-columns:1fr 1fr;gap:10px}.box{border:1px solid #e1d8d0;border-radius:12px;padding:10px 14px;background:#fdfaf7}.box h4{margin:0 0 6px;font-size:14px;color:#b8522b}.box ul{margin:0;padding-left:0;list-style:none}.box li{font-size:12px;margin:4px 0;padding-left:20px;position:relative;line-height:1.4}.box li:before{content:"\2610";position:absolute;left:0;color:#1c3b57}
+.sig{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}.sig div{border:1px dashed #b9a99a;border-radius:12px;padding:12px;text-align:center;font-size:12px;height:150px;display:flex;flex-direction:column;justify-content:space-between}.sig b{font-size:12.5px}
+</style></head><body>
+
+<!-- 1 SAMPUL -->
+<section class="page"><div class="cov">
+ <span class="tag">JUKLAK · BERLAKU 23 OKTOBER 2026</span>
+ <h1>Petunjuk Pelaksanaan Presensi dan Laporan Harian di W.O.S</h1>
+ <p class="sub">Distribusi Center 38 Tigalapan Indonesia. Check-in dan check-out lewat W.O.S wajib mulai Jumat, 23 Oktober 2026. Finger manual tetap dijalankan sebagai backup data.</p>
+ <div class="rules">
+  <div class="rule"><i>1</i><div><b>Check-in dan check-out wajib di W.O.S</b>Setiap hari kerja, tanpa terkecuali.</div></div>
+  <div class="rule"><i>2</i><div><b>Finger manual tetap sebagai backup</b>Tetap finger saat datang dan pulang.</div></div>
+  <div class="rule"><i>3</i><div><b>Foto presensi jelas dan menampilkan area DC</b>Wajah terlihat, latar area DC Tigalapan terlihat.</div></div>
+  <div class="rule"><i>4</i><div><b>Pilih role, kerjakan task</b>Setelah check-in, pilih role sesuai arahan SPV.</div></div>
+  <div class="rule"><i>5</i><div><b>Laporan 5R mulai 15.45, update bila diminta</b>Kirim sebelum 18.00 WITA; perbaiki bila ditolak.</div></div>
+ </div>
+ <div class="foot">Berlaku untuk seluruh karyawan DC 38 (operator, admin, driver), SPV, Manager, dan HRD.<br>Masa penyempurnaan: selama berjalan, ketentuan dapat disempurnakan dan perubahan diumumkan oleh SPV.</div>
+</div></section>
+
+<!-- 2 ALUR HARIAN -->
+<section class="page"><div class="hd"><b>W.O.S · JUKLAK HARIAN</b><span>Halaman 2 dari 8</span></div><div class="body">
+ <h2>Alur kerja harian</h2><p class="mu">Urutan yang dilakukan setiap karyawan dari datang sampai pulang. Jam dalam WITA.</p>
+ <div class="tl">
+  <div class="st" style="--c:#2f6fdb"><div class="t">Sebelum 08.00</div><h4>Check-in W.O.S dan finger manual</h4><p>Tiba di DC, buka W.O.S, lakukan <b>Attendance in</b> dengan foto dan lokasi. Setelah itu finger manual sebagai backup.</p></div>
+  <div class="st" style="--c:#f08a24"><div class="t">08.00 · toleransi sampai 08.10</div><h4>Jam masuk</h4><p>Terlambat dihitung setelah 08.10. Akan terlambat? Ajukan <b>Izin terlambat</b> di W.O.S sebelum tiba, dengan foto kendala dari kamera.</p></div>
+  <div class="st" style="--c:#8e4ec6"><div class="t">Briefing pagi</div><h4>DRM dan pilih role</h4><p>SPV menandai kehadiran DRM (centang, silang bagi yang tidak ikut). Pilih <b>role</b> beserta jamnya sesuai arahan SPV.</p></div>
+  <div class="st" style="--c:#1f9d6b"><div class="t">Jam kerja</div><h4>Terima dan kerjakan task</h4><p>Pekerjaan datang sebagai task. Terima task, kerjakan di menu yang sesuai, dan task selesai otomatis saat pekerjaan selesai.</p></div>
+  <div class="st" style="--c:#d1362b"><div class="t">15.45 sampai 18.00</div><h4>Laporan 5R dan Update 5R</h4><p>Rekam video atau foto area kerja di menu Compliance. Kirim sebelum 18.00. Bila SPV menolak atau memberi ACC sebagian, perbaiki dan kirim ulang (<b>Update 5R</b>).</p></div>
+  <div class="st" style="--c:#1c3b57"><div class="t">Mulai 16.01</div><h4>Check-out W.O.S dan finger manual</h4><p><b>Attendance out</b> terbuka otomatis mulai 16.01. Lakukan dengan foto dan lokasi, lalu finger manual.</p></div>
+ </div>
+ <div class="note"><b>Ingat:</b> W.O.S adalah catatan utama untuk kehadiran dan penilaian performance. Finger manual adalah cadangan bila terjadi kendala.</div>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+
+<!-- 3 SOP CHECK-IN -->
+<section class="page"><div class="hd"><b>SOP 1 · CHECK-IN DAN CHECK-OUT</b><span>Halaman 3 dari 8</span></div><div class="body">
+ <h2>Tata cara check-in dan check-out</h2>
+ <ol class="steps">
+  <li>Buka W.O.S lewat <b>Chrome atau Safari</b> (jangan dari dalam WhatsApp). Masuk dengan Kode Staff dan password.</li>
+  <li>Buka menu <b>Attendance</b>. Pilih Kode Staff sendiri dan aksi <b>Attendance in</b> (pagi) atau <b>Attendance out</b> (pulang).</li>
+  <li>Tekan <b>Aktifkan kamera</b>, lalu ambil foto sesuai ketentuan di bawah.</li>
+  <li>Tekan <b>Validasi lokasi</b>. Pastikan GPS aktif dan Anda berada di dalam radius 25 meter dari DC 38.</li>
+  <li>Tekan <b>Konfirmasi presensi</b>. Kamera menutup otomatis dan presensi tercatat.</li>
+ </ol>
+ <h3>Ketentuan foto presensi</h3>
+ <div class="two">
+  <div class="ok"><b>Wajib</b><ul><li>Wajah terlihat <b>jelas</b>, menghadap kamera, tidak buram dan tidak gelap.</li><li><b>Area DC Tigalapan terlihat</b> di latar belakang (rak, papan nama, atau area kerja).</li><li>Diambil <b>langsung dari kamera</b> saat itu juga (tanpa galeri).</li><li>Dilakukan oleh <b>karyawan sendiri</b>, di dalam radius 25 meter.</li></ul></div>
+  <div class="no"><b>Tidak diperbolehkan</b><ul><li>Titip presensi atau foto orang lain.</li><li>Foto dari layar, foto lama, atau foto kosong tanpa wajah.</li><li>Wajah tertutup (masker, topi, kacamata hitam) sehingga tidak dikenali.</li><li>Foto di luar area DC atau dengan latar yang tidak menunjukkan DC.</li></ul></div>
+ </div>
+ <svg viewBox="0 0 700 190" width="100%" style="margin:12px 0;background:#f6f2ee;border-radius:12px">
+  <rect x="20" y="16" width="360" height="158" rx="12" fill="#cfd8e0" stroke="#1c3b57" stroke-width="3"/>
+  <g fill="#9fb0bd"><rect x="230" y="40" width="130" height="14"/><rect x="230" y="70" width="130" height="14"/><rect x="230" y="100" width="130" height="14"/><rect x="230" y="130" width="130" height="14"/></g>
+  <rect x="225" y="34" width="6" height="118" fill="#7c8d9b"/><rect x="359" y="34" width="6" height="118" fill="#7c8d9b"/>
+  <circle cx="130" cy="82" r="34" fill="#f0c9a8" stroke="#8a5a3a" stroke-width="2"/><path d="M60 174 C60 124 200 124 200 174 Z" fill="#b8522b"/>
+  <circle cx="118" cy="78" r="3.5" fill="#333"/><circle cx="142" cy="78" r="3.5" fill="#333"/><path d="M118 94 Q130 102 142 94" stroke="#333" stroke-width="2.5" fill="none"/>
+  <g font-family="Arial" font-size="14" font-weight="700" fill="#1c3b57"><line x1="380" y1="62" x2="440" y2="62" stroke="#1f9d6b" stroke-width="3"/><text x="448" y="67">Wajah jelas dan terang</text><line x1="365" y1="110" x2="440" y2="110" stroke="#1f9d6b" stroke-width="3"/><text x="448" y="115">Area DC (rak/papan nama) terlihat</text><line x1="200" y1="158" x2="440" y2="158" stroke="#1f9d6b" stroke-width="3"/><text x="448" y="163">Diambil langsung dari kamera</text></g>
+ </svg>
+ <p class="mu" style="text-align:center">Contoh komposisi foto presensi yang benar</p>
+ <div class="two"><div class="fig"><img src="../storyboard/frames/A03.png"><div>Validasi lokasi dan kamera di menu Attendance</div></div><div class="fig"><img src="../storyboard/frames/A04.png"><div>Konfirmasi presensi</div></div></div>
+ <div class="note"><b>Foto salah atau tidak sesuai?</b> Minta SPV membatalkan presensi tersebut, lalu ulangi dengan foto yang benar. SPV memeriksa foto presensi.</div>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+
+<!-- 4 ROLE & TASK -->
+<section class="page"><div class="hd"><b>SOP 2 · PILIH ROLE DAN KERJAKAN TASK</b><span>Halaman 4 dari 8</span></div><div class="body">
+ <h2>Pilih role sampai task selesai</h2>
+ <ol class="steps">
+  <li>Setelah check-in, ikuti <b>briefing pagi</b>. SPV menandai DRM: centang (ikut) atau silang (tidak ikut).</li>
+  <li>SPV membagikan <b>role beserta rentang jam</b> untuk setiap karyawan. Satu karyawan boleh punya beberapa role di jam berbeda.</li>
+  <li>Karyawan yang sudah check-in juga dapat <b>memilih role sendiri</b> di menu Attendance, sesuai arahan SPV. Pilih role, jam mulai, dan jam selesai, lalu <b>Tambah</b>.</li>
+  <li>Salah pilih atau perlu mengubah? <b>Minta SPV merevisi</b>. Karyawan tidak bisa menghapus role sendiri.</li>
+  <li>Buka menu <b>Task</b>. Terima task yang masuk dan kerjakan di menu terkait (Inbound, Location Control, Outbound).</li>
+  <li>Task <b>selesai otomatis</b> saat pekerjaan selesai. Semua task tercatat dan menjadi dasar penilaian produktivitas.</li>
+ </ol>
+ <div class="two"><div class="fig"><img src="../storyboard/frames/A06.png"><div>SPV: DRM dan alokasi role harian</div></div><div class="fig"><img src="../storyboard/frames/A07.png"><div>Memilih role dan jam kerja</div></div></div>
+ <h3>Aturan penting</h3>
+ <table><tr><th style="width:30%">Hal</th><th>Ketentuan</th></tr>
+ <tr><td>Role wajib dipilih</td><td>Setiap karyawan memiliki role pada jam kerjanya agar task dan penilaian produktivitas tercatat benar.</td></tr>
+ <tr><td>Hanya akun sendiri</td><td>Karyawan hanya memilih role untuk akunnya sendiri. SPV dapat mengatur role semua karyawan.</td></tr>
+ <tr><td>Verifikasi bukan oleh picker</td><td>Verification Pick dilakukan oleh orang lain, bukan oleh picker koli yang sama.</td></tr>
+ <tr><td>TFS ke MOKA</td><td>Dilakukan Admin Outbound. Karyawan lain hanya dapat melihat.</td></tr></table>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+
+<!-- 5 5R -->
+<section class="page"><div class="hd"><b>SOP 3 · LAPORAN 5R DAN UPDATE 5R</b><span>Halaman 5 dari 8</span></div><div class="body">
+ <h2>Laporan 5R harian dan Update 5R</h2>
+ <p>5R adalah kepatuhan kebersihan dan kerapian area kerja: <b>Ringkas, Rapi, Resik, Rawat, Rajin</b>. Laporan 5R dikirim setiap hari kerja.</p>
+ <h3>Tata cara laporan</h3>
+ <ol class="steps">
+  <li>Mulai <b>pukul 15.45 WITA</b>, buka menu <b>Compliance</b>. Sebelum jam itu kamera 5R belum bisa dibuka.</li>
+  <li>Pilih nama dan <b>area 5R</b> tanggung jawab Anda.</li>
+  <li>Buka kamera, lalu <b>rekam video</b> (disarankan) atau ambil foto. Tampilkan seluruh area: rak, lantai, meja kerja, dan peralatan, dalam kondisi rapi dan bersih.</li>
+  <li>Tekan <b>Kirim laporan</b> <b>sebelum pukul 18.00 WITA</b>. Setelah itu laporan tercatat terlambat.</li>
+ </ol>
+ <h3>Update 5R: bila SPV menolak atau ACC sebagian</h3>
+ <ol class="steps">
+  <li>SPV memeriksa kiriman dan memberi keputusan: <b>ACC penuh</b>, <b>ACC sebagian</b> (R yang belum memenuhi disebutkan), atau <b>Tolak</b> dengan alasan.</li>
+  <li>Hasilnya masuk ke menu <b>Task</b> Anda sebagai pemberitahuan lengkap dengan alasan dan R yang belum memenuhi.</li>
+  <li>Perbaiki area, lalu <b>kirim ulang bukti</b> (Update 5R) pada hari yang sama. Hanya laporan yang disetujui yang dihitung selesai.</li>
+ </ol>
+ <div class="two"><div class="fig"><img src="../storyboard/frames/A08.png"><div>Laporan 5R di menu Compliance</div></div><div class="fig"><img src="../storyboard/frames/A10.png"><div>Hasil approval masuk ke Task</div></div></div>
+ <div class="note"><b>SPV:</b> periksa antrean approval dengan memilih rentang tanggal yang sedang berjalan (Hari ini, Kemarin–hari ini, 7 hari), lalu klik Periksa.</div>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+
+<!-- 6 BACKUP & KENDALA -->
+<section class="page"><div class="hd"><b>SOP 4 · BACKUP FINGER DAN KENDALA</b><span>Halaman 6 dari 8</span></div><div class="body">
+ <h2>Finger manual sebagai backup</h2>
+ <p>Mulai 23 Oktober 2026, <b>W.O.S menjadi catatan utama</b> presensi. Finger manual tetap dilakukan setiap hari untuk menjaga data cadangan, termasuk selama masa penyempurnaan sistem.</p>
+ <ol class="steps">
+  <li>Datang: lakukan <b>check-in W.O.S</b>, kemudian <b>finger manual</b>.</li>
+  <li>Pulang: lakukan <b>check-out W.O.S</b> (terbuka mulai 16.01), kemudian <b>finger manual</b>.</li>
+  <li>Bila W.O.S tidak bisa dipakai (sinyal, kamera, atau sistem): <b>tetap finger manual</b>, lalu <b>laporkan ke SPV</b> pada hari yang sama.</li>
+  <li>SPV mencatat kendala tersebut dan menindaklanjutinya bersama HRD. Data finger menjadi rujukan koreksi.</li>
+ </ol>
+ <h3>Kendala yang sering terjadi</h3>
+ <table><tr><th style="width:28%">Kendala</th><th>Yang dilakukan</th></tr>
+ <tr><td>“Lokasi tidak tersedia”</td><td>Nyalakan GPS HP dan izinkan lokasi untuk situs W.O.S. Buka W.O.S lewat Chrome atau Safari, bukan dari dalam WhatsApp.</td></tr>
+ <tr><td>Kamera tidak bisa dibuka</td><td>Izinkan kamera untuk situs W.O.S di pengaturan browser, lalu coba lagi.</td></tr>
+ <tr><td>Di luar radius 25 meter</td><td>Pindah ke dalam area DC, tunggu GPS akurat, lalu validasi lokasi ulang.</td></tr>
+ <tr><td>Salah foto atau salah aksi</td><td>Minta SPV membatalkan presensi, lalu ulangi.</td></tr>
+ <tr><td>Sinyal buruk</td><td>Data tersimpan di HP dan terkirim otomatis saat sinyal kembali. Pantau tulisan “Sheets: tersambung” di kiri bawah layar. Tetap finger manual.</td></tr>
+ <tr><td>Lupa password</td><td>Password awal sama dengan ID Staff. Bila tetap gagal, hubungi SPV.</td></tr>
+ <tr><td>Akan terlambat</td><td>Ajukan <b>Izin terlambat</b> sebelum tiba (foto kendala wajib dari kamera). Persetujuan diberikan oleh SPV.</td></tr>
+ <tr><td>Sakit atau izin lain</td><td>Ajukan lewat kartu “Pengajuan dan persetujuan” di menu Attendance, sertakan bukti foto.</td></tr></table>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+
+<!-- 7 PERAN -->
+<section class="page"><div class="hd"><b>TANGGUNG JAWAB DAN CHECKLIST</b><span>Halaman 7 dari 8</span></div><div class="body">
+ <h2>Tanggung jawab per peran</h2>
+ <table><tr><th style="width:22%">Peran</th><th>Tanggung jawab</th></tr>
+ <tr><td><b>Karyawan</b> (operator, admin, driver)</td><td>Check-in dan check-out W.O.S dengan foto yang benar, finger manual sebagai backup, memilih role, mengerjakan task, mengirim laporan 5R, dan memperbarui 5R bila diminta.</td></tr>
+ <tr><td><b>SPV</b></td><td>Memandu briefing dan menandai DRM, membagikan role, memeriksa foto presensi dan membatalkan yang tidak sesuai, memeriksa 5R dan memberi keputusan, serta menindaklanjuti kendala bersama HRD.</td></tr>
+ <tr><td><b>Manager</b></td><td>Memantau kepatuhan harian lewat Dashboard dan Performance, serta mendukung tindak lanjut hasil evaluasi.</td></tr>
+ <tr><td><b>HRD</b></td><td>Mencocokkan rekap presensi W.O.S dengan data finger, mengelola koreksi, dan memantau kepatuhan.</td></tr></table>
+ <h3>Checklist harian</h3>
+ <div class="chk">
+  <div class="box"><h4>Karyawan</h4><ul><li>Check-in W.O.S, foto jelas, area DC terlihat</li><li>Finger manual (datang)</li><li>Pilih role dan jam</li><li>Terima dan kerjakan task</li><li>Laporan 5R sebelum 18.00</li><li>Update 5R bila diminta</li><li>Check-out W.O.S (mulai 16.01)</li><li>Finger manual (pulang)</li></ul></div>
+  <div class="box"><h4>SPV</h4><ul><li>DRM: centang semua, silang yang tidak ikut</li><li>Bagikan role semua karyawan</li><li>Periksa foto presensi, batalkan yang tidak sesuai</li><li>Periksa antrean approval 5R</li><li>Pastikan tidak ada task menumpuk</li><li>Catat kendala dan lapor ke HRD</li></ul></div>
+  <div class="box"><h4>Manager dan HRD</h4><ul><li>Pantau Dashboard dan Compliance</li><li>Cocokkan rekap presensi dengan finger</li><li>Tinjau Performance tim berkala</li></ul></div>
+  <div class="box"><h4>Admin Outbound dan Inbound</h4><ul><li>Upload SOQ dan bagi picker</li><li>TFS ke MOKA setelah verifikasi</li><li>Import SJ dan HPP, bagi tugas counting</li><li>Data entry PO ke MOKA</li></ul></div>
+ </div>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+
+<!-- 8 PENUTUP -->
+<section class="page"><div class="hd"><b>KETENTUAN PENUTUP</b><span>Halaman 8 dari 8</span></div><div class="body">
+ <h2>Ketentuan penutup</h2>
+ <ol class="steps">
+  <li>Juklak ini berlaku <b>mulai Jumat, 23 Oktober 2026</b> bagi seluruh karyawan DC 38 Tigalapan Indonesia.</li>
+  <li>W.O.S menjadi catatan utama presensi, role, task, dan laporan 5R. Finger manual tetap berjalan sebagai backup selama dinyatakan berlaku oleh perusahaan.</li>
+  <li>Pelanggaran terhadap ketentuan ini ditindaklanjuti oleh SPV dan HRD sesuai peraturan perusahaan yang berlaku.</li>
+  <li>Selama masa penyempurnaan sistem, ketentuan dapat berubah. Setiap perubahan diumumkan oleh SPV dan dicantumkan pada revisi juklak.</li>
+  <li>Pertanyaan dan kendala penggunaan disampaikan kepada SPV pada hari yang sama.</li>
+ </ol>
+ <h3>Panduan lengkap bergambar</h3>
+ <p>Storyboard petunjuk penggunaan (39 gambar langkah demi langkah untuk operasional harian, inbound dan stok, serta outbound) menjadi lampiran juklak ini.</p>
+ <div class="sig">
+  <div><span>Disusun oleh</span><b>Ahmad Assidiq<br><span style="font-weight:500">Supervisor</span></b></div>
+  <div><span>Diketahui oleh</span><b>Marwan Agus<br><span style="font-weight:500">Manager SCM</span></b></div>
+  <div><span>Disetujui oleh</span><b>Astriyani D Fapala<br><span style="font-weight:500">Human Resource Development</span></b></div>
+ </div>
+ <p class="mu" style="margin-top:14px">Makassar, 22 Oktober 2026</p>
+</div><div class="ft"><span>Juklak Presensi dan Laporan Harian W.O.S · DC 38 Tigalapan</span><span>Berlaku 23 Oktober 2026</span></div></section>
+</body></html>

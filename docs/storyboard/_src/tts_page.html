@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>tts</title>
+<script>
+window.__tts=async function(text,voice,rate){
+ const token='6A5AA1D4EAFF4E9FB37E23D68491D6F4',m=/Edg\/([\d.]+)/.exec(navigator.userAgent),full=m?m[1]:'130.0.2849.68';
+ let t=BigInt(Math.floor(Date.now()/1000)+11644473600);t-=t%300n;t*=10000000n;
+ const hb=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t.toString()+token)),gec=[...new Uint8Array(hb)].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+ const rid=([...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,'0')).join(''));
+ const url='wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken='+token+'&Sec-MS-GEC='+gec+'&Sec-MS-GEC-Version=1-'+full+'&ConnectionId='+rid;
+ return await new Promise(function(resolve){
+  const parts=[];let size=0,done=false;const ws=new WebSocket(url);ws.binaryType='arraybuffer';
+  const fin=function(msg){if(done)return;done=true;try{ws.close()}catch(e){}if(msg){resolve('ERR '+msg);return}
+   const all=new Uint8Array(size);let o=0;parts.forEach(function(p){all.set(p,o);o+=p.length});let s='';for(let i=0;i<all.length;i+=8192)s+=String.fromCharCode.apply(null,all.subarray(i,i+8192));resolve('OK '+btoa(s))};
+  const to=setTimeout(function(){fin('timeout')},50000);
+  ws.onerror=function(){clearTimeout(to);fin('error sambungan')};
+  ws.onclose=function(){clearTimeout(to);if(!done)fin(size?null:'ditutup tanpa audio')};
+  ws.onopen=function(){
+   const ts=new Date().toUTCString().replace('GMT','GMT+0000 (Coordinated Universal Time)');
+   ws.send('X-Timestamp:'+ts+'\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n');
+   const esc=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+   ws.send('X-RequestId:'+rid+'\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:'+ts+'\r\nPath:ssml\r\n\r\n<speak version=\'1.0\' xmlns=\'http://www.w3.org/2001/10/synthesis\' xml:lang=\'id-ID\'><voice name=\''+voice+'\'><prosody pitch=\'+0Hz\' rate=\''+rate+'\' volume=\'+0%\'>'+esc+'</prosody></voice></speak>')};
+  ws.onmessage=function(ev){
+   if(typeof ev.data==='string'){if(ev.data.indexOf('Path:turn.end')>=0){clearTimeout(to);fin(null)}return}
+   const v=new DataView(ev.data),hl=v.getUint16(0),hdr=new TextDecoder().decode(new Uint8Array(ev.data,2,hl));
+   if(hdr.indexOf('Path:audio')>=0&&ev.data.byteLength>2+hl){const a=new Uint8Array(ev.data,2+hl);parts.push(a.slice());size+=a.length}}})};
+</script>

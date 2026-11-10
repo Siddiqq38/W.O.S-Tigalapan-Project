@@ -2749,11 +2749,17 @@ init();
  // Isi koli dibaca dari kolom items dengan tiga bentuk: (1) JSON lama, (2) teks "NAMA xQTY @HPP~; NAMA xQTY @HPP" (satu sel banyak item),
  // (3) format baru: SATU ITEM PER BARIS (items = nama item, qty = qty item, hpp_total = nilai HPP baris itu, HPP per pcs = hpp_total / qty).
  const erpNum=s=>{const n=Number(String(s==null?'':s).replace(/[^0-9.,-]/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n};
- const erpItems=r=>{const raw=String(r.items==null?'':r.items).trim();if(!raw)return[];
+ // Susunan kolom baru ERP_INCOMING: item, qty, hpp_per_item (per pcs), hpp_total (nilai baris), hpp_estimasi. Skrip gudang lama masih membaca susunan lama
+ // (hpp_total = kolom hpp_per_item, catatan = kolom hpp_total), jadi dikenali dari catatan angka yang sama dengan qty x hpp_total.
+ const erpEst=v=>{const s=String(v==null?'':v).trim();return s&&!/^(0|false|tidak|no|-)$/i.test(s)?1:0};
+ const erpItems=r=>{const raw=String(r.item!=null&&r.item!==''?r.item:(r.items==null?'':r.items)).trim();if(!raw)return[];
   if(raw[0]==='['){try{const a=JSON.parse(raw);if(Array.isArray(a))return a}catch(e){}}
   const out=[];let multi=false;
   raw.split(';').map(s=>s.trim()).filter(Boolean).forEach(seg=>{const m=/^(.*?)\s+x\s*(\d+)(?:\s*@\s*([\d.,]+))?\s*(~)?$/i.exec(seg);if(m){multi=true;out.push({n:m[1].trim(),q:Number(m[2]),h:erpNum(m[3]),e:m[4]?1:0,k:'FG',s:''})}else out.push({n:seg,q:0,h:0,e:0,k:'FG',s:'',_p:1})});
-  if(!multi&&out.length===1){const q=erpNum(r.qty),t=erpNum(r.hpp_total),o=out[0];delete o._p;o.q=q;o.h=q>0&&t>0?t/q:0;return[o]}
+  if(!multi&&out.length===1){const q=erpNum(r.qty),t=erpNum(r.hpp_total),o=out[0];delete o._p;o.q=q;let h;
+   if(r.hpp_per_item!==undefined&&String(r.hpp_per_item).trim()!=='')h=erpNum(r.hpp_per_item);
+   else{const c=erpNum(r.catatan);h=(r.hpp_per_item===undefined&&q>0&&c>0&&t>0&&Math.abs(c-q*t)<=Math.max(2,c*0.01))?t:(q>0&&t>0?t/q:0)}
+   o.h=h;o.e=erpEst(r.hpp_estimasi)||erpEst(String(r.catatan||'').indexOf('estimasi')>=0?'1':'');return[o]}
   return out.filter(x=>!x._p||x.q>0)};
  // Semua baris dari satu koli (nomor koli sama dalam satu resi/PO) digabung, supaya satu koli berisi beberapa baris item tetap terbaca sebagai satu koli.
  const erpKoliGroups=rows=>{const m=new Map();rows.forEach(r=>{const k=erpPoOf(r)+'|'+(r.resi_group||r.resi)+'|'+Number(r.no_koli),g=m.get(k)||m.set(k,{r,po:erpPoOf(r),no:Number(r.no_koli),its:[],rows:[]}).get(k);g.rows.push(r);erpItems(r).forEach(x=>g.its.push(x))});return[...m.values()]};
@@ -2765,7 +2771,7 @@ init();
    const kk=r.resi_group||r.resi,g=by[kk]||(by[kk]={rg:kk,resi:resiClean(r.resi),eks:r.ekspedisi,tgl:r.tanggal,pos:{}});
    const p=g.pos[po]||(g.pos[po]={po,vendor:erpVendorOf(r.vendor).nama,mrp:r.mrp,rows:[],nums:new Set(),qty:0,hpp:0,noSj:0,noHpp:0});
    const its=erpItems(r);if(!its.length)p.noSj++;else if(its.some(x=>!(x.h>0)))p.noHpp++;
-   p.rows.push(r);p.nums.add(Number(r.no_koli));p.qty+=Number(r.qty)||0;p.hpp+=Number(r.hpp_total)||0});
+   p.rows.push(r);p.nums.add(Number(r.no_koli));p.qty+=Number(r.qty)||0;p.hpp+=its.reduce((a,x)=>a+(Number(x.q)||0)*(Number(x.h)||0),0)});
   const K=view('KOLI').filter(k=>k.status!=='Batal'&&!isDupK(k)),manR=new Map();
   view('UNLOADING_RESI').forEach(u=>{const k=resiClean(u.resi);if(k)(manR.get(k)||manR.set(k,new Set()).get(k)).add(poKey(u.po))});
   Object.values(by).forEach(g=>{g.eta=addDays(g.tgl,7);g.dup=[];Object.values(g.pos).forEach(p=>{const got=new Set();K.forEach(k=>{if(poKey(k.po)===p.po&&resiClean(k.resi)===g.resi)got.add(Number(k.no_koli))});const all=[...p.nums].sort((a,b)=>a-b);p.all=all;p.got=all.filter(n=>got.has(n)).length;p.pend=all.filter(n=>!got.has(n));const m=manR.get(g.resi);if(m&&![...m].includes(p.po)&&!p.got)p.dupPo=[...m].join(', ')})});

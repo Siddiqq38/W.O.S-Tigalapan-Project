@@ -1,0 +1,68 @@
+﻿NASKAH NARASI VIDEO PANDUAN W.O.S UNTUK STORE HEAD
+(13 bagian. Tempel satu bagian ke Google Terjemahan, bahasa Indonesia, lalu simpan audionya dengan nama file sesuai yang tertulis.)
+
+=== BAGIAN 1: Masuk ke WOS ===
+Nama file audio: S01.mp3
+
+Selamat datang di panduan penggunaan W O S untuk Store Head. Buka alamat W O S di browser HP atau laptop. Isi Kode Staff dengan kode toko Anda, misalnya S T titik U P G strip nol satu, lalu isi password dan tekan Masuk. Setelah masuk, ganti password awal lewat tombol Ubah password di kiri bawah.
+
+=== BAGIAN 2: Menu yang tersedia untuk toko ===
+Nama file audio: S02.mp3
+
+Setelah masuk, di sebelah kiri Anda hanya melihat dua menu: Tracking SOQ untuk memantau pesanan toko, dan Outbound untuk menerima barang, mengecek isi koli, dan melaporkan miss-picking.
+
+=== BAGIAN 3: Tracking SOQ: pantau pesanan toko ===
+Nama file audio: S03.mp3
+
+Buka Tracking SOQ. SOQ toko Anda tampil lengkap dengan jumlah item, jumlah pcs, jumlah koli, nama driver, dan estimasi jam tiba. Dari sini Anda bisa menjawab pertanyaan: barang toko saya sekarang sudah sampai di mana?
+
+=== BAGIAN 4: Membaca tahap tiap koli ===
+Nama file audio: S04.mp3
+
+Setiap koli berjalan melewati tahap Picking, Verifikasi, TFS, Packing, Staging, Loading, lalu Shipping. Kotak koli menunjukkan posisi masing-masing. Koli berstatus On delivery artinya sedang dalam perjalanan ke toko Anda.
+
+=== BAGIAN 5: Shipping: koli yang menuju toko ===
+Nama file audio: S05.mp3
+
+Buka menu Outbound lalu tab Shipping. Di sini terlihat koli yang sudah dimuat dan sedang dikirim ke toko Anda, lengkap dengan mode pengiriman, driver, dan estimasi tiba. Tombol Surat Jalan dan STTB membuka dokumen untuk dicocokkan saat barang datang.
+
+=== BAGIAN 6: Receiving Outlet: barang tiba di toko ===
+Nama file audio: S06.mp3
+
+Saat barang tiba, buka tab Receiving Outlet. Cocokkan jumlah koli yang diturunkan driver dengan daftar. Tiap kotak koli diketuk satu per satu saat diterima.
+
+=== BAGIAN 7: Terima koli yang utuh ===
+Nama file audio: S07.mp3
+
+Ketuk kotak koli. Isi nama staff yang menerima, lalu tekan Diterima. Tanggal dan jam terima tercatat otomatis. Lakukan untuk setiap koli yang datang dalam keadaan baik.
+
+=== BAGIAN 8: Koli rusak atau bermasalah ===
+Nama file audio: S08.mp3
+
+Bila koli rusak, robek, atau basah, tulis keterangannya, misalnya karung robek, lalu tekan Bermasalah. Keterangan wajib diisi supaya tim DC 38 punya catatan resmi sejak barang diterima.
+
+=== BAGIAN 9: GR Outlet: daftar koli yang sudah diterima ===
+Nama file audio: S09.mp3
+
+Setelah koli diterima, buka tab GR Outlet. Koli yang sudah diterima tampil di sini dan siap dicek isinya. Sebaiknya cek isi koli di hari yang sama, selagi kemasan masih utuh.
+
+=== BAGIAN 10: GR Outlet: cek isi koli item per item ===
+Nama file audio: S10.mp3
+
+Buka koli, lalu cocokkan barang fisik dengan daftar item dan qty. Hitung satu per satu. Bila sesuai, tekan centang biru. Bila ada yang kurang, lebih, atau salah item, tekan tanda silang. Setelah semua item dicek, tekan Selesai GR koli ini.
+
+=== BAGIAN 11: Laporkan miss-picking dengan bukti video ===
+Nama file audio: S11.mp3
+
+Untuk barang yang tidak sesuai, pilih jenis kesalahan, isi qty yang sebenarnya diterima, dan tulis keterangan. Rekam video singkat sebagai bukti, dengan label koli dan barang terlihat jelas, lalu tekan Simpan.
+
+=== BAGIAN 12: Miss-Picking: pantau tindak lanjut ===
+Nama file audio: S12.mp3
+
+Laporan Anda masuk ke tab Miss-Picking beserta koli, item, dan selisihnya. Tim DC 38 menindaklanjuti dan memberi resolusi. Kembali ke tab ini untuk melihat laporan sudah diselesaikan atau belum.
+
+=== BAGIAN 13: Ringkasan tugas Store Head ===
+Nama file audio: S13.mp3
+
+Ringkasnya: pantau SOQ di Tracking SOQ, terima koli di Receiving Outlet, cek isi koli di GR Outlet, dan laporkan selisih di hari yang sama dengan video yang jelas. Terima kasih, selamat bekerja.
+

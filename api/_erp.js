@@ -69,10 +69,11 @@ function toSheetRows(p) {
           mrp,
           no_koli: Number.isFinite(n) && n > 0 ? String(n) : String(k.koliNo || ''),
           koli_erp: String(k.koliNo || ''),
-          items: x.n,
+          item: x.n,
           qty: String(x.q),
+          hpp_per_item: String(Math.round(x.h)),
           hpp_total: String(Math.round(x.q * x.h)),
-          catatan: [r.note || '', x.k && x.k !== 'FG' ? x.k : '', x.e ? 'HPP estimasi' : ''].filter(Boolean).join(' | '),
+          hpp_estimasi: x.e ? '1' : '',
         });
       });
     });

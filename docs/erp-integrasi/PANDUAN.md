@@ -91,9 +91,11 @@ di `MASTER_VENDOR`), lalu Deploy versi baru. Redeploy Vercel agar env terbaca.
 
 | kolom | isi |
 | --- | --- |
-| `items` | satu nama item saja, mis. `SKY BLUE 24S PJG L` |
+| `item` | satu nama item saja, mis. `SKY BLUE 24S PJG L` |
 | `qty` | qty item itu (bukan total koli) |
-| `hpp_total` | nilai HPP baris itu = qty x HPP per pcs (WOS menghitung HPP per pcs = `hpp_total` / `qty`) |
+| `hpp_per_item` | HPP per pcs (mis. 31017) |
+| `hpp_total` | nilai baris = qty x `hpp_per_item` (mis. 8 x 31017 = 248136) |
+| `hpp_estimasi` | isi `1` bila HPP masih perkiraan, kosong bila pasti |
 | `id` | harus unik per baris, mis. `<resi>\|<koli>\|<mrp>\|<urutan>` |
 
 `api/_erp.js` sudah menulis format ini. WOS tetap bisa membaca dua bentuk lama (JSON, dan teks satu sel `NAMA xQTY @HPP; NAMA xQTY @HPP`, tanda `~` = HPP estimasi), tetapi ERP yang menulis langsung ke sheet sebaiknya memakai bentuk satu item satu baris.

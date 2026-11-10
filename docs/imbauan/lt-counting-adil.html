@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>L/T Counting yang Adil</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1080px;background:#fbf3ee;font-family:"Segoe UI",Arial,sans-serif;color:#2b1d16}
+.hd{background:linear-gradient(135deg,#b5532a,#d9743f);color:#fff;padding:40px 52px 30px}
+.hd small{font-size:22px;letter-spacing:3px;font-weight:600;opacity:.9}
+.hd h1{font-size:50px;line-height:1.12;margin-top:8px;font-weight:800}
+.hd p{font-size:25px;margin-top:10px;opacity:.95}
+.wrap{padding:28px 44px 10px}
+.sec{font-size:31px;font-weight:800;color:#b5532a;margin:26px 0 12px}
+.sec span{display:inline-block;width:46px;height:46px;border-radius:50%;background:#b5532a;color:#fff;text-align:center;line-height:46px;font-size:26px;margin-right:12px}
+.card{background:#fff;border-radius:22px;padding:22px 26px;box-shadow:0 3px 0 #ead9cf;margin-bottom:14px}
+p.t{font-size:24px;line-height:1.4;color:#4a382d}
+b{color:#b5532a}
+.two{display:flex;gap:16px}
+.two>div{flex:1;border-radius:18px;padding:18px 20px}
+.bad{background:#fff1ef;border:3px solid #e3877d}
+.good{background:#e8f6ee;border:3px solid #6cc490}
+.two h4{font-size:26px;margin-bottom:6px}
+.two p{font-size:23px;line-height:1.35}
+.big{font-size:40px;font-weight:800}
+.formula{background:#2b1d16;color:#fff;border-radius:22px;padding:22px 26px;font-size:28px;line-height:1.5;text-align:center}
+.formula b{color:#ffcf9e}
+table{width:100%;border-collapse:collapse;font-size:23px}
+th{background:#f3e3d9;text-align:left;padding:10px 12px;font-size:21px}
+td{padding:10px 12px;border-bottom:2px solid #f0e4dc}
+.tag{display:inline-block;padding:3px 12px;border-radius:12px;font-size:20px;font-weight:700}
+.g{background:#d6efdd;color:#14663a}.r{background:#fbdcd9;color:#9b1c13}.a{background:#ffe9c7;color:#8a5200}
+.phone{width:470px;margin:0 auto;background:#fff;border:4px solid #2b1d16;border-radius:34px;padding:22px 20px;box-shadow:0 6px 0 #ead9cf}
+.phone .top{font-size:20px;color:#6a5648;text-align:center;margin-bottom:8px}
+.koli{border:3px solid #b5532a;border-radius:18px;padding:16px;margin-bottom:12px;background:#fffaf6}
+.koli h5{font-size:26px}.koli .s{font-size:20px;color:#6a5648;margin:2px 0 8px}
+.bar{height:26px;background:#eadfd8;border-radius:13px;overflow:hidden;margin:8px 0 6px}
+.bar i{display:block;height:100%}
+.row{display:flex;justify-content:space-between;font-size:23px;font-weight:700}
+.tl{display:flex;align-items:flex-start;justify-content:space-between;position:relative;margin:14px 6px 4px}
+.tl:before{content:"";position:absolute;left:30px;right:30px;top:24px;height:6px;background:#d9c3b6;z-index:0}
+.pt{width:23%;text-align:center;position:relative;z-index:1}
+.pt i{display:block;width:50px;height:50px;border-radius:50%;background:#b5532a;color:#fff;font-style:normal;font-weight:800;font-size:26px;line-height:50px;margin:0 auto 8px}
+.pt p{font-size:20px;line-height:1.25}
+.seg{display:flex;justify-content:space-around;font-size:21px;font-weight:700;margin:8px 0 0}
+.seg span{padding:4px 14px;border-radius:12px}
+ol{margin:4px 0 0 30px}ol li{font-size:24px;line-height:1.45;margin:6px 0;color:#4a382d}
+.dec{background:#e8f1fb;border:3px solid #7fb0e6;border-radius:22px;padding:22px 28px;margin:20px 0}
+.dec h3{font-size:30px;color:#1f4f8f;margin-bottom:8px}
+.dec li{font-size:24px;line-height:1.45;margin:6px 0 6px 30px}
+.ft{background:#2b1d16;color:#fff;padding:20px 52px;font-size:22px;line-height:1.4;margin-top:16px}
+.note{font-size:20px;color:#7a6556;margin-top:6px}
+</style></head><body>
+<div class="hd"><small>W.O.S · DC 38 TIGALAPAN</small><h1>L/T Counting yang Adil<br>dan Real-Time</h1><p>Usulan tampilan dan cara kerja. Semua angka di gambar ini hanya <b style="color:#fff;text-decoration:underline">contoh</b>.</p></div>
+<div class="wrap">
+
+<div class="sec"><span>1</span>Masalah norm sekarang</div>
+<div class="card"><p class="t">Norm sekarang hanya melihat <b>jumlah pcs</b>. Padahal waktu counting juga bergantung pada <b>berapa banyak baris item</b> yang harus dicari dan dicek.</p></div>
+<div class="two">
+ <div class="bad"><h4>Koli A: 1 item, 300 pcs</h4><p>Norm sekarang: <b>12 menit</b><br>Kenyataan: sekitar <b>1 menit</b></p><p class="big" style="color:#9b1c13">terlalu longgar</p></div>
+ <div class="bad"><h4>Koli B: 50 item, 50 pcs</h4><p>Norm sekarang: <b>2 menit</b><br>Kenyataan: sekitar <b>30 menit</b></p><p class="big" style="color:#9b1c13">terlalu ketat</p></div>
+</div>
+<p class="note">Akibatnya operator yang kebagian koli banyak item selalu terlihat lambat, padahal bekerja wajar.</p>
+
+<div class="sec"><span>2</span>Rumus usulan</div>
+<div class="formula">Target satu koli =<br><b>menit per baris item × jumlah baris</b><br>+ <b>menit per pcs × jumlah pcs</b><br>+ <b>waktu tetap per koli</b></div>
+<div class="card" style="margin-top:12px"><table>
+<tr><th></th><th>Baris</th><th>Pcs</th><th>Hitungan (contoh 36 dtk/baris, 8 dtk/100 pcs, 30 dtk tetap)</th><th>Target</th></tr>
+<tr><td><b>Koli A</b></td><td>1</td><td>300</td><td>36 + 24 + 30 dtk</td><td><b>1,5 mnt</b></td></tr>
+<tr><td><b>Koli B</b></td><td>50</td><td>50</td><td>1.800 + 4 + 30 dtk</td><td><b>30,6 mnt</b></td></tr>
+<tr><td><b>Koli C</b></td><td>12</td><td>240</td><td>432 + 19 + 30 dtk</td><td><b>8 mnt</b></td></tr></table>
+<p class="note">Angka 36 dtk/baris dan 8 dtk/100 pcs di atas hanya mencocokkan contoh Anda. Angka sebenarnya ditentukan dari pengukuran 2 minggu.</p></div>
+
+<div class="sec"><span>3</span>Cara kerja: jam dicatat di 4 titik</div>
+<div class="card">
+<div class="tl">
+ <div class="pt"><i>1</i><p><b>Item pertama diinput</b><br>mulai hitung</p></div>
+ <div class="pt"><i>2</i><p><b>Tekan "Selesai counting"</b><br>selesai hitung</p></div>
+ <div class="pt"><i>3</i><p><b>Item put away pertama</b><br>mulai put away</p></div>
+ <div class="pt"><i>4</i><p><b>Put away disimpan</b><br>selesai put away</p></div>
+</div>
+<div class="seg"><span class="g">1→2 Waktu HITUNG</span><span class="a">2→3 MENUNGGU</span><span class="g">3→4 Waktu PUT AWAY</span></div>
+<p class="note" style="margin-top:10px">Menunggu tidak dihitung sebagai lambat. Setiap baris item juga diberi jam (dengan detik), jadi waktu per baris dan per pcs bisa dipisahkan.</p></div>
+
+<div class="sec"><span>4</span>Contoh layar operator (HP)</div>
+<div class="phone">
+ <div class="top">Good Receipt · Counting</div>
+ <div class="koli"><h5>Koli 7 · PO GI37-…-02</h5><div class="s">12 baris item · 240 pcs · Target 8:01</div>
+  <div class="bar"><i style="width:65%;background:#2e9b5a"></i></div><div class="row"><span style="color:#14663a">⏱ 05:12</span><span>Target 08:01</span></div></div>
+ <div class="koli" style="border-color:#e08a1e;background:#fff8ec"><h5>Koli 8 · PO GI37-…-02</h5><div class="s">50 baris item · 50 pcs · Target 30:36</div>
+  <div class="bar"><i style="width:100%;background:#e08a1e"></i></div><div class="row"><span style="color:#8a5200">⏱ 38:20</span><span class="tag a">lewat target</span></div></div>
+ <p class="note" style="text-align:center">Hijau = sesuai target · Oranye/merah = lewat 1,5× target</p>
+</div>
+
+<div class="sec"><span>5</span>Contoh layar SPV: efisiensi operator</div>
+<div class="card"><table>
+<tr><th>Operator</th><th>Koli</th><th>Total target</th><th>Waktu aktif</th><th>Efisiensi</th></tr>
+<tr><td><b>Ardhy</b></td><td>6</td><td>38 mnt</td><td>41 mnt</td><td><span class="tag g">93%</span></td></tr>
+<tr><td><b>Yusri</b></td><td>5</td><td>52 mnt</td><td>47 mnt</td><td><span class="tag g">111%</span></td></tr>
+<tr><td><b>Suldeni</b></td><td>4</td><td>29 mnt</td><td>58 mnt</td><td><span class="tag r">50%</span></td></tr></table>
+<p class="note">Efisiensi = total target ÷ total waktu aktif sehari (waktu menunggu tidak dihitung). 100% berarti tepat sesuai norm.</p></div>
+
+<div class="sec"><span>6</span>Urutan pelaksanaan</div>
+<div class="card"><ol>
+<li><b>Sekarang:</b> tambah kolom jam di sheet, ikut deploy hari ini.</li>
+<li><b>Hari ini sampai 2 minggu:</b> sistem mengumpulkan jam yang bersih. Tampilan lama tetap jalan.</li>
+<li><b>Minggu ke-3:</b> saya cocokkan data dan menurunkan angka menit per baris, per pcs, dan tetap per koli. Anda periksa dan setujui.</li>
+<li><b>Setelah itu:</b> target dan stopwatch aktif di layar operator, dan efisiensi tampil di layar SPV.</li>
+</ol><p class="note">Selama masa pengumpulan data, koli bertanda tidak wajar (misalnya 300 pcs tersimpan di 1 menit) tidak dipakai untuk menilai operator.</p></div>
+
+<div class="dec"><h3>Yang saya butuhkan dari Anda</h3><ul>
+<li>Setuju kolom jam ditambah sebelum deploy 11.40–12.00?</li>
+<li>Estimasi kasar counting: detik per <b>baris item</b>, detik per <b>100 pcs</b>, detik tetap per <b>koli</b>.</li>
+<li>Estimasi put away: detik per <b>lokasi bin</b> dan detik per <b>100 pcs</b>.</li></ul></div>
+</div>
+<div class="ft">Gambar ini hanya usulan tampilan. Belum ada perubahan di aplikasi sampai Anda memutuskan.</div>
+</body></html>
