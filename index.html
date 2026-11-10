@@ -4697,7 +4697,7 @@ init();
  const binKey=id=>{const m=/^([A-Z]+)(\d+)\.(\w+)$/.exec(id);if(!m)return[9,id,0,0];const b=m[3];return[m[1].length>1?2:1,m[1],Number(m[2]),/^\d+$/.test(b)?Number(b):(b==='L'?1000:1001)]};
  const cmpBin=(a,b)=>{const x=binKey(a),y=binKey(b);return x[0]-y[0]||String(x[1]).localeCompare(String(y[1]))||x[2]-y[2]||x[3]-y[3]};
  const sem=d=>String(d).slice(0,4)+'-S'+(Number(String(d).slice(5,7))<=6?1:2);
- const tasks=()=>view('LC_TASK'),counts=()=>view('LC_COUNT'),adjs=()=>view('ADJUSTMENT');
+ const tasks=()=>view('LC_TASK').filter(t=>t.jenis!=='TU'),counts=()=>view('LC_COUNT'),adjs=()=>view('ADJUSTMENT');
  let lcC={t:null,m:null};
  function lastMap(){const t=tasks();if(lcC.t===t)return lcC.m;const m=new Map();t.forEach(k=>{if(!['OK','Selisih'].includes(k.status))return;const d=(k.selesai||k.tanggal||'').slice(0,10);if(d&&(!m.has(k.bin)||d>m.get(k.bin)))m.set(k.bin,d)});lcC={t,m};return m}
  const daysAgo=d=>d?Math.floor((Date.now()-Date.parse(d))/864e5):9999;
@@ -5103,12 +5103,67 @@ init();
    if((byBin.get(t.bin)||[]).some(x=>U(x.sku)!==U(t.sku)&&x.qty>TOP_LOW))return;
    const c=ss.filter(s=>s.p.lp||s.p.blk===p.blk).map(s=>({s,sc:s.p.lp?2:(s.p.rack===p.rack?0:1)})).sort((a,b)=>a.sc-b.sc||String(a.s.o.awal||'~').localeCompare(String(b.s.o.awal||'~'))||cmpBin(a.s.o.bin,b.s.o.bin));
    if(c.length)out.push({t,empty:!(t.qty>0),best:c[0].s,alts:c.slice(1,4).map(x=>x.s)})});
-  return out.sort((a,b)=>(b.empty-a.empty)||cmpBin(a.t.bin,b.t.bin))}
+  const sup=tuSup();
+  return out.filter(r=>!sup.has(tuKey(r.t.bin,r.t.sku))).sort((a,b)=>(b.empty-a.empty)||cmpBin(a.t.bin,b.t.bin))}
+ // ---- tugas top up: SPV mencentang rekomendasi lalu menugaskan ke operator (pola seperti cycle count). Disimpan di LC_TASK dengan jenis 'TU';
+ // rencana (item, qty, bin tujuan, estimasi) dan hasil (bin/qty sebenarnya, alasan dilewati, tindak lanjut) disimpan sebagai JSON di kolom hasil.
+ // Status: Menunggu -> Selesai (top up dilakukan lewat internal move, bin boleh beda dari rekomendasi) | Dilewati (alasan wajib) | Batal (dibatalkan SPV) | Dibuka (dibuka ulang).
+ let tuSel=new Set(),tuFil='open';
+ const tuAll=()=>view('LC_TASK').filter(t=>t.jenis==='TU'),tuP=t=>{try{return JSON.parse(t.hasil||'{}')||{}}catch(e){return{}}};
+ const tuKey=(to,sku)=>U(to)+'|'+U(sku),wHM=ms=>{const d=new Date(ms+8*3600e3);return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')};
+ const tuMin=q=>3+Math.ceil((Number(q)||0)/60),tuEnd=t=>Number(tuP(t).etaAt)||0;
+ const tuAsg=()=>{const m=new Map();tuAll().filter(t=>t.status==='Menunggu').forEach(t=>{const p=tuP(t);m.set(tuKey(p.to,p.sku),t)});return m};
+ const tuSup=()=>{const s=new Set();tuAll().forEach(t=>{if(!['Selesai','Dilewati'].includes(t.status))return;if(daysAgo((t.selesai||t.tanggal||'').slice(0,10))>=3)return;const p=tuP(t);s.add(tuKey(p.to,p.sku))});return s};
+ const TU_ALASAN=['Rak utama masih cukup / sudah terisi','Stok di bin cadangan tidak ada atau tidak sesuai','Tidak bisa dijangkau (pallet terhalang / alat tidak ada)','Lainnya'];
  function topupCard(){
-  const R=topupRecs();
-  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Rekomendasi top up (rak cadangan &rarr; rak utama)</h3><p class="sub">Rak utama = bin bernomor (blok E: nomor 3 dst). Rak cadangan = bin L dan R (blok E: bin 1 dan 2) serta pallet (LP) untuk item selain HITAM/NAVY/PUTIH/MERAH CABE 24S, goodie bag, dan totebag. Muncul bila stok item di rak utama kosong atau tinggal '+TOP_LOW+' pcs atau kurang. Tombol Top up mengisi form di bawah, qty bisa diubah sebelum disimpan.</p>'+
-  (R.length?'<div style="overflow:auto"><table><thead><tr><th>Item</th><th>Rak utama</th><th>Ambil dari</th><th></th></tr></thead><tbody>'+R.slice(0,80).map(r=>{const b=r.best,jenis=b.p.lp?'Pallet':'Rak cadangan';
-   return '<tr><td>'+esc(r.t.item)+'</td><td><b>'+esc(r.t.bin)+'</b><br><span class="tag '+(r.empty?'red':'amber')+'">'+(r.empty?'Kosong':'Tinggal '+r.t.qty+' pcs')+'</span></td><td><b>'+esc(b.o.bin)+'</b> <span class="sub">'+jenis+' &middot; '+b.o.qty+' pcs'+(b.o.awal?' &middot; masuk '+esc(String(b.o.awal).slice(0,10)):'')+'</span>'+(r.alts.length?'<br><span class="sub">Alternatif: '+r.alts.map(a=>esc(a.o.bin)+' ('+a.o.qty+')').join(', ')+'</span>':'')+'</td><td><button class="button" data-lctop="'+esc(b.o.bin+'|'+b.o.sku+'|'+r.t.bin+'|'+b.o.qty)+'" type="button">Top up</button></td></tr>'}).join('')+'</tbody></table></div>'+(R.length>80?'<p class="sub">Menampilkan 80 dari '+R.length+' rekomendasi.</p>':''):'<p class="sub">Belum ada rak utama yang perlu top up.</p>')+'</div>'}
+  const R=topupRecs(),asg=tuAsg(),adm=canAdmin();
+  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Rekomendasi top up (rak cadangan &rarr; rak utama)</h3><p class="sub">Rak utama = bin bernomor (blok E: nomor 3 dst). Rak cadangan = bin L dan R (blok E: bin 1 dan 2) serta pallet (LP) untuk item selain HITAM/NAVY/PUTIH/MERAH CABE 24S, goodie bag, dan totebag. Muncul bila stok item di rak utama kosong atau tinggal '+TOP_LOW+' pcs atau kurang. Ini hanya rekomendasi: operator boleh melewati atau top up ke bin di sebelahnya, hasilnya tercatat di Tugas top up di bawah.</p>'+
+  (adm&&R.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0"><label class="sub" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-lctuall="1"> Pilih semua yang belum ditugaskan</label>'+opSelect('lc-tuop')+'<button class="button" data-lctumake="1" type="button">Tugaskan yang dicentang (<span id="lc-tun">'+[...tuSel].filter(k=>R.some(r=>tuKey(r.t.bin,r.t.sku)===k&&!asg.has(k))).length+'</span>)</button></div>':'')+
+  (R.length?'<div style="overflow:auto"><table><thead><tr>'+(adm?'<th style="width:34px"></th>':'')+'<th>Item</th><th>Rak utama</th><th>Ambil dari</th><th>Penugasan</th></tr></thead><tbody>'+R.slice(0,80).map(r=>{const b=r.best,jenis=b.p.lp?'Pallet':'Rak cadangan',k=tuKey(r.t.bin,r.t.sku),t=asg.get(k),p=t?tuP(t):null;
+   return '<tr>'+(adm?'<td>'+(t?'':'<input type="checkbox" data-lctu="'+esc(k)+'"'+(tuSel.has(k)?' checked':'')+'>')+'</td>':'')+'<td>'+esc(r.t.item)+'</td><td><b>'+esc(r.t.bin)+'</b><br><span class="tag '+(r.empty?'red':'amber')+'">'+(r.empty?'Kosong':'Tinggal '+r.t.qty+' pcs')+'</span></td><td><b>'+esc(b.o.bin)+'</b> <span class="sub">'+jenis+' &middot; '+b.o.qty+' pcs'+(b.o.awal?' &middot; masuk '+esc(String(b.o.awal).slice(0,10)):'')+'</span>'+(r.alts.length?'<br><span class="sub">Alternatif: '+r.alts.map(a=>esc(a.o.bin)+' ('+a.o.qty+')').join(', ')+'</span>':'')+'</td><td>'+(t?'<span class="tag blue">Ditugaskan</span> <b>'+esc(t.operator_nama||t.operator)+'</b><br><span class="sub">estimasi selesai '+esc(p.eta||'-')+' &middot; '+esc(p.qty)+' pcs</span>':'<span class="sub">Belum ditugaskan</span><br><button class="button secondary" data-lctop="'+esc(b.o.bin+'|'+b.o.sku+'|'+r.t.bin+'|'+b.o.qty)+'" type="button" style="padding:2px 8px">Kerjakan sendiri</button>')+'</td></tr>'}).join('')+'</tbody></table></div>'+(R.length>80?'<p class="sub">Menampilkan 80 dari '+R.length+' rekomendasi.</p>':''):'<p class="sub">Belum ada rak utama yang perlu top up.</p>')+'</div>'+tuList()}
+ function tuList(){
+  const adm=canAdmin(),me=code(),ST={Menunggu:'blue',Selesai:'green',Dilewati:'amber'};let L=tuAll();if(!adm)L=L.filter(t=>t.operator===me&&t.status==='Menunggu');
+  else{L=L.filter(t=>daysAgo((t.tanggal||'').slice(0,10))<=14);if(tuFil==='open')L=L.filter(t=>t.status==='Menunggu'||(t.status==='Dilewati'&&!/^done/.test(tuP(t).fu||'')&&tuP(t).alasan!==TU_ALASAN[0]));else if(tuFil!=='all')L=L.filter(t=>t.status===tuFil)}
+  L.sort((a,b)=>String(b.tanggal).localeCompare(String(a.tanggal))||String(a.operator_nama).localeCompare(String(b.operator_nama))||tuEnd(a)-tuEnd(b));
+  const nw=Date.now();
+  const rows=L.map(t=>{const p=tuP(t),late=t.status==='Menunggu'&&t.tanggal<today(),cur=(oh().byBin.get(U(p.to))||[]).filter(o=>U(o.sku)===U(p.sku)).reduce((a,o)=>a+o.qty,0),filled=t.status==='Menunggu'&&cur>TOP_LOW;
+   let res='';if(t.status==='Selesai'){res='Selesai '+esc(String(t.selesai||'').slice(11,16))+': '+esc(p.actQty)+' pcs ke <b>'+esc(p.actTo)+'</b>'+(U(p.actTo)!==U(p.to)?' <span class="tag amber">beda dari rekomendasi '+esc(p.to)+'</span>':'')+(num(p.actQty)<num(p.qty)?' <span class="tag amber">sebagian dari '+esc(p.qty)+'</span>':'')}
+   else if(t.status==='Dilewati')res='Tidak jadi: '+esc(p.alasan||'-')+(p.note?' ('+esc(p.note)+')':'');else if(t.status==='Batal')res='Dibatalkan SPV';
+   let act='';if(t.status==='Menunggu'&&(t.operator===me||adm))act='<button class="button" data-lctudo="'+esc(t.id)+'" type="button">Kerjakan</button> <button class="button secondary" data-lctuskip="'+esc(t.id)+'" type="button">Tidak jadi</button>'+(adm?' <button class="button secondary" data-lctucancel="'+esc(t.id)+'" type="button" style="color:#b3261e">Batalkan</button>':'');
+   let fu='';if(adm&&t.status==='Dilewati'){if(/^done/.test(p.fu||''))fu='<span class="tag green">Ditindaklanjuti</span>';else if(p.alasan===TU_ALASAN[0])fu='<span class="sub">Tutup otomatis, tidak perlu tindak lanjut</span>';
+    else if(p.alasan===TU_ALASAN[1])fu='<button class="button secondary" data-lctufu="'+esc(t.id)+'|cc" type="button">Buat cycle count bin '+esc(t.bin)+'</button>';
+    else if(p.alasan===TU_ALASAN[2])fu='<button class="button secondary" data-lctufu="'+esc(t.id)+'|open" type="button">Buka lagi (tugaskan ulang)</button>';
+    else fu='<button class="button secondary" data-lctufu="'+esc(t.id)+'|close" type="button">Tandai sudah ditinjau</button>'}
+   return '<tr><td>'+esc(t.operator_nama||t.operator)+'<br><span class="sub">'+esc(t.tanggal)+'</span></td><td>'+esc(p.item||p.sku)+'<br><span class="sub">'+esc(t.bin)+' &rarr; <b>'+esc(p.to)+'</b> &middot; '+esc(p.qty)+' pcs</span></td><td><span class="tag '+(ST[t.status]||'')+'">'+esc(t.status)+'</span>'+(late?' <span class="tag red">Terlambat</span>':'')+(t.status==='Menunggu'&&p.eta&&!late?'<br><span class="sub">estimasi '+esc(p.eta)+(p.etaAt&&p.etaAt<nw?' (lewat)':'')+'</span>':'')+(filled?'<br><span class="tag amber">Rak utama sudah terisi ('+cur+' pcs), bisa dilewati</span>':'')+(res?'<br><span class="sub">'+res+'</span>':'')+'</td><td>'+act+(fu?'<br>'+fu:'')+'</td></tr>'}).join('');
+  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Tugas top up'+(adm?'':' saya')+'</h3>'+(adm?'<p class="sub">Alur: SPV menugaskan, operator <b>Kerjakan</b> (memindahkan barang, boleh ke bin lain) atau <b>Tidak jadi</b> (alasan wajib). Tidak jadi karena stok cadangan tidak sesuai memunculkan tombol cycle count untuk bin asal. Terlambat berarti belum dikerjakan sampai hari berikutnya: batalkan lalu tugaskan ulang.</p><div class="field" style="max-width:320px"><label>Tampilkan</label><select data-lctufil="1">'+[['open','Perlu perhatian (menunggu / perlu tindak lanjut)'],['all','Semua (14 hari)'],['Selesai','Selesai'],['Dilewati','Tidak jadi'],['Batal','Dibatalkan']].map(x=>'<option value="'+x[0]+'"'+(tuFil===x[0]?' selected':'')+'>'+x[1]+'</option>').join('')+'</select></div>':'')+
+  (rows?'<div style="overflow:auto"><table><thead><tr><th>Operator</th><th>Item / bin</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p class="sub">'+(adm?'Tidak ada tugas top up pada filter ini.':'Tidak ada tugas top up untukmu.')+'</p>')+'</div>'}
+ function tuMake(){
+  const op=($('lc-tuop')||{}).value;if(!op)return say('Pilih operator.',true);const R=topupRecs(),asg=tuAsg(),pick=R.filter(r=>{const k=tuKey(r.t.bin,r.t.sku);return tuSel.has(k)&&!asg.has(k)});if(!pick.length)return say('Centang rekomendasi dulu.',true);
+  let at=Math.max(Date.now(),...tuAll().filter(t=>t.status==='Menunggu'&&t.operator===op).map(tuEnd)),totalMin=0;
+  pick.forEach(r=>{const b=r.best,pj=/PJG|PANJANG/i.test(b.o.item||''),q=b.p.lp?Math.min(b.o.qty,pj?75:100):b.o.qty,mn=tuMin(q);at+=mn*60000;totalMin+=mn;
+   const plan={sku:b.o.sku,item:b.o.item,qty:q,to:r.t.bin,from:b.o.bin,eta:wHM(at),etaAt:at};
+   enq('LC_TASK',{id:'TU|'+today()+'|'+b.o.bin+'|'+U(b.o.sku)+'|'+r.t.bin,tanggal:today(),jenis:'TU',bin:b.o.bin,operator:op,operator_nama:nameOf(op),status:'Menunggu',ronde:'1',hasil:JSON.stringify(plan),mulai:'',selesai:'',dibuat_oleh:code(),putaran:''})});
+  taskEdit(arr=>arr.push({id:'TL-'+Math.random().toString(36).slice(2,8),day:today(),at:stIso(),title:'Top up '+pick.length+' bin (rak cadangan ke rak utama)',qty:pick.slice(0,4).map(r=>r.best.o.bin+'→'+r.t.bin).join(', '),by:code(),to:op,status:'baru',kind:'lc'}));
+  tuSel=new Set();say('Ditugaskan '+pick.length+' top up ke '+nameOf(op)+'. Estimasi selesai '+wHM(at)+' (sekitar '+totalMin+' menit).')}
+ function tuDo(id){
+  const t=tuAll().find(x=>x.id===id);if(!t)return;const p=tuP(t),mb=masterBins();
+  const m=G.modal('<h3>Top up '+esc(p.item||p.sku)+'</h3><p class="sub">Dari <b>'+esc(t.bin)+'</b>. Rekomendasi ke <b>'+esc(p.to)+'</b>. Boleh top up ke bin lain (misalnya di sebelahnya): ubah bin tujuan di bawah.</p><datalist id="lc-tubins">'+mb.map(b=>'<option value="'+esc(b.id)+'">').join('')+'</datalist><label style="font-weight:600">Bin tujuan</label><input id="lc-tuto" list="lc-tubins" value="'+esc(p.to)+'" style="width:100%"><label style="font-weight:600;display:block;margin-top:8px">Qty dipindah</label><input id="lc-tuq" type="text" inputmode="numeric" value="'+esc(p.qty)+'" style="width:100%"><p class="note" id="lc-tum" style="color:#b3261e" hidden></p><div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-tuok" type="button">Selesai top up</button><button class="button secondary" id="lc-tux" type="button">Batal</button></div>');
+  m.querySelector('#lc-tux').onclick=()=>m.remove();m.querySelector('#lc-tuq').addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'')});
+  m.querySelector('#lc-tuok').onclick=()=>{const to=U(m.querySelector('#lc-tuto').value),q=num(m.querySelector('#lc-tuq').value),err=x=>{const e=m.querySelector('#lc-tum');e.textContent=x;e.hidden=false};
+   const sel=(oh().byBin.get(U(t.bin))||[]).find(o=>U(o.sku)===U(p.sku));if(!sel)return err('Stok item ini sudah tidak ada di bin '+t.bin+'. Pilih Tidak jadi dengan alasan stok tidak sesuai.');
+   const e2=moveCore(t.bin,sel,q,to,'Replenish (tugas top up)');if(e2)return err(e2);
+   enq('LC_TASK',Object.assign({},t,{status:'Selesai',mulai:t.mulai||stIso(),selesai:stIso(),hasil:JSON.stringify(Object.assign(p,{actTo:to,actQty:q}))}));m.remove();draw()}}
+ function tuSkip(id){
+  const t=tuAll().find(x=>x.id===id);if(!t)return;const p=tuP(t);
+  const m=G.modal('<h3>Tidak jadi top up</h3><p class="sub">'+esc(p.item||p.sku)+' '+esc(t.bin)+' &rarr; '+esc(p.to)+'</p><label style="font-weight:600">Alasan</label><select id="lc-tua" style="width:100%">'+TU_ALASAN.map(a=>'<option>'+esc(a)+'</option>').join('')+'</select><label style="font-weight:600;display:block;margin-top:8px">Catatan (opsional)</label><input id="lc-tun2" style="width:100%"><div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-tuok" type="button">Simpan</button><button class="button secondary" id="lc-tux" type="button">Kembali</button></div>');
+  m.querySelector('#lc-tux').onclick=()=>m.remove();
+  m.querySelector('#lc-tuok').onclick=()=>{enq('LC_TASK',Object.assign({},t,{status:'Dilewati',selesai:stIso(),hasil:JSON.stringify(Object.assign(p,{alasan:m.querySelector('#lc-tua').value,note:m.querySelector('#lc-tun2').value.trim()}))}));m.remove();draw()}}
+ function tuFollow(id,how){
+  const t=tuAll().find(x=>x.id===id);if(!t)return;const p=tuP(t),done=()=>enq('LC_TASK',Object.assign({},t,{hasil:JSON.stringify(Object.assign(p,{fu:'done:'+code()}))}));
+  if(how==='cc'){const m=G.modal('<h3>Cycle count bin '+esc(t.bin)+'</h3><p class="sub">Operator melaporkan stok di bin ini tidak ada atau tidak sesuai. Buat task cycle count untuk memeriksa.</p><label style="font-weight:600">Operator</label>'+opSelect('lc-fuop')+'<div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-tuok" type="button">Buat task cycle count</button><button class="button secondary" id="lc-tux" type="button">Batal</button></div>');
+   m.querySelector('#lc-tux').onclick=()=>m.remove();m.querySelector('#lc-tuok').onclick=()=>{const op=m.querySelector('#lc-fuop').value;if(!op)return;mkTask(t.bin,'CC',op);done();m.remove();say('Task cycle count bin '+t.bin+' dibuat.')};return}
+  if(how==='open'){enq('LC_TASK',Object.assign({},t,{status:'Dibuka',hasil:JSON.stringify(Object.assign(p,{fu:'done:'+code()}))}));say('Rekomendasi top up dibuka lagi, silakan tugaskan ulang.');return}
+  done()}
  function drawMove(){
   loadMoves();const binsStock=[...oh().byBin.keys()].sort(cmpBin),from=U(mv.from),items=(oh().byBin.get(from)||[]),sel=items.find(o=>U(o.sku)===U(mv.sku))||(items.length===1?items[0]:null),to=U(mv.to);
   const toItems=(oh().byBin.get(to)||[]),warn=to&&sel&&toItems.length&&!toItems.some(o=>U(o.sku)===U(sel.sku))?'Bin tujuan berisi item lain: '+toItems.map(o=>o.item+' '+o.qty).join(', ')+'. Pastikan memang boleh digabung.':'';
@@ -5197,6 +5252,11 @@ init();
   if(d.lcclr){selRacks=[];selBin='';draw();return}
   if(d.lcmode){mapMode=d.lcmode;draw();return}
   if(d.lcrot!=null){ry=d.lcrot==='0'?-28:ry+Number(d.lcrot);document.querySelectorAll('.lc-scene').forEach(s=>{s.style.transform='rotateX(-12deg) rotateY('+ry+'deg)'});return}
+  if(d.lctumake){tuMake();return}
+  if(d.lctudo){tuDo(d.lctudo);return}
+  if(d.lctuskip){tuSkip(d.lctuskip);return}
+  if(d.lctucancel){const k=tuAll().find(x=>x.id===d.lctucancel);if(k&&confirm('Batalkan tugas top up ini? Rekomendasinya akan muncul lagi dan bisa ditugaskan ulang.'))enq('LC_TASK',Object.assign({},k,{status:'Batal',selesai:stIso()}));return}
+  if(d.lctufu){const [i,h]=d.lctufu.split('|');tuFollow(i,h);return}
   if(d.lctop){const [f,s,t,q]=d.lctop.split('|');mv={from:f,sku:s,qty:q,to:t,alasan:'Replenish'};draw();return}
   if(d.lcmove){mv.from=d.lcmove;mv.sku='';tabName='Internal Move';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lcadj){adjForm.bin=d.lcadj;adjForm.sku='';tabName='Adjustment';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
@@ -5229,6 +5289,10 @@ init();
   if(d.lcadjitem){const sku=d.lcadjitem,why=(adjForm.alasan||'').trim();if(!why)return say('Isi alasan.',true);let n=0;body.querySelectorAll('[data-lcadjq]').forEach(inp=>{if(inp.value==='')return;const bin=inp.dataset.lcadjq,o=oh().map.get(bin+'|'+sku);if(!o)return;const f=num(inp.value);if(f===o.qty)return;enq('ADJUSTMENT',{id:'ADJ|'+Date.now().toString(36).toUpperCase()+'|'+bin,tanggal:today(),bin,sku:o.sku,item:o.item,qty_sistem:String(o.qty),qty_fisik:String(f),selisih:String(f-o.qty),alasan:why,sumber:'By item',status:'Menunggu SPV',diminta_oleh:code(),diminta_jam:stIso(),disetujui_oleh:'',disetujui_jam:'',catatan:''});n++});if(!n)return say('Tidak ada qty fisik yang berbeda dari sistem.',true);adjQ={};adjForm.alasan='';say('Pengajuan adjustment dikirim ('+n+' bin). Menunggu persetujuan SPV.');return}
   if(d.lcsago){importSaldo();return}});
  document.addEventListener('change',e=>{const t=e.target,d=t.dataset||{};
+  if(body&&body.contains(t)){
+   if(d.lctu){if(t.checked)tuSel.add(d.lctu);else tuSel.delete(d.lctu);const n=document.getElementById('lc-tun');if(n)n.textContent=body.querySelectorAll('[data-lctu]:checked').length;return}
+   if(d.lctuall){body.querySelectorAll('[data-lctu]').forEach(x=>{x.checked=t.checked;if(t.checked)tuSel.add(x.dataset.lctu);else tuSel.delete(x.dataset.lctu)});const n=document.getElementById('lc-tun');if(n)n.textContent=body.querySelectorAll('[data-lctu]:checked').length;return}
+   if(d.lctufil){tuFil=t.value;draw();return}}
   if(t.id==='lc-fop'){filterOp=t.value;draw();return}
   if(d.lczoom){mapZoom=Number(t.value)||1;draw();return}
   if(t.id==='lc-son'){soN=Math.max(1,num(t.value));draw();return}
@@ -5362,7 +5426,9 @@ init();
   view('PICK_KOLI').filter(k=>k.picker===who&&['Ditugaskan','Picking','Perbaikan'].includes(k.status)).forEach(k=>{const rows=pi.filter(r=>r.dok===k.dok&&num(r.koli)===num(k.koli)&&r.kategori!=='OTHER'),d=dok.find(x=>x.id===k.dok)||{};let pk=0,ck=0,pcs=0;rows.forEach(r=>{const q=num(r.qty);pcs+=q;pk+=V3.est.pick(r.item,q);ck+=V3.est.check(r.item,q)});
    out.push({jenis:'Outbound · Picking',judul:(d.kode||'')+' '+(d.outlet||'')+' · koli '+k.koli,detail:pcs+' pcs · '+rows.length+' baris',est:[['Picking',pk],['Verifikasi (oleh rekan)',ck]],status:k.status,menu:'wms-outbound',tgl:k.tanggal||''})});
   // Stok opname / cycle count
-  const lt=view('LC_TASK').filter(t=>t.operator===who&&!['OK','Selisih'].includes(t.status));
+  const tu=view('LC_TASK').filter(t=>t.operator===who&&t.jenis==='TU'&&t.status==='Menunggu');
+  if(tu.length)out.push({jenis:'Location Control',judul:tu.length+' top up: '+tu.slice(0,4).map(t=>t.bin).join(', ')+(tu.length>4?' …':''),detail:'Top up rak cadangan ke rak utama',est:[],status:'Menunggu top up',menu:'wms-location',tgl:tu.map(t=>t.tanggal||'').sort()[0]||''});
+  const lt=view('LC_TASK').filter(t=>t.operator===who&&t.jenis!=='TU'&&!['OK','Selisih'].includes(t.status));
   if(lt.length){out.push({jenis:'Location Control',judul:lt.length+' bin: '+lt.slice(0,6).map(t=>t.bin).join(', ')+(lt.length>6?' …':''),detail:lt[0].jenis==='SO'?'Stok opname':'Cycle count',est:[['Hitung',V3.est.cc(lt.length*2)]],status:'Menunggu hitung',menu:'wms-location',tgl:lt.map(t=>t.tanggal||'').sort()[0]||''})}
   view('PROJECT').filter(p=>p.status==='Berjalan'&&String(p.peserta||'').split(',').includes(who)).forEach(p=>{const L=view('PROJECT_LOG').filter(l=>l.project===p.id),done=L.reduce((a,l)=>a+num(l.qty),0),rem=Math.max(0,num(p.target_qty)-done),ps=String(p.peserta).split(',').filter(Boolean).length||1;out.push({jenis:'Project',judul:p.judul,detail:rem+' '+p.satuan+' tersisa dari '+p.target_qty+(p.deadline?' · tenggat '+p.deadline:''),est:[['Sisa pekerjaan (bagian Anda)',rem*num(p.menit_per_satuan)/ps]],status:'Berjalan',menu:'project'})});
   return out}
