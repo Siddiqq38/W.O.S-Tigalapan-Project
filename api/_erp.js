@@ -56,20 +56,24 @@ function toSheetRows(p) {
     Object.keys(by).forEach((mrp) => {
       const its = by[mrp];
       const n = parseInt(String(k.koliNo || '').replace(/\D/g, ''), 10);
-      out.push({
-        id: rid + '|' + k.koliId + '|' + mrp,
-        tanggal: date,
-        resi_group: rid,
-        resi: resiClean(r.resiNo || rid),
-        ekspedisi: r.expedition || '',
-        vendor: (r.vendor && r.vendor.name) || '',
-        mrp,
-        no_koli: Number.isFinite(n) && n > 0 ? String(n) : String(k.koliNo || ''),
-        koli_erp: String(k.koliNo || ''),
-        items: JSON.stringify(its),
-        qty: String(its.reduce((a, x) => a + x.q, 0)),
-        hpp_total: String(Math.round(its.reduce((a, x) => a + x.q * x.h, 0))),
-        catatan: r.note || '',
+      // Satu baris = satu item dalam satu koli (koli berisi 3 item menjadi 3 baris dengan nomor koli sama).
+      // items = nama item, qty = qty item, hpp_total = qty x HPP per pcs (HPP per pcs = hpp_total / qty).
+      its.forEach((x, idx) => {
+        out.push({
+          id: rid + '|' + k.koliId + '|' + mrp + '|' + (idx + 1),
+          tanggal: date,
+          resi_group: rid,
+          resi: resiClean(r.resiNo || rid),
+          ekspedisi: r.expedition || '',
+          vendor: (r.vendor && r.vendor.name) || '',
+          mrp,
+          no_koli: Number.isFinite(n) && n > 0 ? String(n) : String(k.koliNo || ''),
+          koli_erp: String(k.koliNo || ''),
+          items: x.n,
+          qty: String(x.q),
+          hpp_total: String(Math.round(x.q * x.h)),
+          catatan: [r.note || '', x.k && x.k !== 'FG' ? x.k : '', x.e ? 'HPP estimasi' : ''].filter(Boolean).join(' | '),
+        });
       });
     });
   });

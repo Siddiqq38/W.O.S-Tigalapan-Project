@@ -2746,7 +2746,17 @@ init();
  let _splK='',_splV=[];
  const erpSplits=()=>{const a=view('PO_PECAH'),k=a.map(x=>x.id+'~'+x.koli_list).join('|');if(k!==_splK){_splK=k;_splV=a.map(x=>({id:x.id,asal:poKey(x.po_asal),baru:poKey(x.po_baru),set:parseKoli(x.koli_list),r:x}))}return _splV};
  const erpPoOf=r=>{const b=erpPoBase(r);if(!b)return '';const n=Number(r.no_koli),s=erpSplits().find(x=>x.asal===b&&x.set.has(n));return s?s.baru:b};
- const erpItems=r=>{try{const a=JSON.parse(r.items||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}};
+ // Isi koli dibaca dari kolom items dengan tiga bentuk: (1) JSON lama, (2) teks "NAMA xQTY @HPP~; NAMA xQTY @HPP" (satu sel banyak item),
+ // (3) format baru: SATU ITEM PER BARIS (items = nama item, qty = qty item, hpp_total = nilai HPP baris itu, HPP per pcs = hpp_total / qty).
+ const erpNum=s=>{const n=Number(String(s==null?'':s).replace(/[^0-9.,-]/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n};
+ const erpItems=r=>{const raw=String(r.items==null?'':r.items).trim();if(!raw)return[];
+  if(raw[0]==='['){try{const a=JSON.parse(raw);if(Array.isArray(a))return a}catch(e){}}
+  const out=[];let multi=false;
+  raw.split(';').map(s=>s.trim()).filter(Boolean).forEach(seg=>{const m=/^(.*?)\s+x\s*(\d+)(?:\s*@\s*([\d.,]+))?\s*(~)?$/i.exec(seg);if(m){multi=true;out.push({n:m[1].trim(),q:Number(m[2]),h:erpNum(m[3]),e:m[4]?1:0,k:'FG',s:''})}else out.push({n:seg,q:0,h:0,e:0,k:'FG',s:'',_p:1})});
+  if(!multi&&out.length===1){const q=erpNum(r.qty),t=erpNum(r.hpp_total),o=out[0];delete o._p;o.q=q;o.h=q>0&&t>0?t/q:0;return[o]}
+  return out.filter(x=>!x._p||x.q>0)};
+ // Semua baris dari satu koli (nomor koli sama dalam satu resi/PO) digabung, supaya satu koli berisi beberapa baris item tetap terbaca sebagai satu koli.
+ const erpKoliGroups=rows=>{const m=new Map();rows.forEach(r=>{const k=erpPoOf(r)+'|'+(r.resi_group||r.resi)+'|'+Number(r.no_koli),g=m.get(k)||m.set(k,{r,po:erpPoOf(r),no:Number(r.no_koli),its:[],rows:[]}).get(k);g.rows.push(r);erpItems(r).forEach(x=>g.its.push(x))});return[...m.values()]};
  const addDays=(d,n)=>{const t=Date.parse(String(d||'').slice(0,10)+'T00:00:00Z');return isNaN(t)?'':new Date(t+n*864e5).toISOString().slice(0,10)};
  function erpData(){
   const by={},un=[],seen={};
@@ -2804,7 +2814,7 @@ init();
  // Salin surat jalan (SJ_ITEM) dan HPP (HPP_ITEM) PO dari data ERP. Menambah / memperbarui saja, tidak menghapus baris yang sudah ada. Satu PO bisa datang lewat beberapa resi.
  function erpMaterialize(po){
   const rows=view('ERP_INCOMING').filter(r=>erpPoOf(r)===po),who=code(),now=today(),have=new Map(view('SJ_ITEM').filter(r=>poKey(r.po)===po).map(r=>[r.id,r])),all=new Map(have);
-  rows.forEach(r=>erpItems(r).forEach((x,i)=>{const id=po+'|'+r.no_koli+'|'+(i+1),old=have.get(id),row={id,tanggal:old?old.tanggal:now,po,no_koli:String(r.no_koli),seq:String(i+1),item:x.n,qty:String(x.q),tipe:x.k||'FG',tgl_kirim:r.tanggal,awb:r.resi,eta:'',diunggah_oleh:who};all.set(id,row);if(!old||old.item!==x.n||String(old.qty)!==String(x.q))enq('SJ_ITEM',row)}));
+  erpKoliGroups(rows).forEach(kg=>{const r=kg.r;kg.its.forEach((x,i)=>{const id=po+'|'+r.no_koli+'|'+(i+1),old=have.get(id),row={id,tanggal:old?old.tanggal:now,po,no_koli:String(r.no_koli),seq:String(i+1),item:x.n,qty:String(x.q),tipe:x.k||'FG',tgl_kirim:r.tanggal,awb:r.resi,eta:'',diunggah_oleh:who};all.set(id,row);if(!old||old.item!==x.n||String(old.qty)!==String(x.q))enq('SJ_ITEM',row)})});
   const agg={};rows.forEach(r=>erpItems(r).forEach(x=>{if(!(x.h>0)||!(x.q>0))return;const k=poKey(x.n),a=agg[k]||(agg[k]={item:x.n,jenis:x.k||'FG',q:0,v:0});a.q+=x.q;a.v+=x.q*x.h}));
   const hk=Object.keys(agg),hh=new Map(view('HPP_ITEM').filter(r=>poKey(r.po)===po).map(r=>[r.id,r]));
   hk.forEach(k=>{const a=agg[k],id=po+'|'+k,c=Math.round(a.v/a.q),old=hh.get(id);if(!old||Number(old.cogs)!==c||Number(old.qty)!==a.q)enq('HPP_ITEM',{id,tanggal:now,po,item:a.item,kategori:'',jenis:a.jenis,qty:String(a.q),cogs:String(c),diunggah_oleh:who})});
@@ -2815,7 +2825,7 @@ init();
  // Panel Lihat: rincian isi tiap koli (item, qty, HPP per item, subtotal) dari satu resi ERP, hanya baca.
  function openErpView(rg){
   const g=erpData().list.find(x=>x.rg===rg);if(!g)return;
-  const rows=view('ERP_INCOMING').filter(r=>(r.resi_group||r.resi)===rg).map(r=>({r,po:erpPoOf(r),its:erpItems(r),no:Number(r.no_koli)})).sort((a,b)=>a.po.localeCompare(b.po)||a.no-b.no);
+  const rows=erpKoliGroups(view('ERP_INCOMING').filter(r=>(r.resi_group||r.resi)===rg)).sort((a,b)=>a.po.localeCompare(b.po)||a.no-b.no);
   const got={};Object.values(g.pos).forEach(p=>{got[p.po]=new Set(p.all.filter(n=>!p.pend.includes(n)))});
   let tq=0,th=0,noH=0;
   const body=rows.map(x=>{const st=(got[x.po]&&got[x.po].has(x.no))?'<span class="tag green">Sudah datang</span>':'<span class="tag">Belum</span>';

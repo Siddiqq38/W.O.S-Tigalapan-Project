@@ -87,6 +87,17 @@ Tambahan di Vercel > Environment Variables:
 Pasang ulang skrip `docs/google-sheets/gudang/Code.gs`, jalankan **setup** sekali (membuat tab `ERP_INCOMING` dan kolom `erp_nama`
 di `MASTER_VENDOR`), lalu Deploy versi baru. Redeploy Vercel agar env terbaca.
 
+**Bentuk baris ERP_INCOMING (satu item satu baris).** Koli berisi 3 item = 3 baris dengan `resi_group`, `resi`, `mrp`, `no_koli` yang sama:
+
+| kolom | isi |
+| --- | --- |
+| `items` | satu nama item saja, mis. `SKY BLUE 24S PJG L` |
+| `qty` | qty item itu (bukan total koli) |
+| `hpp_total` | nilai HPP baris itu = qty x HPP per pcs (WOS menghitung HPP per pcs = `hpp_total` / `qty`) |
+| `id` | harus unik per baris, mis. `<resi>\|<koli>\|<mrp>\|<urutan>` |
+
+`api/_erp.js` sudah menulis format ini. WOS tetap bisa membaca dua bentuk lama (JSON, dan teks satu sel `NAMA xQTY @HPP; NAMA xQTY @HPP`, tanda `~` = HPP estimasi), tetapi ERP yang menulis langsung ke sheet sebaiknya memakai bentuk satu item satu baris.
+
 Aturan penerjemahan (di `api/_erp.js` dan `index.html`):
 - **Nomor resi**: awalan `AWB` dibuang (`AWB12345`, `AWB 12345` -> `12345`). Dasar incoming adalah resi, bukan PO.
 - **Kode PO** = awalan PO vendor (Master data > vendor > "Awalan kode PO", mis. `BY`) + nomor minggu MRP tanpa angka 0 di depan. Vendor BY + MRP `W40` = `BY40`; `W3` menjadi `BY3`. Untuk pola khusus tulis `{W}` sebagai tempat nomor minggu: `GI{W}-02` + `W3` = `GI3-02` (konveksi 02), `GI` saja + `W39` = `GI39`.
