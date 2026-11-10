@@ -3989,9 +3989,13 @@ init();
   aux.load=load;aux.ok=true;aux.at=Date.now();fin()}
  // bin palet (LP): kelipatan 100 pcs (lengan pendek) atau 75 pcs (lengan panjang); sisa yang bukan kelipatan diambil dari rak, utamakan PO yang sama atau put away terdekat
  const palletOf=item=>isPjg(item)?75:100,isLP=b=>/^LP/i.test(String(b||''));
+ // Rak cadangan (bin L/R, blok E: bin 1 dan 2) tidak masuk rekomendasi picking karena perlu tangga; stoknya di-top up dulu ke rak utama. Pallet (LP) tetap boleh dipicking.
+ const isRes=id=>{const m=/^([A-Z]+)(\d+)\.(\w+)$/.exec(String(id||'').trim().toUpperCase());return !!m&&m[1].length===1&&(/^[LR]$/.test(m[3])||(m[1]==='E'&&/^[12]$/.test(m[3])))};
+ const resHint=c=>{const r=c.filter(x=>isRes(x.bin||(x.c&&x.c.bin))&&x.free>0);return r.length?'Top up dari '+r.map(x=>x.bin+' ('+x.free+')').join(', ')+' (rak utama kosong)':''};
  const dayN=a=>{const t=Date.parse(String(a||'').slice(0,10)+'T00:00:00');return isNaN(t)?9e12:t/864e5};
  const poOfBin=(r,item)=>{try{const L=(LY.map.get(r.bin+'|'+U(r.sku||item))||[]).find(l=>l.qty>0);return L?L.po:''}catch(e){return ''}};
  function allocBins(c,need,item){
+  c=c.filter(r=>!isRes(r.bin));
   const m=palletOf(item),out=[],take=(r,t)=>{if(!(t>0))return;const o=out.find(x=>x.c===r);if(o)o.t+=t;else out.push({c:r,t});need-=t},had=r=>r.free-(out.find(x=>x.c===r)||{t:0}).t;
   c.filter(r=>isLP(r.bin)&&r.free>0).forEach(r=>{if(need<m)return;take(r,Math.floor(Math.min(need,r.free)/m)*m)});
   if(need>0){const lp=out[0]&&out[0].c,refAwal=dayN(lp?lp.awal:(c[0]&&c[0].awal)),refPo=lp?poOfBin(lp,item):'';
@@ -4003,8 +4007,8 @@ init();
  function prevBins(l){
   const key=normB(l.item),reserved={};view('PICK_ITEM').filter(r=>edit&&r.dok!==edit.dok&&r.status==='Menunggu').forEach(r=>{const k=r.bin+'|'+r.sku;reserved[k]=(reserved[k]||0)+num(r.qty)});
   const c=aux.stok.filter(r=>normB(r.sku||r.item)===key&&!A.binLocked(r.bin)).map(r=>({bin:r.bin,free:num(r.saldo)-(reserved[r.bin+'|'+r.sku]||0),awal:r.awal||''})).filter(r=>r.free>0).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||nat(a.bin,b.bin));
-  const parts=(l.parts&&l.parts.length?l.parts.map(p=>num(p.qty)):[l.qty]),agg=new Map();let short=0;parts.forEach(q=>{const a=allocBins(c,q,l.item);a.out.forEach(x=>{x.c.free-=x.t;agg.set(x.c.bin,(agg.get(x.c.bin)||0)+x.t)});short+=a.short});return{bins:[...agg].map(([bin,qty])=>({bin,qty})),short}}
- const binTxt=l=>{if(!aux.ok)return '<span class="sub">memuat…</span>';if(l.manual&&!l.pv.bins.length)return '<span class="sub">tanpa stok bin</span>';return l.pv.bins.map(b=>'<b>'+esc(b.bin)+'</b> '+b.qty).join('<br>')+(l.pv.short>0?'<br><span style="color:#b3261e">stok kurang '+l.pv.short+'</span>':'')};
+  const parts=(l.parts&&l.parts.length?l.parts.map(p=>num(p.qty)):[l.qty]),agg=new Map();let short=0;parts.forEach(q=>{const a=allocBins(c,q,l.item);a.out.forEach(x=>{x.c.free-=x.t;agg.set(x.c.bin,(agg.get(x.c.bin)||0)+x.t)});short+=a.short});return{bins:[...agg].map(([bin,qty])=>({bin,qty})),short,top:short>0?c.filter(r=>isRes(r.bin)&&r.free>0):[]}}
+ const binTxt=l=>{if(!aux.ok)return '<span class="sub">memuat…</span>';if(l.manual&&!l.pv.bins.length)return '<span class="sub">tanpa stok bin</span>';return l.pv.bins.map(b=>'<b>'+esc(b.bin)+'</b> '+b.qty).join('<br>')+(l.pv.short>0?'<br><span style="color:#b3261e">stok kurang '+l.pv.short+'</span>'+(l.pv.top&&l.pv.top.length?'<br><span class="tag amber">Top up dari '+l.pv.top.map(r=>'<b>'+esc(r.bin)+'</b> ('+r.free+')').join(', ')+' (rak utama kosong)</span>':''):'')};
  function openEdit(dok){
   const items=itemsOf(dok),by=new Map();
   items.sort((a,b)=>lineNo(a)[0]-lineNo(b)[0]||lineNo(a)[1]-lineNo(b)[1]||lineNo(a)[2]-lineNo(b)[2]).forEach(r=>{const b=lineBase(r.id);let l=by.get(b);if(!l){l={id:b,item:r.item,kat:r.kategori,ket:r.ket,qty:num(r.soq),manual:r.kategori==='MANUAL',parts:[]};by.set(b,l)}
@@ -4076,7 +4080,7 @@ init();
    e.lines.forEach(l=>{const key=normB(l.item),c=stock.filter(r=>r.key===key).sort((a,b)=>String(a.awal||'~').localeCompare(String(b.awal||'~'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
     [...l.parts].sort((a,b)=>num(a.koli)-num(b.koli)).forEach((p,pi)=>{let need=num(p.qty),n=0;const pid=l.id+'|P'+(pi+1),base={tanggal:d.tanggal,dok:e.dok,outlet:d.outlet,item:l.item,kategori:l.manual?'MANUAL':l.kat,soq:String(l.qty),ket:l.ket,koli:String(p.koli),status:'Menunggu'};
      allocBins(c,need,l.item).out.forEach(a=>{a.c.free-=a.t;need-=a.t;rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:a.c.sku,bin:a.c.bin,qty:String(a.t)}));n++});
-     if(need>0){rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:'',bin:'',qty:String(need),ket_pick:l.manual&&!c.length?'Item manual (tanpa stok bin)':'Stok tidak cukup di bin manapun'}));if(!(l.manual&&!c.length))short.push(l.item+' kurang '+need)}})});
+     if(need>0){rows.push(Object.assign({},base,{id:n?pid+'|'+n:pid,sku:'',bin:'',qty:String(need),ket_pick:l.manual&&!c.length?'Item manual (tanpa stok bin)':(resHint(c)||'Stok tidak cukup di bin manapun')}));if(!(l.manual&&!c.length))short.push(l.item+' kurang '+need)}})});
    rows.forEach(r=>enq('PICK_ITEM',r));
    ks.forEach(k=>{const p=e.pk[k],tid='TP-'+Math.random().toString(36).slice(2,8);
     enq('PICK_KOLI',{id:e.dok+'|K'+k,tanggal:d.tanggal,dok:e.dok,koli:String(k),picker:p,picker_nama:nameOf(p),status:'Ditugaskan',task_id:tid,mulai:'',selesai:'',vp_oleh:'',vp_selesai:''});
@@ -4200,7 +4204,7 @@ init();
    groups.forEach((rs,base)=>{const first=rs[0],need0=rs.reduce((a,r)=>a+num(r.qty),0),c=stock.filter(r=>r.key===normB(first.item)).sort((a,b)=>String(a.awal||'zz').localeCompare(String(b.awal||'zz'))||String(a.bin).localeCompare(String(b.bin),'id',{numeric:true}));
     let need=need0,n=0;const out=[],blank={status:'Menunggu',bin_actual:'',qty_actual:'',ket_pick:''};
     allocBins(c,need,first.item).out.forEach(a=>{a.c.free-=a.t;need-=a.t;out.push(Object.assign({},first,blank,{id:n?base+'|'+n:base,sku:a.c.sku,bin:a.c.bin,qty:String(a.t)}));n++});
-    if(need>0){out.push(Object.assign({},first,blank,{id:n?base+'|'+n:base,sku:'',bin:'',qty:String(need),ket_pick:'Stok tidak cukup di bin manapun'}));short.push(first.item+' kurang '+need)}
+    if(need>0){out.push(Object.assign({},first,blank,{id:n?base+'|'+n:base,sku:'',bin:'',qty:String(need),ket_pick:resHint(c)||'Stok tidak cukup di bin manapun'}));short.push(first.item+' kurang '+need)}
     const sig=a=>a.map(r=>r.id+'|'+r.bin+'|'+r.qty).sort().join(';');if(sig(out)===sig(rs))return;
     rs.forEach(r=>enqDel('PICK_ITEM',r.id));out.forEach(o=>enq('PICK_ITEM',o));ch++});
    say(ch?ch+' item diperbarui rekomendasi bin-nya.'+(short.length?' Stok kurang: '+short.join('; ')+'.':''):'Rekomendasi bin sudah sesuai, tidak ada yang berubah.',short.length>0)}
@@ -5087,10 +5091,28 @@ init();
   delete cnt[t.id];cur=null;say(status==='OK'?'Bin '+t.bin+' sesuai. Terima kasih.':status==='Hitung ulang'?'Ada selisih. Bin '+t.bin+' perlu dihitung ulang (ketuk lagi bin ini).':'Selisih tetap. Diajukan ke SPV di tab Adjustment.',status!=='OK')}
 
  // ---- internal move
+ // ---- rekomendasi top up: rak cadangan (bin L/R, atau bin 1-2 di blok E) dan pallet (LP) -> rak utama (nomor 1..terakhir, blok E: 3..terakhir)
+ const binP=id=>{if(/^LP/i.test(String(id||'').trim()))return{blk:'LP',rack:'',pos:'',lp:true,res:false,main:false};const m=/^([A-Z]+)(\d+)\.(\w+)$/.exec(U(id));if(!m)return null;const blk=m[1],pos=m[3],lp=blk.length>1,res=!lp&&(/^[LR]$/.test(pos)||(blk==='E'&&/^[12]$/.test(pos)));return{blk,rack:m[2],pos,lp,res,main:!lp&&!res&&/^\d+$/.test(pos)}};
+ // item ini memang ada di pallet sebagai stok picking (boleh dipicking dari pallet), jadi pallet bukan sumber top up. Item lain: pallet = stok cadangan.
+ const FASTITEM=/(^|\s)(HITAM|NAVY|PUTIH|MERAH CABE)\s+24S(\s|$)|GOODIE\s*BAG|TOTE\s*BAG|TOTEBAG/i,TOP_LOW=10;
+ function topupRecs(){
+  const M=oh().map,byBin=oh().byBin,src=new Map(),out=[];
+  M.forEach(o=>{if(!(o.qty>0)||isLockedBin(o.bin))return;const p=binP(o.bin);if(!p)return;if(p.res||(p.lp&&!FASTITEM.test(o.item||o.sku))){const k=U(o.sku);(src.get(k)||src.set(k,[]).get(k)).push({o,p})}});
+  if(!src.size)return out;
+  M.forEach(t=>{const p=binP(t.bin);if(!p||!p.main||isLockedBin(t.bin)||t.qty>TOP_LOW)return;const ss=src.get(U(t.sku));if(!ss)return;
+   if((byBin.get(t.bin)||[]).some(x=>U(x.sku)!==U(t.sku)&&x.qty>TOP_LOW))return;
+   const c=ss.filter(s=>s.p.lp||s.p.blk===p.blk).map(s=>({s,sc:s.p.lp?2:(s.p.rack===p.rack?0:1)})).sort((a,b)=>a.sc-b.sc||String(a.s.o.awal||'~').localeCompare(String(b.s.o.awal||'~'))||cmpBin(a.s.o.bin,b.s.o.bin));
+   if(c.length)out.push({t,empty:!(t.qty>0),best:c[0].s,alts:c.slice(1,4).map(x=>x.s)})});
+  return out.sort((a,b)=>(b.empty-a.empty)||cmpBin(a.t.bin,b.t.bin))}
+ function topupCard(){
+  const R=topupRecs();
+  return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Rekomendasi top up (rak cadangan &rarr; rak utama)</h3><p class="sub">Rak utama = bin bernomor (blok E: nomor 3 dst). Rak cadangan = bin L dan R (blok E: bin 1 dan 2) serta pallet (LP) untuk item selain HITAM/NAVY/PUTIH/MERAH CABE 24S, goodie bag, dan totebag. Muncul bila stok item di rak utama kosong atau tinggal '+TOP_LOW+' pcs atau kurang. Tombol Top up mengisi form di bawah, qty bisa diubah sebelum disimpan.</p>'+
+  (R.length?'<div style="overflow:auto"><table><thead><tr><th>Item</th><th>Rak utama</th><th>Ambil dari</th><th></th></tr></thead><tbody>'+R.slice(0,80).map(r=>{const b=r.best,jenis=b.p.lp?'Pallet':'Rak cadangan';
+   return '<tr><td>'+esc(r.t.item)+'</td><td><b>'+esc(r.t.bin)+'</b><br><span class="tag '+(r.empty?'red':'amber')+'">'+(r.empty?'Kosong':'Tinggal '+r.t.qty+' pcs')+'</span></td><td><b>'+esc(b.o.bin)+'</b> <span class="sub">'+jenis+' &middot; '+b.o.qty+' pcs'+(b.o.awal?' &middot; masuk '+esc(String(b.o.awal).slice(0,10)):'')+'</span>'+(r.alts.length?'<br><span class="sub">Alternatif: '+r.alts.map(a=>esc(a.o.bin)+' ('+a.o.qty+')').join(', ')+'</span>':'')+'</td><td><button class="button" data-lctop="'+esc(b.o.bin+'|'+b.o.sku+'|'+r.t.bin+'|'+b.o.qty)+'" type="button">Top up</button></td></tr>'}).join('')+'</tbody></table></div>'+(R.length>80?'<p class="sub">Menampilkan 80 dari '+R.length+' rekomendasi.</p>':''):'<p class="sub">Belum ada rak utama yang perlu top up.</p>')+'</div>'}
  function drawMove(){
   loadMoves();const binsStock=[...oh().byBin.keys()].sort(cmpBin),from=U(mv.from),items=(oh().byBin.get(from)||[]),sel=items.find(o=>U(o.sku)===U(mv.sku))||(items.length===1?items[0]:null),to=U(mv.to);
   const toItems=(oh().byBin.get(to)||[]),warn=to&&sel&&toItems.length&&!toItems.some(o=>U(o.sku)===U(sel.sku))?'Bin tujuan berisi item lain: '+toItems.map(o=>o.item+' '+o.qty).join(', ')+'. Pastikan memang boleh digabung.':'';
-  let h='<div class="card"><h3 style="margin:0">Form internal move</h3><p class="sub">Pindahkan barang dari satu bin ke bin lain. Stok bin asal berkurang dan bin tujuan bertambah, umur FIFO barang tetap dibawa.</p><datalist id="lc-sbins">'+binsStock.map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist><datalist id="lc-abins">'+masterBins().map(b=>b.id).sort(cmpBin).slice(0,3000).map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist>'+
+  let h=topupCard()+'<div class="card"><h3 style="margin:0">Form internal move</h3><p class="sub">Pindahkan barang dari satu bin ke bin lain. Stok bin asal berkurang dan bin tujuan bertambah, umur FIFO barang tetap dibawa.</p><datalist id="lc-sbins">'+binsStock.map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist><datalist id="lc-abins">'+masterBins().map(b=>b.id).sort(cmpBin).slice(0,3000).map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist>'+
   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"><label class="sub">Bin asal<input data-lcmv="from" list="lc-sbins" value="'+esc(mv.from)+'" placeholder="Contoh A1.1" style="width:100%"></label>'+
   '<label class="sub">Item<select data-lcmv="sku" style="width:100%"><option value="">'+(items.length?'Pilih item':'(isi bin asal dulu)')+'</option>'+items.map(o=>'<option value="'+esc(o.sku)+'"'+(sel&&sel.sku===o.sku?' selected':'')+'>'+esc(o.item)+' · on hand '+o.qty+'</option>').join('')+'</select></label>'+
   '<label class="sub">Qty dipindah'+(sel?' (maks '+sel.qty+')':'')+'<input data-lcmv="qty" type="number" min="1" inputmode="numeric" value="'+esc(mv.qty)+'" style="width:100%"></label>'+
@@ -5175,6 +5197,7 @@ init();
   if(d.lcclr){selRacks=[];selBin='';draw();return}
   if(d.lcmode){mapMode=d.lcmode;draw();return}
   if(d.lcrot!=null){ry=d.lcrot==='0'?-28:ry+Number(d.lcrot);document.querySelectorAll('.lc-scene').forEach(s=>{s.style.transform='rotateX(-12deg) rotateY('+ry+'deg)'});return}
+  if(d.lctop){const [f,s,t,q]=d.lctop.split('|');mv={from:f,sku:s,qty:q,to:t,alasan:'Replenish'};draw();return}
   if(d.lcmove){mv.from=d.lcmove;mv.sku='';tabName='Internal Move';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lcadj){adjForm.bin=d.lcadj;adjForm.sku='';tabName='Adjustment';document.querySelectorAll('[data-ph="wms-location"] [data-p]').forEach(x=>x.classList.toggle('active',x.dataset.p===tabName));draw();return}
   if(d.lctask){const m=G.modal('<h3>Task hitung bin '+esc(d.lctask)+'</h3><label style="font-weight:600">Operator</label>'+opSelect('lc-mop')+'<div class="ob-actions" style="margin-top:10px"><button class="button" id="lc-mok" type="button">Buat task cycle count</button><button class="button secondary" id="lc-mx" type="button">Batal</button></div>');m.querySelector('#lc-mx').onclick=()=>m.remove();m.querySelector('#lc-mok').onclick=()=>{const op=m.querySelector('#lc-mop').value;if(!op)return;mkTask(d.lctask,'CC',op);m.remove();say('Task cycle count bin '+d.lctask+' dibuat.')};return}
