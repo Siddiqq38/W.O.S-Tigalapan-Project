@@ -1151,7 +1151,8 @@ if(typeof document!=='undefined') (()=>{
 "PPICAN":{name:"FATAHILLAH JR",level:"PPICV",label:"PPIC (monitor)",h:"17d4707ef1dd305fb891f1673202fd5a012486b02c91d676a668b65e2291de9b"},"PPIC-38":{name:"PPIC DC 38",level:"PPIC",label:"PPIC",h:"9cf33d53c4c6e72be204ded593fb276fa59a7d71c1e20d2e2dc02a3f2c398be9"},
 "HRD-38":{name:"HRD DC 38",level:"HRD",label:"HRD",h:"239e484169761d28d2eee5e9f9b6d4566c04e71a104ffe73519baf398014ca96"},
 "PROD-38":{name:"ADMIN PRODUKSI",level:"PROD",label:"Admin Produksi",h:"c326d77a62d285b2824d616df9de9bd75ecd1abdb669d915b12c8d1c5d041b3f"},
-"FAT-38":{name:"FAT",level:"FAT",label:"FAT",h:"9008469aca0a193f87ad0c4b5877503c6cdf5c5e9fc136d9a00df19286e6e7b6"}};
+"FAT-38":{name:"FAT",level:"FAT",label:"FAT",h:"9008469aca0a193f87ad0c4b5877503c6cdf5c5e9fc136d9a00df19286e6e7b6"},
+"TLI100243":{name:"DWI PHILLIDA",level:"PURCH",label:"Admin Purchasing",h:"46cb558aee81c90e3e2e6c34466a17c172197fa3ee90e89b87a0c96927109b81"}};
 </script>
 <script>
 (()=>{
@@ -1162,7 +1163,7 @@ const sm=()=>{try{return staffMaster}catch(e){return{}}};
 const MASTER_HASH='f8f83405f4b975412db5fd937d5896eadb1c31c07ed81d782a406e3b3a64c700',MASTER_CODE='W999';
 const CODEKEY='wos-session-code',IMPKEY='wos-impersonator',CREDKEY='wos-credentials-v1';
 const LEVEL_OF=role=>role==='Supervisor'?'SPV':role==='Admin'?'ADMIN':'OPERATOR';
-const ALIAS={SPV:'supervisor',SPVO:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',PPICV:'ppicv',HRD:'hrd',PROD:'prod',FAT:'fat',PRDM:'prdm'};
+const ALIAS={SPV:'supervisor',SPVO:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',PPICV:'ppicv',HRD:'hrd',PROD:'prod',FAT:'fat',PRDM:'prdm',PURCH:'purch'};
 const ACC=window.WOS_ACC||{};
 const TEMP_ADMIN={W28:{day:'2026-10-24',scope:'outbound',label:'Admin Outbound (pengganti)'}}; // pengganti sementara: berlaku hanya pada tanggal tersebut
 const buildAccount=code=>{if(ACC[code])return{code,level:ACC[code].level,label:ACC[code].label,outlet:ACC[code].outlet||''};const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);{const ta=TEMP_ADMIN[code];if(ta&&level==='OPERATOR'&&ta.day===new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'}))return{code,level:'ADMIN',label:ta.label,tmp:ta.scope}}return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?(p.gm?'General Manager':'Manager'):level==='ADMIN'?'Admin':'Operator'}};
@@ -1174,7 +1175,7 @@ const ALL_PAGES=['dashboard','attendance','tugas','evaluasi','tracksearch','anal
 // Modul yang di-hold: assignment dan inbound/outbound berpindah ke WMS (WOS fokus attendance, compliance, productivity). Kode tetap ada; hapus dari daftar ini untuk membukanya lagi.
 
 const HOLD_PAGES=[];
-const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','tracksearch','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance','tracksearch'],STORE:['tracksearch','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory','tracksearch'],PPICV:['wms-inbound','wms-outbound','tracksearch'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['dashboard','wms-inbound','wms-outbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['dashboard','analysis','tracksearch','wms-inbound','wms-outbound'],SPVO:['dashboard','wms-location','wms-outbound','wms-inventory','tracksearch','analysis']};
+const PAGES={SPV:ALL_PAGES,MANAGER:['dashboard','attendance','tugas','evaluasi','tracksearch','analysis','performance','project','kaskecil','trip','wms-inbound','wms-location','wms-outbound','wms-inventory','compliance','coaching'],ADMIN:['dashboard','attendance','tugas','project','kaskecil','trip','compliance','tracksearch'],STORE:['tracksearch','wms-outbound'],PPIC:['wms-inbound','wms-outbound','wms-inventory','tracksearch'],PPICV:['wms-inbound','wms-outbound','tracksearch'],HRD:['dashboard','attendance','analysis','performance','compliance','coaching','project','master','evaluasi'],PROD:['dashboard','wms-inbound','wms-outbound'],FAT:['wms-inbound','wms-inventory'],PRDM:['dashboard','analysis','tracksearch','wms-inbound','wms-outbound'],SPVO:['dashboard','wms-location','wms-outbound','wms-inventory','tracksearch','analysis'],PURCH:['dashboard','analysis','wms-inventory','wms-inbound']};
 // SPV Operational (terbatas): menu ini tampil tetapi terkunci (tidak bisa diklik); Coaching dan Evaluasi tidak ditampilkan sama sekali
 const LOCKED_PAGES={SPVO:['attendance','tugas','compliance','project','kaskecil','trip','wms-inbound','performance','master','access']};
 const PERAN=[['Picker','Picker (Outbound)','outbound'],['Checker','Checker (Outbound · CPSL 1)','outbound'],['Packer','Packer (Outbound · CPSL 2)','outbound'],['Driver','Driver (Outbound)','outbound'],['Inbound','Inbound (Counting / Put away)','inbound'],['Storage','Storage Control','storage'],['Other','Other','other']];
@@ -2340,7 +2341,7 @@ init();
  // hak akses tab WMS per level akun (operator tetap mengikuti perannya)
  const allowTab=(page,name)=>{const lv=level();if(lv==='supervisor'||lv==='admin'||lv==='operator')return true;
   if(lv==='ppicv')return page==='wms-inbound'||page==='wms-outbound';
-  if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In','Tracking'].includes(name);if(lv==='prdm')return ['Incoming','Staging In','Counting','Tracking','Defect Handling','Laporan Kesesuaian'].includes(name);if(lv==='prod')return ['Staging In','Counting','Defect Handling','Laporan Kesesuaian'].includes(name);if(lv==='fat')return name==='Staging In';return false}
+  if(page==='wms-inbound'){if(lv==='ppic')return ['Incoming','Staging In','Tracking'].includes(name);if(lv==='prdm')return ['Incoming','Staging In','Counting','Tracking','Defect Handling','Laporan Kesesuaian'].includes(name);if(lv==='prod')return ['Staging In','Counting','Defect Handling','Laporan Kesesuaian'].includes(name);if(lv==='fat')return name==='Staging In';if(lv==='purch')return name==='Laporan Kesesuaian';return false}
   if(page==='wms-outbound'){if(lv==='ppic')return ['Picking List','Picking','Verification Pick','Transfer Stok (TFS ke MOKA)','Packing & Staging','Loading','Shipping'].includes(name);if(lv==='prdm'||lv==='prod')return ['Picking List','Shipping'].includes(name);if(lv==='store')return ['Shipping','Receiving Outlet','GR Outlet','Miss-Picking'].includes(name);return false}
   return false};
  const canSJ=()=>canAdmin()||level()==='prod'||level()==='prdm'||level()==='ppicv',canHPP=()=>canAdmin()||level()==='fat';
@@ -5893,7 +5894,7 @@ init();
  const TABSUI=['Rekap Presensi','Inbound vs Outbound','Vendor','Supply Toko','Item','Utilisasi','Tim','Ekspedisi','Kehadiran'];
  const RNG=()=>window.WOSRng,quick={'Today':'today','This Week':'week','This Month':'month','This Year':'year'};
  function syncRng(){const R=RNG();if(!R)return false;if(st._rv===R.ver())return false;const g=R.get();st.from=g.from;st.to=g.to;st.group=g.p==='year'?'bulan':g.group;st._rv=R.ver();return true}
- const anLim=()=>document.documentElement.dataset.wosRole==='SPVO',anOk=t=>!anLim()||t==='Inbound vs Outbound';
+ const anLim=()=>document.documentElement.dataset.wosRole==='SPVO',anOk=t=>document.documentElement.dataset.wosRole==='PURCH'?['Inbound vs Outbound','Vendor','Ekspedisi'].includes(t):(!anLim()||t==='Inbound vs Outbound');
  const tabsRow=()=>'<div class="filters" style="margin-bottom:10px">'+TABSUI.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-antab="'+t+'" type="button"'+(anOk(t)?'':' disabled title="Tidak tersedia untuk akun ini" style="opacity:.45;cursor:not-allowed"')+'>'+t+(anOk(t)?'':' 🔒')+'</button>').join('')+'</div>';
  function bar(){return tabsRow()+'<div class="an-bar"><div class="an-rng">'+Object.keys(quick).map(k=>'<button data-anq="'+k+'" class="'+(RNG()&&RNG().get().p===quick[k]?'on':'')+'" type="button">'+k+'</button>').join('')+'</div><label class="sub" style="margin:0">Dari <input type="date" data-anf="from" value="'+st.from+'"></label><label class="sub" style="margin:0">Sampai <input type="date" data-anf="to" value="'+st.to+'"></label><label class="sub" style="margin:0">Kelompok <select data-anf="group">'+['hari','minggu','bulan','tahun'].map(x=>'<option'+(st.group===x?' selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'}
  function compute(){
