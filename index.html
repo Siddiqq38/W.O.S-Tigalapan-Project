@@ -5922,7 +5922,9 @@ init();
  // ----- Vendor -----
  function tabVendor(m,B){
   const V={};
-  const ven=po=>vendorOfPo(po)||'(tanpa vendor)';
+  // nama vendor yang sebenarnya satu vendor digabung di laporan (nama kiri -> nama yang ditampilkan)
+  const VALIAS={'ARTA':'ARTRAHOOD','ARTHA':'ARTRAHOOD','ARTAHOOD':'ARTRAHOOD'};
+  const ven=po=>{const v=vendorOfPo(po)||'(tanpa vendor)';return VALIAS[String(v).trim().toUpperCase()]||v};
   m.GC.forEach(r=>{const v=ven(r.po),o=V[v]||(V[v]={v,s:B.keys.map(()=>0),pos:new Set(),lines:0,ok:0,pcsSJ:0,pcsAct:0,badPo:new Set(),koli:0,badKoli:0,first:{}});const i=B.idx(r.tanggal);if(i>=0)o.s[i]+=num(r.qty_actual);o.pos.add(r.po);o.lines++;if(r.status==='Sesuai')o.ok++;else o.badPo.add(r.po);o.pcsSJ+=num(r.qty_sj);o.pcsAct+=num(r.qty_actual)});
   m.K.forEach(r=>{const v=ven(r.po),o=V[v]||(V[v]={v,s:B.keys.map(()=>0),pos:new Set(),lines:0,ok:0,pcsSJ:0,pcsAct:0,badPo:new Set(),koli:0,badKoli:0,first:{}});o.koli++;o.pos.add(r.po);if(/Bermasalah|Masalah/.test(r.status)){o.badKoli++;o.badPo.add(r.po)}if(!o.first[r.po]||r.tanggal<o.first[r.po])o.first[r.po]=r.tanggal});
   const eta={};R('SJ_ITEM').forEach(r=>{if(!eta[r.po])eta[r.po]=parseEta(r.eta)});
