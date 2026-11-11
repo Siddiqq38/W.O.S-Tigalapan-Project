@@ -3712,9 +3712,31 @@ init();
    const n=new Set(view('PUTAWAY').filter(p=>poKey(p.po)===po).map(p=>U(p.item))).size,now=stIso();
    taskEdit(arr=>{to.forEach(c=>{const id='DE-'+po+'-'+c;if(!arr.some(t=>t.id===id))arr.push({id,day:today(),at:now,title:'Data Entry MOKA PO '+po,qty:(n||'')+' item',by:'SISTEM',to:c,status:'baru',kind:'de'})})})}catch(e){}}
  function deDoneCheck(po){
-  try{const d=entryData(po),done=new Set(view('DATA_ENTRY').filter(r=>poKey(r.po)===po).map(r=>norm(r.item)));if(!d.length||!d.every(x=>done.has(norm(x.item))))return;
+  try{const d=entryData(po),done=new Set(view('DATA_ENTRY').filter(r=>poKey(r.po)===po).map(r=>norm(r.item)));if(!(d.length&&d.every(x=>done.has(norm(x.item))))&&!dePoDone(po))return;
    taskEdit(arr=>{arr.forEach(t=>{if(String(t.id).indexOf('DE-'+po+'-')===0&&t.status!=='selesai'){t.status='selesai';t.doneAt=stIso()}})})}catch(e){}}
  function deMark(x,on){const id=entryPo+'|'+norm(x.item);if(on)enq('DATA_ENTRY',{id,tanggal:today(),po:entryPo,item:x.item,qty:String(x.qty),oleh:code(),jam:stIso()});else enqDel('DATA_ENTRY',id);if(on)deDoneCheck(entryPo)}
+ // ---- Data Entry per koli (tampilan seperti Transfer Stok): ilustrasi koli, isi koli untuk disalin ke MOKA, tanda selesai per koli, Done PO dan keterangan.
+ // Disimpan di tab DATA_ENTRY dengan id khusus: DEK|PO|nomor koli (koli selesai), DEP|PO (Done PO manual), DEN|PO (keterangan PO di kolom item).
+ let deK=0;
+ const deKoliNos=po=>[...new Set(view('PUTAWAY').filter(p=>poKey(p.po)===po).map(p=>Number(p.no_koli)||0).filter(Boolean))].sort((a,b)=>a-b);
+ const deKRows=po=>view('DATA_ENTRY').filter(r=>poKey(r.po)===po&&/^DEK\|/.test(r.id));
+ const deKDone=po=>new Set(deKRows(po).map(r=>Number(String(r.id).split('|').pop())));
+ const dePoDone=po=>{const k=deKoliNos(po),d=deKDone(po);return view('DATA_ENTRY').some(r=>r.id==='DEP|'+po)||(k.length>0&&k.every(n=>d.has(n)))};
+ const deNote=po=>{const r=view('DATA_ENTRY').find(x=>x.id==='DEN|'+po);return r?String(r.item||''):''};
+ function deKoliCard(){
+  if(!entryPo)return '';const po=entryPo,ks=deKoliNos(po),dn=deKDone(po),pd=dePoDone(po),adm=canAdmin();
+  const ed=new Map(entryData(po).map(x=>[norm(x.item),x]));
+  let h='<div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">Koli PO '+esc(po)+(pd?' <span class="tag green">&#10003; Done PO</span>':'')+'</h3><span class="sub">'+dn.size+' dari '+ks.length+' koli selesai di-entry</span></div>'+
+   '<p class="sub">Ketuk koli untuk melihat isinya, salin Item dan Qty ke MOKA, lalu centang <b>sudah di-entry</b>. Hijau = selesai. Bila semua koli selesai, PO otomatis Done.</p>';
+  h+=ks.length?'<div class="kl">'+ks.map(n=>'<button type="button" class="kb '+(dn.has(n)?'ok':'')+'" data-gdek="'+n+'" title="'+(dn.has(n)?'Sudah di-entry':'Belum di-entry')+'"'+(deK===n?' style="outline:3px solid #2f7bd6"':'')+'>'+n+(dn.has(n)?' &#10003;':'')+'</button>').join('')+'</div>':'<p class="sub">Belum ada koli yang selesai put away untuk PO ini.</p>';
+  if(deK&&ks.includes(deK)){
+   const agg={};view('PUTAWAY').filter(p=>poKey(p.po)===po&&Number(p.no_koli)===deK).forEach(p=>{const k=norm(p.item),o=agg[k]||(agg[k]={item:p.item,qty:0});o.qty+=num(p.qty)});
+   const L=Object.values(agg).sort((a,b)=>a.item.localeCompare(b.item)),done=dn.has(deK);
+   h+='<div style="margin-top:12px;padding:10px;border:1px solid #d8dee9;border-radius:10px"><b>Koli '+deK+'</b> <span class="sub">'+L.length+' item &middot; '+L.reduce((a,x)=>a+x.qty,0)+' pcs</span>'+
+    '<div style="overflow:auto"><table style="width:auto;min-width:420px;margin-top:6px"><thead><tr><th>No</th><th>Item</th><th>Qty</th><th>COGS</th><th>MOKA</th></tr></thead><tbody>'+L.map((x,i)=>{const e=ed.get(norm(x.item));return '<tr><td>'+(i+1)+'</td><td>'+esc(x.item)+' <button class="button secondary" type="button" data-gdecp="'+esc(x.item)+'" style="padding:2px 8px" title="Salin item">&#128203;</button></td><td><b>'+x.qty+'</b> <button class="button secondary" type="button" data-gdecp="'+x.qty+'" style="padding:2px 8px" title="Salin qty">&#128203;</button></td><td>'+(e&&e.cogs?Math.round(e.cogs).toLocaleString('id-ID'):'<span class="tag red">kosong</span>')+'</td><td>'+(e&&e.moka?'<span class="tag green">ada</span>':'<span class="tag red">tidak ada</span>')+'</td></tr>'}).join('')+'</tbody></table></div>'+
+    '<label style="font-weight:600;display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" data-gdekd="'+deK+'"'+(done?' checked':'')+'> Koli ini sudah di-entry ke MOKA</label>'+(done?'<p class="sub" style="margin:4px 0 0">Selesai oleh '+esc((deKRows(po).find(r=>Number(String(r.id).split("|").pop())===deK)||{}).oleh||'')+'.</p>':'')+'</div>'}
+  h+='<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label class="sub" style="flex:1;min-width:220px">Keterangan PO (opsional)<input id="gr-denote" value="'+esc(deNote(po))+'" placeholder="Contoh: sebagian item belum ada di MOKA" style="display:block;width:100%"></label><button class="button secondary" data-gdenote="1" type="button">Simpan keterangan</button>'+(adm&&!pd?'<button class="button" data-gdepo="1" type="button">Tandai Done PO</button>':'')+(adm&&view('DATA_ENTRY').some(r=>r.id==='DEP|'+po)?'<button class="button secondary" data-gdepo="0" type="button">Batalkan Done PO</button>':'')+'</div></div>';
+  return h}
  function drawEntry(){
 
   if(!canAdmin())return '<p class="note">Data Entry ke MOKA hanya untuk Admin atau SPV.</p>';
@@ -3725,7 +3747,7 @@ init();
   if(entryPo){const deDone=new Set(view('DATA_ENTRY').filter(r=>poKey(r.po)===entryPo).map(r=>norm(r.item))),d=entryData(entryPo),ok=d.filter(x=>x.moka&&x.cogs&&x.qty>0),miss=d.filter(x=>!x.moka||!x.cogs);
    h+='<p class="sub">'+(d.length&&d.every(x=>deDone.has(norm(x.item)))?'<span class="tag green">✓ Data entry PO ini selesai</span> ':'')+'Data entry MOKA: '+d.filter(x=>deDone.has(norm(x.item))).length+' dari '+d.length+' item selesai · '+d.length+' item · siap '+ok.length+(miss.length?' · <span style="color:#b3261e">perlu dicek '+miss.length+'</span>':'')+'</p><div style="overflow:auto;max-height:340px"><table><thead><tr><th>Item</th><th>Qty actual</th><th>COGS</th><th>File import (hanya item ini)</th><th>Sudah di-entry di MOKA</th></tr></thead><tbody>'+d.map(x=>'<tr><td>'+esc(x.item)+wosCat(x.item,1)+'</td><td>'+x.qty+'</td><td>'+(x.cogs?x.cogs.toLocaleString('id-ID'):'<span class="tag red">tidak ada HPP</span>')+'</td><td>'+(x.moka&&x.qty>0?'<button class="button secondary" data-gcsv1="'+esc(norm(x.item))+'" type="button">Unduh file</button>':'<span class="tag red">tidak ada di template</span>')+'</td><td><label><input type="checkbox" data-gde="'+esc(norm(x.item))+'"'+(deDone.has(norm(x.item))?' checked':'')+'> selesai</label></td></tr>').join('')+'</tbody></table></div><div class="ob-actions"><button class="button" data-gcsv="1" type="button"'+(ok.length||d.some(x=>x.moka)?'':' disabled')+'>Unduh file import MOKA (CSV)</button> <button class="button secondary" data-gdeall="1" type="button">✓ Tandai semua selesai di-entry</button> <span class="sub">Semua item di atas dalam satu file. Untuk PO sebagian (satu koli atau satu item), pakai tombol Unduh file di baris item.</span></div>'}
   else h+='<p class="sub">Belum ada item yang selesai put away.</p>';
-  return h+'</div>'+wipeAllCard()}
+  return h+'</div>'+deKoliCard()+wipeAllCard()}
 
  // ---- master bin
  let binCnt=-1,binAt=0;
@@ -3883,9 +3905,14 @@ init();
   if(t.dataset.gextra){if(cur&&cur.mode==='count')extraModal(cur.po,cur.k);return}
   if(t.dataset.gxdel){const a1=cur&&view('GR_ASSIGN').find(x=>x.id===cur.po+'|'+cur.k);if(!(isSpv()||canAdmin()||(a1&&a1.operator===code()))){say('Hanya operator koli ini, Admin, atau SPV yang bisa menghapus temuan.',true);return}if(confirm('Hapus item temuan ini?'))enqDel('GR_COUNT',t.dataset.gxdel);return}
   if(t.dataset.gdefxls){const L=defRows();if(window.wosXlsx)window.wosXlsx([['Tanggal','PO','Vendor','Koli','Item','Qty','Sumber','Keterangan','Operator']].concat(L.map(c=>[c.tanggal,c.po,vendorOfPo(c.po)||'',c.no_koli,c.item,num(c.qty_actual),String(c.seq).charAt(0)==='R'?'Temuan':'Surat jalan',c.keterangan||'',c.operator||''])),'Defect-Handling-'+today()+'.xlsx','Defect Handling');return}
+  if(t.dataset.gdek){const n=Number(t.dataset.gdek);deK=deK===n?0:n;draw();return}
+  if(t.dataset.gdecp){try{navigator.clipboard.writeText(t.dataset.gdecp);say('Disalin: '+t.dataset.gdecp)}catch(e){say('Tidak bisa menyalin otomatis.',true)}return}
+  if(t.dataset.gdenote){const v=(document.getElementById('gr-denote')||{value:''}).value.trim();if(v)enq('DATA_ENTRY',{id:'DEN|'+entryPo,tanggal:today(),po:entryPo,item:v,qty:'0',oleh:code(),jam:stIso()});else enqDel('DATA_ENTRY','DEN|'+entryPo);say('Keterangan PO disimpan.');return}
+  if(t.dataset.gdepo){if(!canAdmin())return;if(t.dataset.gdepo==='1'){enq('DATA_ENTRY',{id:'DEP|'+entryPo,tanggal:today(),po:entryPo,item:'DONE PO',qty:'0',oleh:code(),jam:stIso()});deDoneCheck(entryPo);say('PO '+entryPo+' ditandai Done.')}else{enqDel('DATA_ENTRY','DEP|'+entryPo);say('Done PO dibatalkan.')}return}
   if(t.dataset.gdeall){const L=entryData(entryPo).filter(x=>x.qty>0);L.forEach(x=>deMark(x,true));say(L.length?L.length+' item ditandai selesai di-entry (PO '+entryPo+').':'Tidak ada item untuk ditandai.',!L.length);return}
  });
  document.addEventListener('change',e=>{const t=e.target;
+  if(t.dataset&&t.dataset.gdekd){const n=Number(t.dataset.gdekd);if(!t.checked&&!canAdmin()){alert('Membatalkan tanda data entry hanya untuk Admin atau SPV.');t.checked=true;return}const id='DEK|'+entryPo+'|'+n;if(t.checked){enq('DATA_ENTRY',{id,tanggal:today(),po:entryPo,item:'KOLI '+n,qty:'0',oleh:code(),jam:stIso()});deDoneCheck(entryPo)}else enqDel('DATA_ENTRY',id);draw();return}
   if(t.dataset&&t.dataset.gde){if(!t.checked&&!canAdmin()){alert('Membatalkan tanda data entry hanya untuk Admin atau SPV.');t.checked=true;return}const x=entryData(entryPo).find(y=>norm(y.item)===t.dataset.gde);if(x)deMark(x,t.checked);return}
   if(t.id==='gr-fop'){filterOp=t.value;draw();return}
   if(t.id==='gr-rpo'){repPo=t.value;draw();return}
@@ -5571,7 +5598,7 @@ init();
    let act=0,tgt=0,koli=0,rows=0;Object.values(b2).forEach(a=>{a.sort((x,y)=>x[0]-y[0]);koli+=a.length;a.forEach(x=>rows+=x[1]);for(let i=1;i<a.length;i++){const g=(a[i][0]-a[i-1][0])/1000;if(g>=20&&g<=KPN.gap*60){act+=g;tgt+=KPN.tfs.l*a[i][1]}}});
    if(koli)out.tfs={koli,rows,act,tgt,eff:act?tgt/act*100:null,acc:null}}
   // data entry Moka (admin inbound): selang antar baris di-entry (3 detik sampai 10 menit); target = 28 dtk per baris
-  {const b3={};view('DATA_ENTRY').forEach(r=>{if(!(who==='*'||r.oleh===who)||!r.jam||!inR(r.tanggal))return;const tm=Date.parse(r.jam);if(!isFinite(tm))return;const key=r.oleh+'|'+String(r.tanggal).slice(0,10);(b3[key]=b3[key]||[]).push(tm)});
+  {const b3={};view('DATA_ENTRY').forEach(r=>{if(/^DE[KPN]\|/.test(r.id))return;if(!(who==='*'||r.oleh===who)||!r.jam||!inR(r.tanggal))return;const tm=Date.parse(r.jam);if(!isFinite(tm))return;const key=r.oleh+'|'+String(r.tanggal).slice(0,10);(b3[key]=b3[key]||[]).push(tm)});
    let act=0,tgt=0,rows=0;Object.values(b3).forEach(a=>{a.sort((x,y)=>x-y);rows+=a.length;for(let i=1;i<a.length;i++){const g=(a[i]-a[i-1])/1000;if(g>=3&&g<=600){act+=g;tgt+=KPN.de.l}}});
    if(rows)out.de={rows,act,tgt,eff:act?tgt/act*100:null,acc:null}}
   const sp=[out.cnt,out.pick,out.pa,out.tfs,out.de].filter(x=>x&&x.eff!=null&&x.tgt>0),spd=sp.length?sp.reduce((s,x)=>s+Math.min(100,x.eff)*x.tgt,0)/sp.reduce((s,x)=>s+x.tgt,0):null;
@@ -5898,7 +5925,7 @@ init();
  const tabsRow=()=>'<div class="filters" style="margin-bottom:10px">'+TABSUI.map(t=>'<button class="filter'+(st.tab===t?' active':'')+'" data-antab="'+t+'" type="button"'+(anOk(t)?'':' disabled title="Tidak tersedia untuk akun ini" style="opacity:.45;cursor:not-allowed"')+'>'+t+(anOk(t)?'':' 🔒')+'</button>').join('')+'</div>';
  function bar(){return tabsRow()+'<div class="an-bar"><div class="an-rng">'+Object.keys(quick).map(k=>'<button data-anq="'+k+'" class="'+(RNG()&&RNG().get().p===quick[k]?'on':'')+'" type="button">'+k+'</button>').join('')+'</div><label class="sub" style="margin:0">Dari <input type="date" data-anf="from" value="'+st.from+'"></label><label class="sub" style="margin:0">Sampai <input type="date" data-anf="to" value="'+st.to+'"></label><label class="sub" style="margin:0">Kelompok <select data-anf="group">'+['hari','minggu','bulan','tahun'].map(x=>'<option'+(st.group===x?' selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'}
  function compute(){
-  const K=R('KOLI').filter(r=>within(r)),GC=R('GR_COUNT').filter(r=>within(r)),PA=R('PUTAWAY').filter(r=>within(r)),GA=R('GR_ASSIGN').filter(r=>within(r)),PD=R('PICK_DOK').filter(r=>within(r)),PK=R('PICK_KOLI').filter(r=>within(r)),PI=R('PICK_ITEM').filter(r=>within(r)),PG=R('PICK_GR').filter(r=>within(r)),LT=R('LC_TASK').filter(r=>within(r)),LC=R('LC_COUNT').filter(r=>within(r)),AD=R('ADJUSTMENT').filter(r=>within(r)),DE=R('DATA_ENTRY').filter(r=>within(r));
+  const K=R('KOLI').filter(r=>within(r)),GC=R('GR_COUNT').filter(r=>within(r)),PA=R('PUTAWAY').filter(r=>within(r)),GA=R('GR_ASSIGN').filter(r=>within(r)),PD=R('PICK_DOK').filter(r=>within(r)),PK=R('PICK_KOLI').filter(r=>within(r)),PI=R('PICK_ITEM').filter(r=>within(r)),PG=R('PICK_GR').filter(r=>within(r)),LT=R('LC_TASK').filter(r=>within(r)),LC=R('LC_COUNT').filter(r=>within(r)),AD=R('ADJUSTMENT').filter(r=>within(r)),DE=R('DATA_ENTRY').filter(r=>within(r)&&!/^DE[KPN]\|/.test(r.id));
   const kst=new Map();PK.forEach(k=>kst.set(k.dok+'|'+k.koli,k.status));
   const picked=PI.filter(r=>r.kategori!=='OTHER'&&r.status!=='Menunggu'&&r.status!=='Draft');
   return{K,GC,PA,GA,PD,PK,PI,PG,LT,LC,AD,DE,picked}}
