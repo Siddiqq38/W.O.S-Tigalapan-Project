@@ -5942,17 +5942,17 @@ init();
  // ----- Inbound vs Outbound -----
  // ---------- riwayat Januari-September 2026 (laporan manual sebelum WOS dipakai penuh) ----------
  // Hanya dipakai untuk bulan sebelum 2026-10 dan hanya bila pengelompokan = bulan atau tahun. Bulan 2026-10 dan sesudahnya dari data WOS.
- // Sumber: Overview Movement, Detail Good Receipt SKU Good Issue (Jan-Jul), dan Detail Good Receipt retur (RTR, Jan-Apr). Rincian vendor Agu-Sep belum ada di laporan.
+ // Sumber: Overview Movement, Detail Good Receipt SKU Good Issue (Jan-Sep, Agu-Sep dari update master data), dan Detail Good Receipt retur (RTR, Jan-Apr). Rincian vendor Agu-Sep belum ada di laporan.
  const HIST_M=['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09'];
  const HIST_IO={in:[121199,131646,153499,197921,212296,250288,347172,279829,195914],out:[158594,165964,169691,131027,142288,315235,358342,264561,165758]};
- const HIST_GR={'YOGI-01':[21177,10745,18392,24990,29348,26532,38364],'YOGI-02':[30874,20283,30162,32619,37694,32204,58906],'YOGA':[6777,4654,3584,1916,0,0,0],'BAYU':[22418,37212,37983,58776,44232,69491,82304],'KONVEKSI MKS':[1624,17245,14950,26062,16503,18503,23375],'CECEP':[10384,15945,12786,16810,46340,40038,60846],'KOKO':[16603,12317,20399,24281,20473,26998,36123],'TEDI':[1451,1382,0,1680,0,0,0],'YADI':[312,822,1472,0,0,0,0],'DEDI':[1434,1286,1506,0,0,0,0],'ELANG':[4988,5008,9269,6581,13567,8315,7355],'AWAL':[0,0,1894,1633,4139,7844,9129],'DIDI':[0,0,0,1252,0,1937,67],'CUSTOM PROJECT':[0,0,0,0,0,13598,21645],'ARTA':[0,0,0,0,0,3398,9058],'MALIBU':[0,3920,0,0,0,1430,0],'INDRA-01':[0,827,0,0,0,0,0]};
+ const HIST_GR={'YOGI-01':[21177,10745,18392,24990,29348,26532,38364,34975,26737],'YOGI-02':[30874,20283,30162,32619,37694,32204,58906,51237,29526],'YOGA':[6777,4654,3584,1916,0,0,0,0,0],'BAYU':[22418,37212,37983,58776,44232,69491,82304,79483,52475],'KONVEKSI MKS':[1624,17245,14950,26062,16503,18503,23375,22131,20518],'CECEP':[10384,15945,12786,16810,46340,40038,60846,32710,35660],'KOKO':[16603,12317,20399,24281,20473,26998,36123,25430,26316],'TEDI':[1451,1382,0,1680,0,0,0,0,0],'YADI':[312,822,1472,0,0,0,0,0,0],'DEDI':[1434,1286,1506,0,0,0,0,0,0],'ELANG':[4988,5008,9269,6581,13567,8315,7355,4559,4862],'AWAL':[0,0,1894,1633,4139,7844,9129,4905,761],'DIDI':[0,0,0,1252,0,1937,67,0,0],'CUSTOM PROJECT':[0,0,0,0,0,13598,21645,6085,2852],'ARTA':[0,0,0,0,0,3398,9058,2316,8961],'MALIBU':[0,3920,0,0,0,1430,0,240,0],'INDRA-01':[0,827,0,0,0,0,0,0,0]};
  const HIST_RTR={'INDRA-01':[2989,0,637,634],'YOGI-01':[32,0,0,39],'YOGA':[0,0,465,648],'BAYU':[136,0,0,0]};
  const HIST_ALIAS={'ELANG':'VENDOR ELANG','AWAL':'VENDOR AWAL','DIDI':'VENDOR DIDI (SAYOGI)','ARTA':'ARTRAHOOD'};
  const SUPRE=/TRIPAQ|SIPI|DUNIA\s*PLASTIK|PLASTIK|\bOPP\b/i,isSup=n=>SUPRE.test(String(n||''));
  const hIdx=(B,mk)=>st.group==='bulan'?B.keys.indexOf(mk):st.group==='tahun'?B.keys.indexOf(mk.slice(0,4)):-1;
  function histIO(B,inb,out){let any=false;HIST_M.forEach((mk,i)=>{const x=hIdx(B,mk);if(x>=0){inb[x]+=HIST_IO.in[i];out[x]+=HIST_IO.out[i];any=true}});return any}
  function histSeries(B,src){const o={};Object.keys(src).forEach(nm=>{const s=B.keys.map(()=>0);src[nm].forEach((v,i)=>{const x=hIdx(B,HIST_M[i]);if(x>=0)s[x]+=v});if(s.some(v=>v))o[HIST_ALIAS[nm]||nm]=s});return o}
- const histNote='Data Januari-September 2026 berasal dari laporan manual sebelum WOS dipakai penuh (Good Receipt per vendor tersedia sampai Juli; rincian vendor Agustus-September belum ada). Mulai Oktober 2026 data dari WOS. Pilih pengelompokan Bulan dan rentang tanggal sejak 1 Januari untuk melihatnya.';
+ const histNote='Data Januari-September 2026 berasal dari laporan manual sebelum WOS dipakai penuh (Good Receipt per vendor Januari-September). Mulai Oktober 2026 data dari WOS. Pilih pengelompokan Bulan dan rentang tanggal sejak 1 Januari untuk melihatnya.';
  function tabIO(m,B){
   const inb=seriesOf(m.GC,dd,r=>num(r.qty_actual),B),out=seriesOf(m.picked,dd,r=>num(r.qty_actual),B),hm=histIO(B,inb,out),ti=sum(inb),to=sum(out),net=B.keys.map((_,i)=>inb[i]-out[i]);
   const pk=out.indexOf(Math.max(...out,0));
