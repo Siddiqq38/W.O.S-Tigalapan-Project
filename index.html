@@ -6011,16 +6011,27 @@ init();
   h+='<div class="an-split">'+card('Kesesuaian surat jalan','',CH.hbar(rows.filter(r=>r.lines&&!isSup(r.v)).map(r=>({l:r.v,v:pct(r.ok,r.lines),t:pf(pct(r.ok,r.lines)),c:pct(r.ok,r.lines)>=90?'#1f9d6b':pct(r.ok,r.lines)>=75?'#e0a82b':'#d1362b'})),{max:100}))+'</div>';
   return h}
  // ----- Supply Toko -----
+ // master toko (12 toko) dan jenis orderan. Nama outlet di data picking bisa memuat jenis orderan (KEEP, CRITICAL KEEP, TAMBAHAN, URGENT) atau angka (MAMU MAKASSAR 1): dirapikan ke toko induknya.
+ const STORE_MASTER=['TIGALAPANKAOS MAKASSAR','TIGALAPANKAOS PALU','TIGALAPANKAOS MANADO','TIGALAPANKAOS SAMARINDA','MAMU MAKASSAR','MAMU BTP','MAMU PALOPO','MAMU KENDARI','TIGALAPANKAOS POLMAN','TIGALAPANKAOS BONE','MAMU GOWA','TIGALAPANKAOS TORAJA'];
+ const normS=s=>String(s||'').toUpperCase().replace(/s+/g,' ').trim();
+ const storeOf=o=>{const n=normS(o);let b='';STORE_MASTER.forEach(s=>{if((n===s||n.indexOf(s+' ')===0)&&s.length>b.length)b=s});return b||n||'?'};
+ const jenisOf=o=>{const n=normS(o);if(/CRITICAL/.test(n))return 'Critical Keep';if(/KEEP/.test(n))return 'Keep';if(/TAMBAHAN/.test(n))return 'Tambahan';if(/URGENT/.test(n))return 'Urgent';return 'Reguler / SOQ'};
+ const JENIS=['Reguler / SOQ','Keep','Critical Keep','Tambahan','Urgent'];
+ // riwayat performa supply Jan-Sep 2026 (laporan manual, Performa Supply DC)
+ const HIST_SUP={soq:[159287,166572,179119,136876,146077,321963,370035,273320,185428],got:[158594,165964,176502,133354,144655,315235,358342,264561,174128],soo:[693,608,2617,3522,1422,6728,11693,8759,11300]};
+ function histSupply(B,soq,got,soo){let any=false;HIST_M.forEach((mk,i)=>{const x=hIdx(B,mk);if(x>=0){soq[x]+=HIST_SUP.soq[i];got[x]+=HIST_SUP.got[i];soo[x]+=HIST_SUP.soo[i];any=true}});return any}
  function tabSupply(m,B){
-  const rows=m.picked.map(r=>{const d=m.PD.find(x=>x.id===r.dok)||{};return{t:r.tanggal,store:d.outlet||'?',soq:num(r.qty),got:Math.min(num(r.qty_actual),num(r.qty)||num(r.qty_actual)),extra:/\|X\d+$/.test(r.id)?num(r.qty_actual):0}});
-  const fil=rows.filter(r=>!st.store||r.store===st.store);
-  const soq=seriesOf(fil,r=>r.t,r=>r.soq,B),got=seriesOf(m.picked.filter(r=>!st.store||(m.PD.find(x=>x.id===r.dok)||{}).outlet===st.store),dd,r=>num(r.qty_actual),B).map((v,i)=>Math.min(v,soq[i]||v)),soo=soq.map((v,i)=>Math.max(0,v-got[i]));
+  const rows=m.picked.map(r=>{const d=m.PD.find(x=>x.id===r.dok)||{};return{t:r.tanggal,store:storeOf(d.outlet),jenis:jenisOf(d.outlet),soq:num(r.qty),got:Math.min(num(r.qty_actual),num(r.qty)||num(r.qty_actual)),extra:/\|X\d+$/.test(r.id)?num(r.qty_actual):0}});
+  const okDok=dok=>{const d=m.PD.find(x=>x.id===dok)||{};return(!st.store||storeOf(d.outlet)===st.store)&&(!st.jenis||jenisOf(d.outlet)===st.jenis)};
+  const fil=rows.filter(r=>(!st.store||r.store===st.store)&&(!st.jenis||r.jenis===st.jenis));
+  const soq=seriesOf(fil,r=>r.t,r=>r.soq,B),got=seriesOf(m.picked.filter(r=>okDok(r.dok)),dd,r=>num(r.qty_actual),B).map((v,i)=>Math.min(v,soq[i]||v)),soo=soq.map((v,i)=>Math.max(0,v-got[i]));
+  const hs=(!st.store&&!st.jenis)?histSupply(B,soq,got,soo):false;
   const ts=sum(soq),tg=sum(got),to=sum(soo);
-  const stores=[...new Set(m.PD.map(d=>d.outlet))].sort();
+  const stores=[...new Set(m.PD.map(d=>storeOf(d.outlet)))].sort();
   const byStore={};rows.forEach(r=>{const o=byStore[r.store]||(byStore[r.store]={s:r.store,soq:B.keys.map(()=>0),got:B.keys.map(()=>0)});const i=B.idx(r.t);if(i>=0){o.soq[i]+=r.soq;o.got[i]+=Math.min(r.got+r.extra,r.soq||r.got+r.extra)}});
   const sl=Object.values(byStore).map(o=>({...o,soo:o.soq.map((v,i)=>Math.max(0,v-o.got[i])),ts:sum(o.soq),tg:sum(o.got)})).sort((a,b)=>sum(b.soo)-sum(a.soo));
   const mxs=Math.max(...sl.flatMap(o=>o.soo),1);
-  let h='<div class="an-bar"><label class="sub" style="margin:0">Toko <select data-anf="store"><option value="">Semua toko</option>'+stores.map(s=>'<option'+(st.store===s?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select></label></div>';
+  let h='<div class="an-bar"><label class="sub" style="margin:0">Toko <select data-anf="store"><option value="">Semua toko</option>'+stores.map(s=>'<option'+(st.store===s?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select></label> <label class="sub" style="margin:0">Jenis orderan <select data-anf="jenis"><option value="">Semua jenis</option>'+JENIS.map(j=>'<option'+(st.jenis===j?' selected':'')+'>'+esc(j)+'</option>').join('')+'</select></label></div>'+(hs?'<p class="sub" style="margin:6px 0">Januari-September 2026 dari laporan manual (total semua toko, tanpa rincian toko); mulai Oktober 2026 dari WOS.</p>':'');
   h+='<div class="an-kpi">'+kpi('Permintaan SOQ',fmt(ts)+' pcs','yang sudah diproses picking')+kpi('Terpenuhi',fmt(tg)+' pcs','dari SOQ','g')+kpi('Tidak terpenuhi (SOO)',fmt(to)+' pcs','stock off out','r')+kpi('Achievement',pf(pct(tg,ts)),'terpenuhi / SOQ',pct(tg,ts)>=98?'g':'o')+kpi('Stock off out',pf(pct(to,ts)),'dari permintaan',to?'r':'g')+'</div>';
   h+=card('Performa supply'+(st.store?' · '+st.store:''),'Dihitung dari baris picking yang sudah dikerjakan.',
    '<div class="an-wrap"><table class="an-t"><thead><tr><th>Kategori</th>'+B.labels.map(l=>'<th>'+esc(l)+'</th>').join('')+'<th>Total</th></tr></thead><tbody>'+
