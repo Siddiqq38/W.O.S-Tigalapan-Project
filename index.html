@@ -6212,7 +6212,7 @@ init();
  {const n=document.querySelector('.nav[data-page="analysis"]'),g=[...document.querySelectorAll('.nav-group')].find(x=>x.textContent.trim()==='KONTROL');if(n&&g)g.after(n)}
 
  // ================= DASHBOARD (Opsi B): satu layar, panel bisa dibuka-tutup, kartu menuju detail =================
- const DS={at:0,att:[],roles:[],ev:[],busy:false,open:{}},DEFO={act:true,tim:false,inb:true,out:true,log:false};
+ const DS={at:0,att:[],roles:[],ev:[],busy:false,open:{}},DEFO={act:true,pantau:true,tim:false,inb:true,out:true,log:false};
  try{DS.open=JSON.parse(localStorage.getItem('wos-dash-open-v1')||'{}')||{}}catch(e){}
  const dsIsOpen=k=>DS.open[k]===undefined?DEFO[k]:!!DS.open[k];
  async function dsLoad(force){if(DS.busy||(!force&&Date.now()-DS.at<45000))return;DS.busy=true;try{await V3.load(true,60);if(window.WOSStore){const c=window.WOSStore.config(),td=today(),on=window.WOSDR.on('dsh'),rg2=window.WOSDR.get('dsh'),t=on?(rg2.f||window.WOSDR.add(td,-60)):td,e2=on?(rg2.t||td):td,r=await fetch(c.url+'?'+new URLSearchParams({token:c.token,action:'multi',q:['ATTENDANCE','ROLE_HARIAN','COMPLIANCE_EVENT'].map(x=>x+':'+t+':'+e2).join(',')})),j=await r.json(),g=k=>(j.data&&j.data[k+'|'+t+'|'+e2])||[];if(j.ok){DS.att=g('ATTENDANCE');DS.roles=g('ROLE_HARIAN');DS.ev=g('COMPLIANCE_EVENT')}}DS.at=Date.now()}catch(e){}DS.busy=false;drawDash()}
@@ -6336,7 +6336,7 @@ init();
     '<div class="d3-card d3-go" data-go="attendance" title="Buka Attendance">'+ring(pc(hadir,staff),'#1D9E75','Attendance')+'<div><p class="d3-l">Attendance · hari ini</p><b>'+hadir+'/'+staff+'</b><p class="d3-s '+(late?'d3-wr':'d3-ok')+'">'+late+' terlambat · lihat detail</p></div></div>'+
     '<div class="d3-card d3-go" data-go="wms-inbound|Good Receipt" title="Buka Inbound">'+ring(pc(grDone,grDen),'#E07B39','GR selesai')+'<div><p class="d3-l" title="Pembilang = GR selesai hari ini. Penyebut = selesai hari ini ditambah semua koli GR yang masih berjalan dari tanggal mana pun.">Inbound · GR selesai hari ini</p><b>'+grDone+'/'+grDen+'</b><p class="d3-s">'+grOpen+' koli masih berjalan (semua tanggal, '+grOldOpen+' sisa hari sebelumnya) · '+rcvToday+' diterima hari ini</p>'+pcsLines(inDone,inAll)+'</div></div>'+
     '<div class="d3-card d3-go" data-go="wms-outbound|Verification Pick" title="Buka Outbound">'+ring(pc(okAct,koliAct.length),'#378ADD','Outbound lolos verifikasi')+'<div><p class="d3-l" title="Semua SOQ yang belum selesai diterima toko, dari tanggal mana pun.">Outbound · lolos verifikasi (SOQ aktif, semua tanggal)</p><b>'+okAct+'/'+koliAct.length+'</b><p class="d3-s">'+dokAct.length+' SOQ aktif · '+koliAct.length+' koli ('+koliActOld+' dari SOQ hari sebelumnya)</p>'+pcsLines(outOk,outAll)+'</div></div>'+
-   '</div>'+timHtml+accHtml+
+   '</div>'+(timHtml?panel('pantau','Pantauan tim · kecepatan kerja','','',timHtml):'')+accHtml+
    '<div class="d3-card"><div class="d3-mini">'+
     '<div class="d3-go" data-go="wms-outbound|Shipping"><p class="d3-l">On delivery</p><b>'+ship+'</b><p class="d3-s">koli menuju toko · semua tanggal</p></div>'+
     '<div class="d3-go" data-go="wms-outbound|Miss-Picking"><p class="d3-l">Miss-picking</p><b class="'+(miss?'d3-er':'d3-ok')+'">'+miss+'</b><p class="d3-s">terbuka · semua tanggal</p></div>'+
