@@ -14,6 +14,18 @@ body.dark .page .toolbar:not(.card *),body.dark .page>.form-grid{background:rgba
 .brand{border:0;margin:0;text-align:left}
 .brand-logo img{width:auto;height:38px;max-width:none}.nav{white-space:nowrap;width:auto;padding:8px}.page{padding:18px 16px}.topbar{padding:0 16px}.metric-grid,.two,.three{grid-template-columns:1fr 1fr}.assignment-row{grid-template-columns:1fr 1fr}}@media(max-width:560px){.metric-grid,.two,.three,.form-grid{grid-template-columns:1fr}.topbar{height:auto;padding:12px 16px}.topbar p{display:none}.assignment-row{grid-template-columns:1fr}.toolbar{align-items:flex-start}.metric{font-size:23px}.page:not(#wms-inbound):not(#wms-outbound):not(#wms-inventory):not(#wms-location) th:nth-child(4),.page:not(#wms-inbound):not(#wms-outbound):not(#wms-inventory):not(#wms-location) td:nth-child(4){display:none}}
 </style>
+<script>
+// Performa: interval UI (<=15 dtk) tidak jalan saat tab tersembunyi; "sweep" teks dijalankan bersama setelah DOM berubah (bukan polling 0,9 dtk)
+(function(){
+var si=window.setInterval;
+window.setInterval=function(f,t){if(typeof f==='function'&&(t||0)<=15000){var a=Array.prototype.slice.call(arguments,2);return si.call(window,function(){if(document.hidden)return;return f.apply(this,a)},t)}return si.apply(window,arguments)};
+var fns=[],tm=0,idle=window.requestIdleCallback||function(c){return setTimeout(c,1)};
+function run(){tm=0;if(document.hidden)return;for(var i=0;i<fns.length;i++){try{fns[i]()}catch(e){}}}
+function kick(){if(tm)return;tm=setTimeout(function(){idle(run,{timeout:800})},450)}
+window.wosWatch=function(f,fb){fns.push(f);if(!window.__wosObs){window.__wosObs=1;var go=function(){new MutationObserver(kick).observe(document.body,{childList:true,subtree:true,characterData:true})};if(document.body)go();else document.addEventListener('DOMContentLoaded',go)}si.call(window,function(){if(!document.hidden)try{f()}catch(e){}},fb||5000);setTimeout(kick,300)};
+document.addEventListener('visibilitychange',function(){if(!document.hidden)kick()});
+})();
+</script>
 <script>(function(){try{var E='2026-10-10-mulai-simulasi';if(localStorage.getItem('wos-reset-epoch')===E)return;['wos-attendance-kpi-v1','wos-tasks-v1','wos-attendance-release-v1','wos-attendance-applications-demo-v1','wos-pengajuan-applied-v1','wos-sync-queue-v1','wos-photo-map-v1','wos-5r-drive-v1','wos-spl-v1','wos-op-role-v1'].forEach(function(k){localStorage.removeItem(k)});Object.keys(localStorage).forEach(function(k){if(k.indexOf('wos-task-seen-v1-')===0)localStorage.removeItem(k)});try{var r=JSON.parse(localStorage.getItem('wos-roles-v1')||'null');if(r){r.plans={};localStorage.setItem('wos-roles-v1',JSON.stringify(r))}}catch(e){}try{indexedDB.deleteDatabase('wos-compliance-v1')}catch(e){}localStorage.setItem('wos-reset-epoch',E)}catch(e){}})();</script>
 <script>
 // Badge SKU + kategori item untuk tabel transaksi gudang. Data dari Master SKU (window.WOSSku); kosong bila modul belum siap.
@@ -2435,11 +2447,15 @@ init();
   const esc2=old.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),re=new RegExp(esc2,'i');
   plan.forEach(([t,r])=>{const nr=Object.assign({},r);if('po' in nr)nr.po=nv;nr.id=IDK.includes(t)?nv:String(r.id).replace(re,nv);if(t==='STOK_BIN'&&nr.referensi)nr.referensi=String(nr.referensi).replace(re,nv);enq(t,nr);enqDel(t,r.id)});
   alert('Kode PO diubah menjadi '+nv+' ('+plan.length+' baris). Tunggu antrean terkirim lalu muat ulang halaman.')}
+ let lastVer0='',lastFull=0;
  async function pull(force){if(document.hidden||(!force&&!sec.classList.contains('active')))return;
-  try{const f60=back(60),q=['UNLOADING_SESI:'+f60+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','ERP_INCOMING::','PO_PECAH::','GR_ASSIGN:'+f60+':'+to].join(',');
+  try{// periksa penanda versi server (ringan); tarik data penuh hanya bila ada perubahan atau sudah 5 menit
+   let v0='';try{const v=await call({action:'ver'},true);v0=(v&&v.ok&&v.ver)||''}catch(e){}
+   if(!force&&v0&&v0===lastVer0&&lastFull&&Date.now()-lastFull<300000){lastPull=Date.now();return}
+   const f60=back(60),q=['UNLOADING_SESI:'+f60+':'+to,'UNLOADING_RESI:'+f60+':'+to,'KOLI:'+f60+':'+to,'MASTER_VENDOR::','MASTER_EKSPEDISI::','MASTER_AREA::','PO_INFO::','MASTER_HPP::','PO_DOK::','ERP_INCOMING::','PO_PECAH::','GR_ASSIGN:'+f60+':'+to].join(',');
    const r=await call({action:'multi',q},true);if(!r.ok)throw new Error(r.error==='aksi tidak dikenal'?'Skrip Google perlu dipasang ulang (versi terbaru)':r.error);
    const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
-   D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.erpi=g('ERP_INCOMING');D.pcah=g('PO_PECAH');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();
+   D.sesi=g('UNLOADING_SESI',f60,to);D.resi=g('UNLOADING_RESI',f60,to);D.koli=g('KOLI',f60,to);D.vendor=g('MASTER_VENDOR');D.eks=g('MASTER_EKSPEDISI');D.area=g('MASTER_AREA');D.po=g('PO_INFO');D.hpp=g('MASTER_HPP');D.dok=g('PO_DOK');D.erpi=g('ERP_INCOMING');D.pcah=g('PO_PECAH');D.gra=g('GR_ASSIGN',f60,to);replayJ();dv++;pullErr='';lastPull=Date.now();lastVer0=v0;lastFull=Date.now();
    if(state!=='err')state='ok'}catch(e){state='err';err=String(e&&e.message||e);pullErr=err}
   paintState();render()}
  function paintState(){const el=$('iv2-state');if(!el)return;const n=queue().length;el.textContent=state==='err'?'Gagal terhubung ('+n+' antri)'+(err?': '+err:''):n?'Mengirim '+n+' data…':'Tersambung';el.className='tag '+(state==='err'?'red':n?'amber':'green')}
@@ -6926,7 +6942,7 @@ init();
   {const dr=document.getElementById('att-drill');if(dr)dr.style.display='none'}
   ['jotm-employee','late-employee','other-leave-employee'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;[...sel.options].forEach(o=>{const t=String(o.textContent||'').toUpperCase();if(o.value&&!t.includes(mine)&&!t.includes('('+me+')'))o.remove()})});
  }
- setInterval(()=>{if(!document.hidden)try{sweep()}catch(e){}},1500);
+ wosWatch(sweep,5000);
 })();
 </script>
 <script>
@@ -6980,7 +6996,7 @@ init();
    root.querySelectorAll('[placeholder*="SPV"],[title*="SPV"]').forEach(e=>{['placeholder','title'].forEach(a=>{const v=e.getAttribute(a);if(v&&v.indexOf('SPV')>=0){const f=fix(v);if(f!==v)e.setAttribute(a,f)}})});
   });
  }
- setInterval(()=>{try{sweep()}catch(e){}},900);
+ wosWatch(sweep,5000);
 })();
 </script>
 <script>
@@ -7813,7 +7829,7 @@ init();
  function fix(){pend=false;if(window.__noStable)return;const a=anc,p=page();if(!a||!p)return;let el=a.el;
   if(!el.isConnected||!p.contains(el)){const c=[...p.querySelectorAll(a.tag)].filter(e=>keyOf(e)===a.key);if(!c.length){rec();return}el=c.reduce((m,e)=>Math.abs(e.getBoundingClientRect().top-a.top)<Math.abs(m.getBoundingClientRect().top-a.top)?e:m);a.el=el}
   const d=el.getBoundingClientRect().top-a.top;if(Math.abs(d)>1){fixing=true;window.scrollBy(0,d);setTimeout(()=>{fixing=false},60)}rec()}
- window.addEventListener('scroll',()=>{if(fixing)return;rec()},{passive:true});
+ let recQ=0;window.addEventListener('scroll',()=>{if(fixing||recQ)return;recQ=setTimeout(()=>{recQ=0;if(!fixing)rec()},120)},{passive:true});
  ['pointerdown','keydown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,rec,{capture:true,passive:true}));
  const main=document.querySelector('main')||document.body;
  new MutationObserver(()=>{if(pend)return;pend=true;requestAnimationFrame(fix)}).observe(main,{childList:true,subtree:true,characterData:true});
@@ -8117,7 +8133,7 @@ window.WOSMon=(function(){
  const SKIP={TEXTAREA:1,SCRIPT:1,STYLE:1,INPUT:1};
  function sweep(){if(document.hidden)return;const root=document.querySelector('.page.active');if(!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);let n;
   while((n=w.nextNode())){const v=n.nodeValue;if(!v||v.indexOf('etuju')<0)continue;if(n.parentElement&&SKIP[n.parentElement.tagName])continue;let o=v;for(const [r,t] of AP)o=o.replace(r,t);if(o!==v)n.nodeValue=o}}
- setInterval(()=>{try{sweep()}catch(e){}},900);
+ wosWatch(sweep,5000);
  // ---- penanda perlu Approve
  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const navOk=p=>{const n=document.querySelector('.nav[data-page="'+p+'"]');return n&&!n.classList.contains('wos-hide')&&!n.classList.contains('wos-lock')?n:null};
