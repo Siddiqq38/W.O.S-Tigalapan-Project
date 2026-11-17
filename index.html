@@ -4003,7 +4003,7 @@ init();
  const narrowTab=()=>tabName==='Picking'||tabName==='Verification Pick';
  const refreshBar=()=>'<div class="ob-actions" style="margin:0 0 8px;align-items:center;gap:10px"><span class="sub">'+(loading?'Memuat data…':(loadedAt?'Diperbarui '+new Date(loadedAt+288e5).toISOString().slice(11,19)+' WITA · otomatis tiap beberapa detik':'Belum dimuat'))+'</span><button class="button secondary" data-obrefresh="1" type="button">&#8635; Muat ulang sekarang</button></div>';
  async function pull(force){
-  const dn=narrowTab()?7:(level()==='store'?14:30);
+  const dn=narrowTab()?7:(level()==='store'?35:30);
   if(loading||(!force&&Date.now()-loadedAt<(narrowTab()?5000:20000)&&loadedDays>=dn))return;loading=true;
   try{const f=back(dn),to=back(-14),q=['PICK_DOK:'+f+':'+to,'PICK_KOLI:'+f+':'+to,'PICK_ITEM:'+f+':'+to,'PICK_GR:'+back(Math.max(dn,90))+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).concat(view('MASTER_EKSPEDISI').length?[]:['MASTER_EKSPEDISI::']).join(',');
    // periksa penanda versi di server dulu (ringan); tarik data penuh hanya bila ada perubahan
@@ -4819,13 +4819,13 @@ init();
  if(!document.getElementById('lc-style')){const st=document.createElement('style');st.id='lc-style';st.textContent='.lc-map{display:grid;grid-template-columns:42px 14px 42px 14px 42px 42px 14px 42px 42px 14px 42px 42px 14px 42px 42px 14px 42px;grid-template-rows:repeat(23,30px) 14px 30px;gap:3px;min-width:720px;padding:8px;background:#f2f2f2;border-radius:10px}.lc-c{border:1px solid #6b7b8c;border-radius:4px;font-size:10px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;line-height:1.1;color:#223}.lc-c.sel{outline:3px solid #b5532a;z-index:2}.lc-c.na{opacity:.35;cursor:default}.lc-c i{position:absolute;left:0;bottom:0;height:4px;background:#2e9b5a;opacity:.85}.lc-row{display:flex;gap:3px}.lc-row .lc-c{flex:1;min-height:30px}.lc-z-g{background:#dce9f7}.lc-z-s{background:#dfe6ee}.lc-z-b{background:#f9e7a8}.lc-z-lp{background:#fff}.lc-scene{position:relative;margin:30px auto;transform-style:preserve-3d;touch-action:none;cursor:grab}.lc-persp{perspective:1100px;overflow:hidden;background:linear-gradient(#f7f9fc,#e3e9f1);border-radius:12px}.lc-cube{position:absolute;transform-style:preserve-3d}.lc-cube .f{position:absolute;box-sizing:border-box;border:1px solid rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font:700 11px Arial;color:#222}.lc-bin .f{cursor:pointer}.lc-lg{display:inline-block;width:12px;height:12px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-2px;border:1px solid #666}';document.head.appendChild(st)}
 
  // ---- data
- async function pull(force){
+ async function pull(force,light){
   if(loading||(!force&&Date.now()-loadedAt<20000))return;loading=true;
   try{const f=back(400),to=today(),q=['LC_TASK:'+f+':'+to,'LC_COUNT:'+f+':'+to,'ADJUSTMENT:'+f+':'+to].concat(view('MASTER_BIN').length?[]:['MASTER_BIN::']).join(',');
-   const [r,s]=await Promise.all([call({action:'multi',q},true),call({action:'stok'},true)]);if(!r.ok)throw new Error(r.error);if(!s.ok)throw new Error(s.error||'stok tidak terbaca');
+   const [r,s]=await Promise.all([call({action:'multi',q},true),light?Promise.resolve({ok:true,rows:null}):call({action:'stok'},true)]);if(!r.ok)throw new Error(r.error);if(!s.ok)throw new Error(s.error||'stok tidak terbaca');
    const g=(t,a,b)=>r.data[t+'|'+(a||'')+'|'+(b||'')]||[];
    setData('LC_TASK',g('LC_TASK',f,to));setData('LC_COUNT',g('LC_COUNT',f,to));setData('ADJUSTMENT',g('ADJUSTMENT',f,to));if(r.data['MASTER_BIN||'])setData('MASTER_BIN',g('MASTER_BIN'));
-   stokRows=s.rows;setData('STOK_BIN',[]);loadedAt=Date.now();loadErr=''}catch(e){loadErr=String(e&&e.message||e)}
+   if(s.rows){stokRows=s.rows;setData('STOK_BIN',[])}loadedAt=Date.now();loadErr=''}catch(e){loadErr=String(e&&e.message||e)}
   loading=false;draw()}
  async function loadMoves(){if(Date.now()-movesAt<60000)return;movesAt=Date.now();try{const r=await call({action:'list',tab:'STOK_BIN',from:back(60),to:today()},true);if(r.ok){moves=r.rows;draw()}}catch(e){}}
  let ohC={s:null,p:null,m:null};
@@ -5504,7 +5504,7 @@ init();
  const tuMine=()=>{const me=code();return tuAll().filter(t=>t.operator===me&&t.status==='Menunggu')};
  function tuAlert(){try{
   if(document.hidden||canAdmin()||!code())return;
-  if(Date.now()-loadedAt>110000)pull(true);tuSync();const mine=tuMine(),k='wos-lc-tu-seen-'+code();let seen=[];try{seen=JSON.parse(localStorage.getItem(k)||'[]')}catch(e){}
+  if(Date.now()-loadedAt>280000)pull(true,true);tuSync();const mine=tuMine(),k='wos-lc-tu-seen-'+code();let seen=[];try{seen=JSON.parse(localStorage.getItem(k)||'[]')}catch(e){}
   const fresh=mine.filter(t=>!seen.includes(t.id));if(!fresh.length)return;
   try{localStorage.setItem(k,JSON.stringify([...seen,...fresh.map(t=>t.id)].slice(-300)))}catch(e){}
   const txt='Tugas top up baru: '+fresh.length+' item ('+fresh.slice(0,3).map(t=>t.bin+'→'+tuP(t).to).join(', ')+(fresh.length>3?' …':'')+'). Buka Location Control > Internal Move.';
@@ -5513,7 +5513,7 @@ init();
   try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
   try{if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification('W.O.S - Location Control',{body:txt})}catch(e){}
  }catch(e){}}
- setInterval(tuAlert,30000);setTimeout(tuAlert,4000);
+ setInterval(tuAlert,60000);setTimeout(tuAlert,6000);
  window.WOSLC={render,has:n=>NAMES.includes(n),pull};
 })();
 </script>
