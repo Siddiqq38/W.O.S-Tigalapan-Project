@@ -490,13 +490,13 @@ function reviewFiveR(row,fileId,decision,checks,note,reviewer,now=Date.now()){
  function queueHtml(){
   const all=state.days.filter(r=>r.day>=FIVER_START&&r.report&&r.report.approval==='pending').sort((a,b)=>a.report.at-b.report.at);if(!all.length)return '';
   const R=qRng(),p=all.filter(r=>r.day>=R.from&&r.day<=R.to),out=all.length-p.length;
-  const bar=isReviewer()?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:6px 0"><label class="sub">Dari tanggal<input type="date" data-qr="from" value="'+esc(R.from)+'" style="display:block"></label><label class="sub">Sampai<input type="date" data-qr="to" value="'+esc(R.to)+'" style="display:block"></label><button type="button" class="button secondary" data-qrq="0">Hari ini</button><button type="button" class="button secondary" data-qrq="1">Kemarin–hari ini</button><button type="button" class="button secondary" data-qrq="6">7 hari</button><button type="button" class="button secondary" data-qrq="all">Semua sejak 23 Okt</button>'+(p.length?'<button type="button" class="button" data-qrall="1">ACC semua yang tampil ('+p.length+', 5R OK semua)</button>':'')+'</div>':'';
+  const bar=isReviewer()?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:6px 0"><label class="sub">Dari tanggal<input type="date" data-qr="from" value="'+esc(R.from)+'" style="display:block"></label><label class="sub">Sampai<input type="date" data-qr="to" value="'+esc(R.to)+'" style="display:block"></label><button type="button" class="button secondary" data-qrq="0">Hari ini</button><button type="button" class="button secondary" data-qrq="1">Kemarin–hari ini</button><button type="button" class="button secondary" data-qrq="6">7 hari</button><button type="button" class="button secondary" data-qrq="all">Semua sejak 23 Okt</button>'+(p.length&&!(window.WOSKO&&window.WOSKO())?'<button type="button" class="button" data-qrall="1">ACC semua yang tampil ('+p.length+', 5R OK semua)</button>':'')+'</div>':'';
   return '<div class="note"><strong>Antrean approval SPV ('+p.length+(out?' dari '+all.length:'')+')</strong> - video 5R yang sudah dikirim dan menunggu diperiksa'+(isReviewer()?'':' (diperiksa oleh SPV)')+bar+(p.length?p.map(r=>esc(label(r.code))+' - '+esc(r.area)+' - '+esc(r.day)+' - '+esc(clock(r.report.at))+(r.reportHistory&&r.reportHistory.length?' (kiriman ke-'+(r.reportHistory.length+1)+')':'')+(isReviewer()?' <button class="button secondary" data-view="'+esc(r.id)+'">Periksa</button>':'')).join('<br>'):'<div class="sub">Tidak ada kiriman pada rentang tanggal ini.</div>')+(out?'<div class="sub" style="margin-top:6px">'+out+' kiriman lain ada di luar rentang tanggal.</div>':'')+'</div>'}
  function setQr(r){qR=r;try{localStorage.setItem('wos-5r-queue-range-v2',JSON.stringify(r))}catch(e){}render()}
  document.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.qr)return;const r=Object.assign({},qRng());r[t.dataset.qr]=t.value;if(r.from&&r.to&&r.from>r.to){const x=r.from;r.from=r.to;r.to=x}setQr(r)});
  // ACC massal: kiriman 5R yang menunggu pada rentang tanggal antrean di-ACC dengan kelima R OK (untuk laporan yang terlambat diperiksa SPV)
  document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('[data-qrall]');if(!b)return;
-  if(!isReviewer()||!canApproveFiveR())return notice('ACC massal hanya untuk SPV.',true);
+  if(!isReviewer()||!canApproveFiveR()||(window.WOSKO&&window.WOSKO()))return notice('ACC massal hanya untuk SPV.',true);
   const R=qRng(),ids=state.days.filter(r=>r.day>=FIVER_START&&r.day>=R.from&&r.day<=R.to&&r.report&&r.report.approval==='pending'&&!r.exempt).map(r=>r.id);
   if(!ids.length)return notice('Tidak ada kiriman 5R yang menunggu pada rentang ini.',true);
   if(!confirm('ACC '+ids.length+' kiriman 5R ('+R.from+' s/d '+R.to+') dengan kelima R OK semua?\n\nVideo/foto tidak diperiksa satu per satu. Status berubah menjadi Done (approved) dan tercatat di audit atas nama '+actor()+'. Lanjutkan?'))return;
@@ -1165,8 +1165,10 @@ const CODEKEY='wos-session-code',IMPKEY='wos-impersonator',CREDKEY='wos-credenti
 const LEVEL_OF=role=>role==='Supervisor'?'SPV':role==='Admin'?'ADMIN':'OPERATOR';
 const ALIAS={SPV:'supervisor',SPVO:'supervisor',MANAGER:'supervisor',ADMIN:'admin',OPERATOR:'operator',STORE:'store',PPIC:'ppic',PPICV:'ppicv',HRD:'hrd',PROD:'prod',FAT:'fat',PRDM:'prdm',PURCH:'purch'};
 const ACC=window.WOS_ACC||{};
+const KOORD={W09:'Koordinator'}; // akses sama dengan SPV, tetapi tanpa panel aksi massal (approve semua / ACC semua)
+window.WOSKO=function(){try{return document.documentElement.dataset.wosKoord==='1'}catch(e){return false}};
 const TEMP_ADMIN={W28:{day:'2026-10-24',scope:'outbound',label:'Admin Outbound (pengganti)'}}; // pengganti sementara: berlaku hanya pada tanggal tersebut
-const buildAccount=code=>{if(ACC[code])return{code,level:ACC[code].level,label:ACC[code].label,outlet:ACC[code].outlet||''};const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);{const ta=TEMP_ADMIN[code];if(ta&&level==='OPERATOR'&&ta.day===new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'}))return{code,level:'ADMIN',label:ta.label,tmp:ta.scope}}return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?(p.gm?'General Manager':'Manager'):level==='ADMIN'?'Admin':'Operator'}};
+const buildAccount=code=>{if(ACC[code])return{code,level:ACC[code].level,label:ACC[code].label,outlet:ACC[code].outlet||''};const p=sm()[code];if(!p||p.out)return null;const level=p.mgr?'MANAGER':LEVEL_OF(p.role);if(KOORD[code])return{code,level:'SPV',label:KOORD[code],koord:true};{const ta=TEMP_ADMIN[code];if(ta&&level==='OPERATOR'&&ta.day===new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'}))return{code,level:'ADMIN',label:ta.label,tmp:ta.scope}}return{code,level,label:level==='SPV'?'Supervisor':level==='MANAGER'?(p.gm?'General Manager':'Manager'):level==='ADMIN'?'Admin':'Operator'}};
 const readCreds=()=>{try{return JSON.parse(localStorage.getItem(CREDKEY)||'{}')||{}}catch(e){return{}}};
 const saveCreds=c=>{try{localStorage.setItem(CREDKEY,JSON.stringify(c));return true}catch(e){return false}};
 const EXTRA_ID={SCM01:'TLI00999',W37:'IRFAN37',GM01:'ANDI2026'};
@@ -1284,7 +1286,7 @@ function operatorCard(){
   html+='<p class="note"><strong>Peran: '+def[1]+'</strong><br>Kehadiran dan peran Anda tercatat. Tugas kerja diterima dari WMS; hasil pekerjaan terekap otomatis di Productivity.</p><div class="row"><button class="button secondary" id="wos-op-change" type="button">Ganti peran</button></div>'}
  if(card.dataset.sig!==html){card.dataset.sig=html;card.innerHTML=html}
 }
-function lockAttendance(){if(account.level!=='SPV'){const el=$('attendance-code');if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}else{const el=$('attendance-code');if(el)el.disabled=false}}
+function lockAttendance(){if(account.level!=='SPV'||account.koord){const el=$('attendance-code');if(el&&[...el.options].some(o=>o.value===account.code)){if(el.value!==account.code){el.value=account.code;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}el.disabled=true}}else{const el=$('attendance-code');if(el)el.disabled=false}}
 
 const impersonating=()=>{try{return sessionStorage.getItem(IMPKEY)}catch(e){return null}};
 function endSession(){try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(CODEKEY);sessionStorage.removeItem(IMPKEY)}catch(x){}location.reload()}
@@ -1349,7 +1351,7 @@ function refresh(){if(!account)return;navVisibility();operatorContent();lockAtte
 function start(u){
  me=u;account=buildAccount(u);try{sessionStorage.setItem(KEY,ALIAS[account.level])}catch(e){}
  // password yang diubah di perangkat ini sebelum fitur sinkron ada: kirim sekali agar perangkat lain ikut menerima
- setTimeout(()=>{try{const c=readCreds()[u];if(c&&c.hash&&window.WOSCredPush&&!localStorage.getItem('wos-cred-pushed-'+u+'-'+c.changedAt)){window.WOSCredPush(u,c.hash,c.changedAt);localStorage.setItem('wos-cred-pushed-'+u+'-'+c.changedAt,'1')}}catch(e){}},4000);document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;document.documentElement.dataset.wosGm=(sm()[account.code]&&sm()[account.code].gm)?'1':'';
+ setTimeout(()=>{try{const c=readCreds()[u];if(c&&c.hash&&window.WOSCredPush&&!localStorage.getItem('wos-cred-pushed-'+u+'-'+c.changedAt)){window.WOSCredPush(u,c.hash,c.changedAt);localStorage.setItem('wos-cred-pushed-'+u+'-'+c.changedAt,'1')}}catch(e){}},4000);document.documentElement.classList.remove('wos-locked');document.documentElement.dataset.wosRole=account.level;document.documentElement.dataset.wosKoord=account.koord?'1':'';document.documentElement.dataset.wosGm=(sm()[account.code]&&sm()[account.code].gm)?'1':'';
  accountBox();applyModes();refresh();masterPanel();setInterval(()=>{if(!document.hidden)masterPanel()},3000);
  setTimeout(()=>{applyModes();refresh()},800);
  window.addEventListener('storage',refresh);
@@ -5338,7 +5340,7 @@ init();
  // ---- adjustment
  // Approve massal semua pengajuan adjustment yang menunggu (SPV): stok tiap bin diubah ke qty fisik yang diajukan, dihitung terhadap stok terbaru.
  function bulkAdjCard(){
-  if(!isSpv())return '';const P=adjs().filter(a=>a.status==='Menunggu SPV');if(!P.length)return '';
+  if(!isSpv()||(window.WOSKO&&window.WOSKO()))return '';const P=adjs().filter(a=>a.status==='Menunggu SPV');if(!P.length)return '';
   return '<div class="card" style="margin-bottom:12px;border-left:6px solid #e0a82b;background:#fff8e6"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><div style="flex:1;min-width:240px"><b>'+P.length+' adjustment menunggu approval</b><div class="sub">Approve semua sekaligus. Stok tiap bin diubah ke qty fisik yang diajukan. Ringkasan perubahan ditampilkan dulu sebelum diproses.</div></div><button class="button" data-lcapprall="1" type="button">Approve semua ('+P.length+')</button></div></div>'}
  async function approveAll(){
   if(window.WOSGM&&window.WOSGM()){window.WOSGMnote();return}
@@ -5443,7 +5445,7 @@ init();
       it={sku:U(nm),item:nm}}}const ex=oh().map.get(U(adjForm.bin)+'|'+it.sku);sel={sku:it.sku,item:it.item,qty:ex?ex.qty:0}}
    if(!sel)return say('Pilih bin dan item.',true);if(adjForm.fisik==='')return say('Isi qty fisik.',true);if(!adjForm.alasan.trim())return say('Isi alasan.',true);const f=num(adjForm.fisik);if(f===sel.qty)return say('Qty fisik sama dengan sistem, tidak perlu adjustment.',true);
    enq('ADJUSTMENT',{id:'ADJ|'+Date.now().toString(36).toUpperCase(),tanggal:today(),bin:U(adjForm.bin),sku:sel.sku,item:sel.item,qty_sistem:String(sel.qty),qty_fisik:String(f),selisih:String(f-sel.qty),alasan:adjForm.alasan.trim(),sumber:'Manual',status:'Menunggu SPV',diminta_oleh:code(),diminta_jam:stIso(),disetujui_oleh:'',disetujui_jam:'',catatan:''});try{window.WOSSku&&window.WOSSku.register(sel.item)}catch(e){}adjForm={bin:'',sku:'',fisik:'',alasan:'',extra:''};say('Pengajuan adjustment dikirim ke SPV.');return}
-  if(d.lcapprall){approveAll();return}
+  if(d.lcapprall){if(window.WOSKO&&window.WOSKO())return;approveAll();return}
   if(d.lcappr){const a=adjs().find(x=>x.id===d.lcappr);if(a)approve(a);return}
   if(d.lcrej){const a=adjs().find(x=>x.id===d.lcrej);if(a){const k=prompt('Alasan penolakan','');if(k===null)return;enq('ADJUSTMENT',Object.assign({},a,{status:'Ditolak',disetujui_oleh:code(),disetujui_jam:stIso(),catatan:k}))}return}
   if(d.lcmodeset){const[k,v]=d.lcmodeset.split('|');if(k==='so')soMode=v;else if(k==='cc')ccMode=v;else if(k==='adj')adjMode=v;pickTouched=false;pickItems=new Set();draw();return}
