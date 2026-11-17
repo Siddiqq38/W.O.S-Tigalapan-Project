@@ -5145,7 +5145,7 @@ init();
  function drawAdj(){
   const list=adjs().sort((a,b)=>(a.status==='Menunggu SPV'?0:1)-(b.status==='Menunggu SPV'?0:1)||String(b.diminta_jam).localeCompare(String(a.diminta_jam))).slice(0,300),bins=[...oh().byBin.keys()].sort(cmpBin),items=oh().byBin.get(U(adjForm.bin))||[];
   const sel=items.find(o=>U(o.sku)===U(adjForm.sku))||(items.length===1?items[0]:null);
-  let h=modeTabs(adjMode,'adj',['bin','By bin'],['item','By item']);
+  let h=bulkAdjCard()+modeTabs(adjMode,'adj',['bin','By bin'],['item','By item']);
   if(adjMode==='item'){
    const found=findItems(lcItem),pick=found.length===1?found[0]:found.find(x=>U(x.item)===U(lcItem));
    h+='<div class="card"><h3 style="margin:0">Ajukan adjustment by item</h3><p class="sub">Pilih item, isi qty fisik per bin (kosongkan bila tidak berubah). Stok baru berubah setelah SPV menyetujui.</p>'+itemDatalist()+'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px"><label class="sub">Item<input data-lcs="adj" list="lc-itemlist" value="'+esc(lcItem)+'" placeholder="Ketik nama item" autocomplete="off" style="width:100%"></label><label class="sub">Alasan<input data-lcaf="alasan" value="'+esc(adjForm.alasan)+'" placeholder="Contoh: validasi stok item" style="width:100%"></label></div>'+
@@ -5291,6 +5291,21 @@ init();
   const from=U(mv.from),items=oh().byBin.get(from)||[],sel=items.find(o=>U(o.sku)===U(mv.sku))||(items.length===1?items[0]:null);
   const err=moveCore(from,sel,num(mv.qty),mv.to,mv.alasan);if(err)return say(err,true);mv={from:'',sku:'',qty:'',to:'',alasan:mv.alasan}}
  // ---- adjustment
+ // Approve massal semua pengajuan adjustment yang menunggu (SPV): stok tiap bin diubah ke qty fisik yang diajukan, dihitung terhadap stok terbaru.
+ function bulkAdjCard(){
+  if(!isSpv())return '';const P=adjs().filter(a=>a.status==='Menunggu SPV');if(!P.length)return '';
+  return '<div class="card" style="margin-bottom:12px;border-left:6px solid #e0a82b;background:#fff8e6"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><div style="flex:1;min-width:240px"><b>'+P.length+' adjustment menunggu approval</b><div class="sub">Approve semua sekaligus. Stok tiap bin diubah ke qty fisik yang diajukan. Ringkasan perubahan ditampilkan dulu sebelum diproses.</div></div><button class="button" data-lcapprall="1" type="button">Approve semua ('+P.length+')</button></div></div>'}
+ async function approveAll(){
+  if(window.WOSGM&&window.WOSGM()){window.WOSGMnote();return}
+  if(!isSpv())return;const P=adjs().filter(a=>a.status==='Menunggu SPV');if(!P.length)return say('Tidak ada pengajuan yang menunggu approval.');
+  try{const s=await call({action:'stok'},true);if(s.ok){stokRows=s.rows;setData('STOK_BIN',[])}}catch(e){}
+  const pl=P.map(a=>{const cur=(oh().map.get(a.bin+'|'+a.sku)||{qty:0}).qty;return{a,cur,d:num(a.qty_fisik)-cur}}),plus=pl.filter(x=>x.d>0).reduce((s,x)=>s+x.d,0),minus=pl.filter(x=>x.d<0).reduce((s,x)=>s+x.d,0),nul=pl.filter(x=>x.d===0).length;
+  const big=pl.slice().sort((x,y)=>Math.abs(y.d)-Math.abs(x.d)).slice(0,5).map(x=>'  '+x.a.bin+' '+x.a.item+': '+x.cur+' → '+num(x.a.qty_fisik)+' ('+(x.d>0?'+':'')+x.d+')').join('\n');
+  if(!confirm('Approve '+P.length+' adjustment sekaligus?\n\nTambah stok: +'+plus+' pcs\nKurang stok: '+minus+' pcs\nTidak berubah: '+nul+' pengajuan\n\nSelisih terbesar:\n'+big+'\n\nStok diubah ke qty fisik yang diajukan. Lanjutkan?'))return;
+  let n=0;P.forEach(a=>{const cur0=(oh().map.get(a.bin+'|'+a.sku)||{qty:0}).qty,fisik=num(a.qty_fisik),d=fisik-cur0;
+   if(d!==0)enq('STOK_BIN',{id:'SB|'+a.id,tanggal:today(),jenis:'ADJUSTMENT',bin:a.bin,sku:a.sku,item:a.item,qty_masuk:String(Math.max(d,0)),qty_keluar:String(Math.max(-d,0)),referensi:a.id,pic_kode:code(),catatan:a.alasan});
+   enq('ADJUSTMENT',Object.assign({},a,{status:'Disetujui',disetujui_oleh:code(),disetujui_jam:stIso(),catatan:'stok '+cur0+' → '+fisik+' (approve massal)'}));n++});
+  say(n+' adjustment disetujui sekaligus (+'+plus+' / '+minus+' pcs).')}
  async function approve(a){
   if(window.WOSGM&&window.WOSGM()){window.WOSGMnote();return}
   try{const s=await call({action:'stok'},true);if(s.ok){stokRows=s.rows;setData('STOK_BIN',[])}}catch(e){}
@@ -5383,6 +5398,7 @@ init();
       it={sku:U(nm),item:nm}}}const ex=oh().map.get(U(adjForm.bin)+'|'+it.sku);sel={sku:it.sku,item:it.item,qty:ex?ex.qty:0}}
    if(!sel)return say('Pilih bin dan item.',true);if(adjForm.fisik==='')return say('Isi qty fisik.',true);if(!adjForm.alasan.trim())return say('Isi alasan.',true);const f=num(adjForm.fisik);if(f===sel.qty)return say('Qty fisik sama dengan sistem, tidak perlu adjustment.',true);
    enq('ADJUSTMENT',{id:'ADJ|'+Date.now().toString(36).toUpperCase(),tanggal:today(),bin:U(adjForm.bin),sku:sel.sku,item:sel.item,qty_sistem:String(sel.qty),qty_fisik:String(f),selisih:String(f-sel.qty),alasan:adjForm.alasan.trim(),sumber:'Manual',status:'Menunggu SPV',diminta_oleh:code(),diminta_jam:stIso(),disetujui_oleh:'',disetujui_jam:'',catatan:''});try{window.WOSSku&&window.WOSSku.register(sel.item)}catch(e){}adjForm={bin:'',sku:'',fisik:'',alasan:'',extra:''};say('Pengajuan adjustment dikirim ke SPV.');return}
+  if(d.lcapprall){approveAll();return}
   if(d.lcappr){const a=adjs().find(x=>x.id===d.lcappr);if(a)approve(a);return}
   if(d.lcrej){const a=adjs().find(x=>x.id===d.lcrej);if(a){const k=prompt('Alasan penolakan','');if(k===null)return;enq('ADJUSTMENT',Object.assign({},a,{status:'Ditolak',disetujui_oleh:code(),disetujui_jam:stIso(),catatan:k}))}return}
   if(d.lcmodeset){const[k,v]=d.lcmodeset.split('|');if(k==='so')soMode=v;else if(k==='cc')ccMode=v;else if(k==='adj')adjMode=v;pickTouched=false;pickItems=new Set();draw();return}
