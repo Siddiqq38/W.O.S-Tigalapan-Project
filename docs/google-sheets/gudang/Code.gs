@@ -50,6 +50,9 @@ const TABS = {
   // items = JSON [{n:nama item, q:qty, h:hpp per item, e:1 bila HPP estimasi, k:FG/REWORK, s:sku}]. Kode PO dihitung WOS dari vendor + nomor minggu MRP.
   ERP_INCOMING: ['id','waktu_server','tanggal','resi_group','resi','ekspedisi','vendor','mrp','no_koli','koli_erp','item','qty','hpp_per_item','hpp_total','hpp_estimasi'],
   PO_PECAH: ['id','waktu_server','tanggal','po_asal','po_baru','suffix','koli_list','resi','oleh'],
+  // Riwayat PO permanen untuk PPIC (kolom tanggal = tanggal put away; sengaja tidak masuk daftar pembersihan data): detail per item per koli, dan ringkasan per PO
+  RIWAYAT_PO: ['id','waktu_server','tanggal','po','item','qty','no_koli','no_resi','vendor','tgl_staging','tgl_counting','tgl_putaway','umur_staging_hari','status','bin','operator','qty_sj'],
+  RIWAYAT_PO_RINGKAS: ['id','waktu_server','tanggal','po','vendor','jml_koli','jml_item','total_qty','resi','tgl_staging_awal','tgl_staging_akhir','tgl_putaway_awal','tgl_putaway_akhir','umur_rata_hari','status'],
   LOG: ['waktu','aksi','tab','id','pesan']
 };
 
