@@ -6191,8 +6191,10 @@ init();
  function tabUtil(m,B){
   const mb=view('MASTER_BIN'),onh={},binUse=new Set(),zone={};AN.stok.forEach(r=>{if(num(r.saldo)>0){const b=/^([A-Z]+)/.exec(r.bin);const k=/^LP/.test(r.bin)?'LP':b?b[1]:'?';onh[k]=(onh[k]||0)+num(r.saldo);binUse.add(r.bin)}});
   const binTot={};mb.forEach(b=>{const k=/^LP/.test(b.id)?'LP':(/^([A-Z]+)/.exec(b.id)||[])[1];if(!k)return;const o=binTot[k]||(binTot[k]={n:0,u:0});o.n++;if(binUse.has(b.id))o.u++});
-  const capM={};mb.forEach(b=>{if(b.status==='Tidak aktif')return;let x=null;try{x=JSON.parse(b.catatan)}catch(e){}if(x&&x.max){const k=/^LP/.test(b.id)?'LP':(/^([A-Z]+)/.exec(b.id)||[])[1];capM[k]=(capM[k]||0)+Number(x.max)}});
-  const bl=[...new Set(Object.keys(CAPBLOK).concat(Object.keys(capM)))].filter(k=>binTot[k]&&(capM[k]||CAPBLOK[k])).map(k=>({k,on:onh[k]||0,cap:capM[k]||CAPBLOK[k],n:binTot[k].n,u:binTot[k].u}));
+  const capM={},capS={},capN={},actN={};mb.forEach(b=>{if(b.status==='Tidak aktif')return;const k=/^LP/.test(b.id)?'LP':(/^([A-Z]+)/.exec(b.id)||[])[1];if(!k)return;actN[k]=(actN[k]||0)+1;let x=null;try{x=JSON.parse(b.catatan)}catch(e){}if(x&&Number(x.max)>0){capS[k]=(capS[k]||0)+Number(x.max);capN[k]=(capN[k]||0)+1}});
+  // bin tanpa data kapasitas diperkirakan memakai rata-rata bin berkapasitas di blok yang sama (sebelumnya dihitung 0 sehingga kapasitas blok terlalu kecil)
+  Object.keys(capS).forEach(k=>{capM[k]=Math.round(capS[k]+Math.max(0,(actN[k]||0)-capN[k])*(capS[k]/capN[k]))});
+  const bl=[...new Set(Object.keys(CAPBLOK).concat(Object.keys(capM)))].filter(k=>binTot[k]&&(capM[k]||CAPBLOK[k])).map(k=>({k,on:onh[k]||0,cap:capM[k]||CAPBLOK[k],n:binTot[k].n,u:binTot[k].u,est:capM[k]&&capN[k]<(actN[k]||0)?capN[k]+'/'+actN[k]:''}));
   const tOn=sum(bl.map(x=>x.on)),tCap=sum(bl.map(x=>x.cap)),tN=mb.length,tU=binUse.size;
   mb.forEach(b=>{const z=b.zona||'-';const o=zone[z]||(zone[z]={n:0,u:0});o.n++;if(binUse.has(b.id))o.u++});
   // utilisasi tenaga kerja: beban estimasi dari norm dibanding jam kerja yang hadir (7 jam per orang per hari)
@@ -6201,7 +6203,7 @@ init();
   const hadir={};AN.att.filter(r=>r.aksi==='Attendance in'&&r.simulasi!=='hapus'&&r.tanggal>=st.from&&r.tanggal<=st.to).forEach(r=>{(hadir[r.tanggal]=hadir[r.tanggal]||new Set()).add(r.kode_staf)});
   const dates=Object.keys(est).sort(),capD=d=>(hadir[d]?hadir[d].size:0)*420,uDay=dates.map(d=>capD(d)?pct(est[d],capD(d)):0),sumE=sum(dates.map(d=>est[d])),sumC=sum(dates.map(capD));
   let h='<div class="an-kpi">'+kpi('Utilisasi ruang (pcs)',tCap?pf(pct(tOn,tCap)):'-',fmt(tOn)+' dari kapasitas '+fmt(tCap)+' pcs')+kpi('Bin terisi',pf(pct(tU,tN)),tU+' dari '+tN+' bin')+kpi('Utilisasi tenaga kerja',sumC?pf(pct(sumE,sumC)):'-','beban estimasi norm / jam kerja hadir',pct(sumE,sumC)>100?'r':'g')+kpi('Beban kerja estimasi',V3.fm(sumE),dates.length+' hari ada aktivitas')+'</div>';
-  h+=card('Utilisasi ruang per blok','Stok sekarang dibanding kapasitas rak (pcs) dari data rak. Blok LP dan lainnya belum punya kapasitas pcs.','<div class="an-ring">'+bl.map(x=>CH.ring(pct(x.on,x.cap),'Blok '+x.k,fmt(x.on)+' / '+fmt(x.cap)+' pcs')).join('')+'</div>');
+  h+=card('Utilisasi ruang per blok','Stok sekarang dibanding kapasitas rak (pcs) dari data rak. Blok LP dan lainnya belum punya kapasitas pcs.','<div class="an-ring">'+bl.map(x=>CH.ring(pct(x.on,x.cap),'Blok '+x.k,fmt(x.on)+' / '+fmt(x.cap)+' pcs'+(x.est?' (estimasi, '+x.est+' bin punya data)':''))).join('')+'</div>');
   h+='<div class="an-split">'+card('Bin terisi per blok','',CH.hbar(Object.keys(binTot).sort().map((k,i)=>({l:'Blok '+k,v:pct(binTot[k].u,binTot[k].n),t:binTot[k].u+'/'+binTot[k].n+' ('+pf(pct(binTot[k].u,binTot[k].n))+')',c:PAL[i%PAL.length]})),{max:100}))+card('Bin terisi per zona','',CH.hbar(Object.keys(zone).filter(z=>z!=='-').map((z,i)=>({l:z,v:pct(zone[z].u,zone[z].n),t:zone[z].u+'/'+zone[z].n+' ('+pf(pct(zone[z].u,zone[z].n))+')',c:PAL[(i+3)%PAL.length]})),{max:100}))+'</div>';
   h+=card('Utilisasi tenaga kerja per hari','Beban pekerjaan (counting, put away, picking) menurut Master Norm dibanding 7 jam kerja per orang yang hadir. Di atas 100% berarti beban melebihi kapasitas jam kerja.',CH.line([{n:'Utilisasi (%)',v:uDay,c:PAL[3]}],dates.map(d=>d.slice(8,10)+'/'+d.slice(5,7)),{h:240}));
   return h}
